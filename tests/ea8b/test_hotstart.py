@@ -5,6 +5,18 @@ The shared expensive simulation (EA8b with drainage, running from t=0 to t=3h20m
 is built once by the ``ea8b_simulation`` fixture in conftest.py.  Both test functions
 below depend on it, so the simulation artifacts (hotstart at split point, final
 raster state, hotstart at end) are guaranteed to exist before either test runs.
+
+Copyright (C) 2026 Laurent G. Courty
+
+This library is free software; you can redistribute it and/or
+modify it under the terms of the GNU Lesser General Public License
+as published by the Free Software Foundation; either version 2.1
+of the License, or (at your option) any later version.
+
+This library is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Lesser General Public License for more details.
 """
 
 from __future__ import annotations
