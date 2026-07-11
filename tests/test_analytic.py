@@ -4,6 +4,7 @@ Test itzi against analytic solutions to the shallow water equation.
 
 import os
 import csv
+from datetime import datetime, timedelta
 from pathlib import Path
 from collections import namedtuple
 
@@ -13,7 +14,8 @@ import pytest
 
 
 from itzi_core.simulation_builder import SimulationBuilder
-from itzi_core.configreader import ConfigReader
+from itzi_core.const import TemporalType
+from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
 from itzi_core.providers.domain_data import DomainData
 from itzi_core.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
 
@@ -88,6 +90,10 @@ def metadata_to_domaindata(metadata: ASCIIMetadata) -> DomainData:
     )
 
 
+def output_map_names(prefix, keys):
+    return {key: f"{prefix}_{key}" for key in keys}
+
+
 @pytest.fixture(scope="module")
 def mcdo_norain_sim(test_data_path, test_data_temp_path):
     """Run a simulation for MacDonald 1D solution long channel without rain.
@@ -119,8 +125,23 @@ def mcdo_norain_sim(test_data_path, test_data_temp_path):
 
     # Run the simulation in the temp dir
     os.chdir(test_data_temp_path)
-    config_file = data_dir / Path("mcdo_norain.ini")
-    config = ConfigReader(config_file).get_sim_params()
+    config = SimulationConfig(
+        start_time=datetime(2000, 1, 1),
+        end_time=datetime(2000, 1, 1, 0, 20),
+        record_step=timedelta(minutes=5),
+        temporal_type=TemporalType.RELATIVE,
+        input_map_names={
+            "dem": "dem@mcdo_norain",
+            "bctype": "bctype@mcdo_norain",
+            "inflow": "inflow@mcdo_norain",
+            "friction": "n@mcdo_norain",
+        },
+        output_map_names=output_map_names(
+            "out_mcdo_norain", ["water_depth", "water_surface_elevation", "qx", "qy"]
+        ),
+        surface_flow_parameters=SurfaceFlowParameters(dtmax=2, cfl=0.5),
+        stats_file="stats_mcdo_norain.csv",
+    )
     raster_output = MemoryRasterOutputProvider(
         {
             "out_map_names": config.output_map_names,
@@ -238,8 +259,25 @@ def mcdo_rain_sim(test_data_path, test_data_temp_path):
 
     # Run the simulation in the temp dir
     os.chdir(test_data_temp_path)
-    config_file = data_dir / Path("mcdo_rain.ini")
-    config = ConfigReader(config_file).get_sim_params()
+    config = SimulationConfig(
+        start_time=datetime(2020, 2, 1, 0, 1),
+        end_time=datetime(2020, 2, 1, 0, 41),
+        record_step=timedelta(minutes=10),
+        temporal_type=TemporalType.ABSOLUTE,
+        input_map_names={
+            "dem": "dem@mcdo_rain",
+            "bctype": "bctype@mcdo_rain",
+            "inflow": "inflow@mcdo_rain",
+            "friction": "n@mcdo_rain",
+            "rain": "rain@mcdo_rain",
+        },
+        output_map_names=output_map_names(
+            "out_mcdo_rain", ["water_depth", "water_surface_elevation"]
+        ),
+        surface_flow_parameters=SurfaceFlowParameters(dtmax=2, cfl=0.5),
+        dtinf=1,
+        stats_file="stats_mcdo_rain.csv",
+    )
     raster_output = MemoryRasterOutputProvider(
         {
             "out_map_names": config.output_map_names,
