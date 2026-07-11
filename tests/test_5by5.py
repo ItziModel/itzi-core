@@ -11,6 +11,7 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -19,14 +20,17 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pytest
 
-from itzi.simulation_builder import SimulationBuilder
-from itzi.data_containers import SimulationConfig, SurfaceFlowParameters
-from itzi.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
-from itzi.providers.domain_data import DomainData
-from itzi.const import InfiltrationModelType, TemporalType
+from itzi_core.simulation_builder import SimulationBuilder
+from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
+from itzi_core.providers.memory_output import (
+    MemoryRasterOutputProvider,
+    MemoryVectorOutputProvider,
+)
+from itzi_core.providers.domain_data import DomainData
+from itzi_core.const import InfiltrationModelType, TemporalType
 
 if TYPE_CHECKING:
-    from itzi.simulation import Simulation
+    from itzi_core.simulation import Simulation
 
 
 def _run_center_pulse_simulation(

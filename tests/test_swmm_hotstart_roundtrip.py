@@ -13,6 +13,7 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -332,7 +333,6 @@ def _run_with_hotstart(
 
 
 @pytest.mark.slow
-@pytest.mark.forked  # Avoid pyswmm.errors.MultiSimulationError.
 @pytest.mark.xfail(
     reason=(
         "EPA SWMM hotstart resume does not reproduce uninterrupted EA8b outputs exactly; "
@@ -373,7 +373,6 @@ def test_swmm_hotstart_roundtrip(test_data_path: str) -> None:
 
 
 @pytest.mark.slow
-@pytest.mark.forked  # Avoid pyswmm.errors.MultiSimulationError.
 def test_swmm_hotstart_roundtrip_guardrails(test_data_path: str) -> None:
     """Keep a standalone SWMM guardrail on the known resume-sensitive quantities.
 
@@ -425,7 +424,6 @@ def test_swmm_hotstart_roundtrip_guardrails(test_data_path: str) -> None:
 
 
 @pytest.mark.slow
-@pytest.mark.forked  # Avoid pyswmm.errors.MultiSimulationError.
 def test_swmm_hotstart_roundtrip_ponding_ab(
     test_data_path: str,
     test_data_temp_path: str,
