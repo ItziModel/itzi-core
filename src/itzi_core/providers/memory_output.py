@@ -18,8 +18,8 @@ from copy import deepcopy
 
 import numpy as np
 
-from itzi.providers.base import RasterOutputProvider, VectorOutputProvider
-from itzi.data_containers import SimulationData, DrainageNetworkData
+from itzi_core.providers.base import RasterOutputProvider, VectorOutputProvider
+from itzi_core.data_containers import SimulationData, DrainageNetworkData
 
 
 class MemoryRasterOutputConfig(TypedDict):

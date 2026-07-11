@@ -12,10 +12,10 @@ import pandas as pd
 import pytest
 
 
-from itzi.simulation_builder import SimulationBuilder
-from itzi.configreader import ConfigReader
-from itzi.providers.domain_data import DomainData
-from itzi.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
+from itzi_core.simulation_builder import SimulationBuilder
+from itzi_core.configreader import ConfigReader
+from itzi_core.providers.domain_data import DomainData
+from itzi_core.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
 
 ASCIIMetadata = namedtuple(
     "ASCIIMetadata", ["ncols", "nrows", "xllcorner", "yllcorner", "cellsize"]

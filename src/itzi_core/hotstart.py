@@ -23,12 +23,12 @@ from typing import TYPE_CHECKING
 
 from importlib.metadata import version
 
-from itzi.itzi_error import HotstartError
-from itzi.data_containers import HotstartSimulationState, HotstartMetadata
+from itzi_core.itzi_error import HotstartError
+from itzi_core.data_containers import HotstartSimulationState, HotstartMetadata
 
 if TYPE_CHECKING:
-    from itzi.providers.domain_data import DomainData
-    from itzi.data_containers import SimulationConfig
+    from itzi_core.providers.domain_data import DomainData
+    from itzi_core.data_containers import SimulationConfig
 
 
 # Hotstart archive format constants
@@ -255,7 +255,7 @@ class HotstartLoader:
             raise HotstartError(
                 f"Unsupported hotstart version {archive_version}. "
                 f"Expected version {HOTSTART_VERSION}. "
-                f"This hotstart file may have been created by a different version of Itzi."
+                f"This hotstart file may have been created by a different version of itzi_core."
             )
 
     @staticmethod

@@ -20,8 +20,8 @@ from typing import Mapping, TYPE_CHECKING
 if TYPE_CHECKING:
     from datetime import datetime, timedelta
     import numpy as np
-    from itzi.data_containers import SimulationData, DrainageNetworkData
-    from itzi.providers.domain_data import DomainData
+    from itzi_core.data_containers import SimulationData, DrainageNetworkData
+    from itzi_core.providers.domain_data import DomainData
 
 
 class RasterInputProvider(ABC):

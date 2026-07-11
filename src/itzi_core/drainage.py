@@ -24,9 +24,9 @@ import tempfile
 import pyswmm
 import numpy as np
 
-from itzi import DefaultValues
-from itzi import messenger as msgr
-from itzi.data_containers import (
+from itzi_core import DefaultValues
+from itzi_core import messenger as msgr
+from itzi_core.data_containers import (
     DrainageNodeData,
     DrainageLinkData,
     DrainageNetworkData,
@@ -422,6 +422,6 @@ class DrainageLink(object):
 
 
 # Rebuild Pydantic models that have forward references to DrainageNode
-from itzi.data_containers import DrainageNodeCouplingData  # noqa E402
+from itzi_core.data_containers import DrainageNodeCouplingData  # noqa E402
 
 DrainageNodeCouplingData.model_rebuild()

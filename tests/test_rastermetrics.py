@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 import numpy as np
 
-from itzi.compute import rastermetrics
+from itzi_core.compute import rastermetrics
 
 
 def test_calculate_total_volume():

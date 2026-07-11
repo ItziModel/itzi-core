@@ -18,8 +18,8 @@ import logging
 import os
 from datetime import timedelta, datetime
 
-from itzi.itzi_error import ItziFatal
-from itzi.const import VerbosityLevel
+from itzi_core.itzi_error import ItziFatal
+from itzi_core.const import VerbosityLevel
 
 raise_on_error = True
 

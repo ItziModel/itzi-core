@@ -21,12 +21,12 @@ import requests
 import xarray as xr
 import rioxarray
 
-from itzi.profiler import profile_context
-from itzi.simulation_builder import SimulationBuilder
-from itzi.data_containers import SimulationConfig, SurfaceFlowParameters
-from itzi.const import TemporalType, VerbosityLevel
-from itzi.providers.xarray_input import XarrayRasterInputProvider
-from itzi.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
+from itzi_core.profiler import profile_context
+from itzi_core.simulation_builder import SimulationBuilder
+from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
+from itzi_core.const import TemporalType, VerbosityLevel
+from itzi_core.providers.xarray_input import XarrayRasterInputProvider
+from itzi_core.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
 
 
 # Mark all tests in this module as cloud tests
@@ -383,8 +383,8 @@ def test_ea8a(ea_test8a_sim, ea_test8a_reference):
     # Create dataframe
     col_names = ["Time (min)"] + list(range(1, len(output_points) + 1))
     df_itzi = pd.DataFrame(itzi_data, columns=col_names)
-    df_itzi.set_index("Time (min)", inplace=True)
-    df_itzi.index = np.round(df_itzi.index, 1)
+    df_itzi_core.set_index("Time (min)", inplace=True)
+    df_itzi_core.index = np.round(df_itzi_core.index, 1)
 
     # Compute the absolute error
     abs_error = np.abs(df_itzi - ea_test8a_reference)
@@ -397,7 +397,7 @@ def test_ea8a(ea_test8a_sim, ea_test8a_reference):
         new_df = pd.concat(col_idx, axis=1, keys=col_keys)
         new_df.index.name = "Time (min)"
         # Keep only non null values
-        new_df = new_df[new_df.itzi.notnull()]
+        new_df = new_df[new_df.itzi_core.notnull()]
         points_values.append(new_df)
 
     # Check if MAE is below threshold

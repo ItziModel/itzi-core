@@ -24,26 +24,26 @@ import numpy as np
 from numpy.typing import ArrayLike, DTypeLike
 import pyswmm
 
-from itzi.surfaceflow import SurfaceFlowSimulation
-import itzi.rasterdomain as rasterdomain
-from itzi.massbalance import MassBalanceLogger
-from itzi.report import Report
-from itzi.drainage import DrainageSimulation, DrainageNode, DrainageLink, CouplingTypes
-from itzi.swmm_input_parser import SwmmInputParser
-import itzi.messenger as msgr
-import itzi.infiltration as infiltration
-from itzi.hydrology import Hydrology
-from itzi.simulation import Simulation
-from itzi.data_containers import DrainageNodeCouplingData
-from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
-from itzi.const import InfiltrationModelType
-from itzi.hotstart import HotstartLoader
-from itzi.itzi_error import HotstartError
+from itzi_core.surfaceflow import SurfaceFlowSimulation
+import itzi_core.rasterdomain as rasterdomain
+from itzi_core.massbalance import MassBalanceLogger
+from itzi_core.report import Report
+from itzi_core.drainage import DrainageSimulation, DrainageNode, DrainageLink, CouplingTypes
+from itzi_core.swmm_input_parser import SwmmInputParser
+import itzi_core.messenger as msgr
+import itzi_core.infiltration as infiltration
+from itzi_core.hydrology import Hydrology
+from itzi_core.simulation import Simulation
+from itzi_core.data_containers import DrainageNodeCouplingData
+from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi_core.const import InfiltrationModelType
+from itzi_core.hotstart import HotstartLoader
+from itzi_core.itzi_error import HotstartError
 
 if TYPE_CHECKING:
-    from itzi.providers.domain_data import DomainData
-    from itzi.providers.base import RasterInputProvider, RasterOutputProvider, VectorOutputProvider
-    from itzi.data_containers import (
+    from itzi_core.providers.domain_data import DomainData
+    from itzi_core.providers.base import RasterInputProvider, RasterOutputProvider, VectorOutputProvider
+    from itzi_core.data_containers import (
         SimulationConfig,
         HotstartSimulationState,
         SurfaceFlowParameters,

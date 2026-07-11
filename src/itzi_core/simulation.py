@@ -20,23 +20,23 @@ import io
 
 import numpy as np
 
-from itzi.data_containers import ContinuityData, SimulationData
-from itzi.data_containers import SimulationConfig, DrainageNodeCouplingData
-from itzi.data_containers import HotstartSimulationState
-from itzi.hotstart import HotstartWriter
-import itzi.messenger as msgr
-from itzi.itzi_error import NullError, MassBalanceError, DtError
-from itzi.compute import rastermetrics
-from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi_core.data_containers import ContinuityData, SimulationData
+from itzi_core.data_containers import SimulationConfig, DrainageNodeCouplingData
+from itzi_core.data_containers import HotstartSimulationState
+from itzi_core.hotstart import HotstartWriter
+import itzi_core.messenger as msgr
+from itzi_core.itzi_error import NullError, MassBalanceError, DtError
+from itzi_core.compute import rastermetrics
+from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 
 if TYPE_CHECKING:
-    from itzi.data_containers import SimulationConfig, DrainageNodeCouplingData
-    from itzi.drainage import DrainageSimulation
-    from itzi.hydrology import Hydrology
-    from itzi.surfaceflow import SurfaceFlowSimulation
-    from itzi.rasterdomain import RasterDomain, TimedArray
-    from itzi.report import Report
-    from itzi.providers.domain_data import DomainData
+    from itzi_core.data_containers import SimulationConfig, DrainageNodeCouplingData
+    from itzi_core.drainage import DrainageSimulation
+    from itzi_core.hydrology import Hydrology
+    from itzi_core.surfaceflow import SurfaceFlowSimulation
+    from itzi_core.rasterdomain import RasterDomain, TimedArray
+    from itzi_core.report import Report
+    from itzi_core.providers.domain_data import DomainData
 
 
 class Simulation:

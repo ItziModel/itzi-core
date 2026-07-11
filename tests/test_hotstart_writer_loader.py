@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pytest
 
-from itzi.hotstart import (
+from itzi_core.hotstart import (
     HotstartWriter,
     HotstartLoader,
     HOTSTART_VERSION,
@@ -24,14 +24,14 @@ from itzi.hotstart import (
     RASTER_STATE_FILENAME,
     SWMM_HOTSTART_FILENAME,
 )
-from itzi.data_containers import (
+from itzi_core.data_containers import (
     HotstartSimulationState,
     SimulationConfig,
     SurfaceFlowParameters,
 )
-from itzi.providers.domain_data import DomainData
-from itzi.itzi_error import HotstartError
-from itzi.const import TemporalType
+from itzi_core.providers.domain_data import DomainData
+from itzi_core.itzi_error import HotstartError
+from itzi_core.const import TemporalType
 
 if TYPE_CHECKING:
     pass

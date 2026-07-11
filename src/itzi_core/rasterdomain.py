@@ -18,12 +18,12 @@ import io
 
 import numpy as np
 
-from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from .compute import rastermetrics
-from itzi.itzi_error import HotstartError
+from itzi_core.itzi_error import HotstartError
 
 if TYPE_CHECKING:
-    from itzi.providers.base import RasterInputProvider
+    from itzi_core.providers.base import RasterInputProvider
 
 
 class TimedArray:

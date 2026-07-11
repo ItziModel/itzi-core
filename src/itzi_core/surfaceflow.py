@@ -19,13 +19,13 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from itzi.compute.partial_inertia_q import solve_q, accumulate_boundary_fluxes
-from itzi.compute.partial_inertia_h import solve_h
-from itzi.itzi_error import NullError, DtError
+from itzi_core.compute.partial_inertia_q import solve_q, accumulate_boundary_fluxes
+from itzi_core.compute.partial_inertia_h import solve_h
+from itzi_core.itzi_error import NullError, DtError
 
 if TYPE_CHECKING:
-    from itzi.data_containers import SurfaceFlowParameters
-    from itzi.rasterdomain import RasterDomain
+    from itzi_core.data_containers import SurfaceFlowParameters
+    from itzi_core.rasterdomain import RasterDomain
 
 
 class SurfaceFlowSimulation:

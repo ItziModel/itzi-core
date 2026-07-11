@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from math import atan2, pi
 
-from itzi.compute.partial_inertia_h import solve_h
+from itzi_core.compute.partial_inertia_h import solve_h
 
 
 def test_velocity_direction_calculation():

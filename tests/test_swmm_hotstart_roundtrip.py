@@ -14,7 +14,7 @@ import pyswmm
 from pyswmm.simulation import _sim_state_instance
 from pyswmm.toolkitapi import NodeResults, SimulationTime
 
-from itzi import SwmmInputParser
+from itzi_core import SwmmInputParser
 
 
 SECONDS_PER_DAY = 24 * 3600

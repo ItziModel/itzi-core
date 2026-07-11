@@ -12,8 +12,8 @@ pytest.importorskip("pyproj")
 import xarray as xr
 import pyproj
 
-from itzi.providers.xarray_input import XarrayRasterInputProvider, XarrayRasterInputConfig
-from itzi.const import TemporalType
+from itzi_core.providers.xarray_input import XarrayRasterInputProvider, XarrayRasterInputConfig
+from itzi_core.const import TemporalType
 
 
 # Mark all tests in this module as cloud tests

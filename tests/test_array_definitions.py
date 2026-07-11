@@ -1,6 +1,6 @@
 from collections import Counter
 
-from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 
 
 def test_array_definitions():

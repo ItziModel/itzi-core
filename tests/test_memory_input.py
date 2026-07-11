@@ -5,8 +5,8 @@ from datetime import datetime, timedelta
 import numpy as np
 import pytest
 
-from itzi.providers.domain_data import DomainData
-from itzi.providers.memory_input import MemoryRasterInputProvider, TimedRasterSlice
+from itzi_core.providers.domain_data import DomainData
+from itzi_core.providers.memory_input import MemoryRasterInputProvider, TimedRasterSlice
 
 
 @pytest.fixture

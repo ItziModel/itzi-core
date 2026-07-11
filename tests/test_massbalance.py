@@ -2,8 +2,8 @@ import pytest
 import tempfile
 from datetime import datetime
 
-from itzi.massbalance import MassBalanceLogger
-from itzi.data_containers import MassBalanceData
+from itzi_core.massbalance import MassBalanceLogger
+from itzi_core.data_containers import MassBalanceData
 
 
 @pytest.fixture

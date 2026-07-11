@@ -28,9 +28,9 @@ except ImportError:
         "or 'pip install itzi[cloud]'"
     )
 
-from itzi.providers.base import RasterInputProvider
-from itzi.providers.domain_data import DomainData
-from itzi.const import TemporalType
+from itzi_core.providers.base import RasterInputProvider
+from itzi_core.providers.domain_data import DomainData
+from itzi_core.const import TemporalType
 
 if TYPE_CHECKING:
     from datetime import datetime

@@ -22,12 +22,12 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict
 from pydantic import PositiveFloat, NonNegativeFloat, NonNegativeInt, Field
 
-from itzi.const import DefaultValues, TemporalType, InfiltrationModelType
-import itzi.messenger as msgr
-from itzi.providers.domain_data import DomainData
+from itzi_core.const import DefaultValues, TemporalType, InfiltrationModelType
+import itzi_core.messenger as msgr
+from itzi_core.providers.domain_data import DomainData
 
 if TYPE_CHECKING:
-    from itzi.drainage import DrainageNode
+    from itzi_core.drainage import DrainageNode
 
 
 class DrainageNodeCouplingData(BaseModel):

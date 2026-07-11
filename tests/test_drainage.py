@@ -8,8 +8,8 @@ import pytest
 import pyswmm
 
 from itzi import SwmmInputParser
-from itzi.drainage import DrainageNode, CouplingTypes, DrainageSimulation
-from itzi.simulation_builder import get_links_list
+from itzi_core.drainage import DrainageNode, CouplingTypes, DrainageSimulation
+from itzi_core.simulation_builder import get_links_list
 
 
 @pytest.fixture(scope="class")

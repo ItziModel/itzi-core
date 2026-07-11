@@ -9,15 +9,15 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pytest
 
-from itzi.const import InfiltrationModelType, TemporalType
-from itzi.data_containers import SimulationConfig, SurfaceFlowParameters
-from itzi.itzi_error import ItziFatal
-from itzi.providers.memory_input import MemoryRasterInputProvider, TimedRasterSlice
-from itzi.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
-from itzi.simulation_builder import SimulationBuilder
+from itzi_core.const import InfiltrationModelType, TemporalType
+from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
+from itzi_core.itzi_error import ItziFatal
+from itzi_core.providers.memory_input import MemoryRasterInputProvider, TimedRasterSlice
+from itzi_core.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
+from itzi_core.simulation_builder import SimulationBuilder
 
 if TYPE_CHECKING:
-    from itzi.simulation import Simulation
+    from itzi_core.simulation import Simulation
 
 
 TIME_SLICE_SECONDS = (0, 10, 20, 30)

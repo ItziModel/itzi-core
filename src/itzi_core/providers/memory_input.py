@@ -20,9 +20,9 @@ from typing import Mapping, NotRequired, Sequence, TypedDict
 import numpy as np
 from pydantic import BaseModel, ConfigDict
 
-from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
-from itzi.providers.base import RasterInputProvider
-from itzi.providers.domain_data import DomainData
+from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi_core.providers.base import RasterInputProvider
+from itzi_core.providers.domain_data import DomainData
 
 
 class TimedRasterSlice(BaseModel):

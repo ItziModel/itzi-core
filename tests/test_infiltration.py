@@ -12,8 +12,8 @@ pytest.importorskip("scipy")
 
 from scipy.special import lambertw
 
-from itzi import InfGreenAmpt
-from itzi import RasterDomain
+from itzi_core import InfGreenAmpt
+from itzi_core import RasterDomain
 
 
 def ga_serrano2001(inf_params):

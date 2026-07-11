@@ -1,0 +1,17 @@
+*.py[cod]
+*.c
+*.so
+*.zip
+*.out
+*.rpt
+.~*
+.python-version
+.profiles/
+.vscode
+uv.lock
+build/
+dist/
+*.egg-info/
+wheelhouse/
+docs/_build/
+tests/test_data_temp/

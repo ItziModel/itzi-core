@@ -18,14 +18,14 @@ import copy
 from datetime import datetime, timedelta
 from typing import Dict, TYPE_CHECKING
 
-from itzi.compute import rastermetrics
-from itzi.const import TemporalType
-from itzi.data_containers import SimulationData, MassBalanceData
-from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi_core.compute import rastermetrics
+from itzi_core.const import TemporalType
+from itzi_core.data_containers import SimulationData, MassBalanceData
+from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 
 if TYPE_CHECKING:
-    from itzi.providers.base import RasterOutputProvider, VectorOutputProvider
-    from itzi.massbalance import MassBalanceLogger
+    from itzi_core.providers.base import RasterOutputProvider, VectorOutputProvider
+    from itzi_core.massbalance import MassBalanceLogger
 
 
 class Report:

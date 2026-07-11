@@ -31,11 +31,11 @@ except ImportError:
         "or 'pip install itzi[cloud]'"
     )
 
-from itzi.providers.base import RasterOutputProvider
-from itzi.array_definitions import ARRAY_DEFINITIONS
+from itzi_core.providers.base import RasterOutputProvider
+from itzi_core.array_definitions import ARRAY_DEFINITIONS
 
 if TYPE_CHECKING:
-    from itzi.data_containers import SimulationData
+    from itzi_core.data_containers import SimulationData
 
 
 class IcechunkRasterOutputConfig(TypedDict):
@@ -297,7 +297,7 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
             data_vars[var_name] = data_array
         dataset_attributes = {
             "crs_wkt": self.crs.to_wkt(),
-            "source": f"itzi version {version('itzi')},",
+            "source": f"itzi version {version('itzi_core')},",
         }
         dataset = xr.Dataset(data_vars, attrs=dataset_attributes)
 

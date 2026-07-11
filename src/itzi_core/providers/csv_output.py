@@ -22,12 +22,12 @@ import csv
 
 import pandas as pd
 
-from itzi.providers.base import VectorOutputProvider
-from itzi.data_containers import DrainageLinkData, DrainageLinkAttributes
-from itzi.data_containers import DrainageNodeData, DrainageNodeAttributes
+from itzi_core.providers.base import VectorOutputProvider
+from itzi_core.data_containers import DrainageLinkData, DrainageLinkAttributes
+from itzi_core.data_containers import DrainageNodeData, DrainageNodeAttributes
 
 if TYPE_CHECKING:
-    from itzi.data_containers import DrainageNetworkData
+    from itzi_core.data_containers import DrainageNetworkData
 
 try:
     import obstore

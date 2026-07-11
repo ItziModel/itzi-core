@@ -14,8 +14,8 @@ GNU General Public License for more details.
 
 from datetime import timedelta
 
-from itzi.compute.hydrology import infiltration_user, infiltration_ga
-from itzi.itzi_error import DtError
+from itzi_core.compute.hydrology import infiltration_user, infiltration_ga
+from itzi_core.itzi_error import DtError
 
 
 class InfiltrationModel:

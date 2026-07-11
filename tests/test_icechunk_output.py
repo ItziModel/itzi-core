@@ -15,9 +15,9 @@ import icechunk
 import xarray as xr
 import pyproj
 
-from itzi.providers.icechunk_output import IcechunkRasterOutputProvider
-from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
-from itzi.data_containers import SimulationData
+from itzi_core.providers.icechunk_output import IcechunkRasterOutputProvider
+from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi_core.data_containers import SimulationData
 
 
 # Mark all tests in this module as cloud tests

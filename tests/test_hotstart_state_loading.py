@@ -14,14 +14,14 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from itzi.data_containers import HotstartSimulationState, SimulationConfig, SurfaceFlowParameters
-from itzi.hotstart import HotstartLoader, HotstartWriter
-from itzi.itzi_error import HotstartError
-from itzi.providers.domain_data import DomainData
-from itzi.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
-from itzi.rasterdomain import RasterDomain
-from itzi.simulation_builder import SimulationBuilder
-from itzi.const import InfiltrationModelType, TemporalType
+from itzi_core.data_containers import HotstartSimulationState, SimulationConfig, SurfaceFlowParameters
+from itzi_core.hotstart import HotstartLoader, HotstartWriter
+from itzi_core.itzi_error import HotstartError
+from itzi_core.providers.domain_data import DomainData
+from itzi_core.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
+from itzi_core.rasterdomain import RasterDomain
+from itzi_core.simulation_builder import SimulationBuilder
+from itzi_core.const import InfiltrationModelType, TemporalType
 
 
 class TestRasterDomainLoadState:

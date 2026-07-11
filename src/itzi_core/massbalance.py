@@ -16,7 +16,7 @@ from datetime import datetime
 import csv
 import numbers
 
-from itzi.data_containers import MassBalanceData
+from itzi_core.data_containers import MassBalanceData
 
 
 class MassBalanceLogger:

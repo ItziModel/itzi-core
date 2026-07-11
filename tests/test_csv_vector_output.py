@@ -13,15 +13,15 @@ import pyproj
 import obstore
 import pandas as pd
 
-from itzi.data_containers import (
+from itzi_core.data_containers import (
     DrainageNodeAttributes,
     DrainageLinkAttributes,
     DrainageNodeData,
     DrainageLinkData,
     DrainageNetworkData,
 )
-from itzi.providers.csv_output import CSVVectorOutputConfig, CSVVectorOutputProvider
-from itzi.drainage import CouplingTypes
+from itzi_core.providers.csv_output import CSVVectorOutputConfig, CSVVectorOutputProvider
+from itzi_core.drainage import CouplingTypes
 
 from tests.core.fixtures_vector_output import create_dummy_drainage_network
 from tests.core.fixtures_vector_output import expected_node_coords, expected_vertices
