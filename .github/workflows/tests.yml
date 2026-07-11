@@ -1,0 +1,39 @@
+name: tests
+
+on:
+  push:
+    branches: [ "main"]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13"]
+
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Install dependencies
+      run: |
+        apt update
+        apt install -y ca-certificates clang build-essential libomp-dev nodejs
+
+    - uses: actions/checkout@v6
+
+    - name: Install uv and Python
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        $HOME/.local/bin/uv python install ${{ matrix.python-version }}
+
+    - name: Pytest
+      run: |
+        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --junitxml=junit/test-core-results.xml --cov-report=xml --cov-report=html tests/
+
+    - name: Upload coverage
+      uses: actions/upload-artifact@v6
+      with:
+        name: coverage-report-${{ matrix.python-version }}
+        path: |
+          htmlcov/
+          coverage.xml
