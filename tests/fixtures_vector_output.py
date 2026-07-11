@@ -12,14 +12,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
-from itzi.data_containers import (
+from itzi_core.data_containers import (
     DrainageNetworkData,
     DrainageNodeData,
     DrainageNodeAttributes,
     DrainageLinkData,
     DrainageLinkAttributes,
 )
-from itzi.drainage import CouplingTypes
+from itzi_core.drainage import CouplingTypes
 
 
 expected_node_coords = {
