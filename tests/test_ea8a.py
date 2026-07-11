@@ -412,7 +412,7 @@ def test_ea8a(ea_test8a_sim, ea_test8a_reference):
         new_df = pd.concat(col_idx, axis=1, keys=col_keys)
         new_df.index.name = "Time (min)"
         # Keep only non null values
-        new_df = new_df[new_df.itzi_core.notnull()]
+        new_df = new_df[new_df.itzi.notnull()]
         points_values.append(new_df)
 
     # Check if MAE is below threshold
