@@ -11,9 +11,11 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
+
 import hashlib
 import os
 from datetime import datetime, timedelta
+from collections import namedtuple
 
 import pytest
 import numpy as np
@@ -124,11 +126,6 @@ def sim_time(request):
     CSV vector output with different time formats.
     """
     return request.param
-
-from collections import namedtuple
-
-import pytest
-import numpy as np
 
 
 Domain5by5Data = namedtuple(

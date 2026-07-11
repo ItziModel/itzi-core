@@ -27,7 +27,10 @@ from itzi_core.simulation_builder import SimulationBuilder
 from itzi_core.const import TemporalType
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
 from itzi_core.providers.domain_data import DomainData
-from itzi_core.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
+from itzi_core.providers.memory_output import (
+    MemoryRasterOutputProvider,
+    MemoryVectorOutputProvider,
+)
 
 ASCIIMetadata = namedtuple(
     "ASCIIMetadata", ["ncols", "nrows", "xllcorner", "yllcorner", "cellsize"]

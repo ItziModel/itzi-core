@@ -11,6 +11,7 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -21,7 +22,10 @@ import pytest
 
 from itzi_core.simulation_builder import SimulationBuilder
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
-from itzi_core.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
+from itzi_core.providers.memory_output import (
+    MemoryRasterOutputProvider,
+    MemoryVectorOutputProvider,
+)
 from itzi_core.const import InfiltrationModelType, TemporalType
 
 if TYPE_CHECKING:
