@@ -11,6 +11,7 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
+
 import os
 import shutil
 from datetime import datetime, timedelta
@@ -34,12 +35,12 @@ rioxarray = pytest.importorskip("rioxarray")
 pyproj = pytest.importorskip("pyproj")
 
 # ruff: noqa: E402
-from itzi.simulation_builder import SimulationBuilder
-from itzi.data_containers import SimulationConfig, SurfaceFlowParameters
-from itzi.const import TemporalType
-from itzi.providers.xarray_input import XarrayRasterInputProvider
-from itzi.providers.icechunk_output import IcechunkRasterOutputProvider
-from itzi.providers.csv_output import CSVVectorOutputProvider
+from itzi_core.simulation_builder import SimulationBuilder
+from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
+from itzi_core.const import TemporalType
+from itzi_core.providers.xarray_input import XarrayRasterInputProvider
+from itzi_core.providers.icechunk_output import IcechunkRasterOutputProvider
+from itzi_core.providers.csv_output import CSVVectorOutputProvider
 
 
 TEST8B_URL = "https://zenodo.org/api/records/15256842/files/Test8B_dataset_2010.zip/content"

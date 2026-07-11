@@ -33,11 +33,11 @@ import pandas as pd
 import pytest
 import obstore
 
-from itzi.data_containers import SimulationConfig, SurfaceFlowParameters
-from itzi.const import TemporalType
-from itzi.hotstart import HotstartLoader
+from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
+from itzi_core.const import TemporalType
+from itzi_core.hotstart import HotstartLoader
 
-from tests.core.ea8b.helpers import (
+from tests.ea8b.helpers import (
     EA8B_FINAL_ARRAY_ATOL,
     assert_matches_reference,
     build_resumed_simulation,

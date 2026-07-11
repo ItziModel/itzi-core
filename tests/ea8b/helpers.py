@@ -11,17 +11,18 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
+
 import numpy as np
 import pandas as pd
 import pyproj
 import icechunk
 import obstore
 
-from itzi.data_containers import SimulationConfig
-from itzi.simulation_builder import SimulationBuilder
-from itzi.providers.csv_output import CSVVectorOutputProvider
-from itzi.providers.icechunk_output import IcechunkRasterOutputProvider
-from itzi.providers.xarray_input import XarrayRasterInputProvider
+from itzi_core.data_containers import SimulationConfig
+from itzi_core.simulation_builder import SimulationBuilder
+from itzi_core.providers.csv_output import CSVVectorOutputProvider
+from itzi_core.providers.icechunk_output import IcechunkRasterOutputProvider
+from itzi_core.providers.xarray_input import XarrayRasterInputProvider
 
 
 EA8B_REFERENCE_MIN_NSE = 0.99
