@@ -11,6 +11,7 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
+
 from datetime import datetime, timedelta
 from pathlib import Path
 from io import StringIO
@@ -36,8 +37,8 @@ from itzi_core.data_containers import (
 from itzi_core.providers.csv_output import CSVVectorOutputConfig, CSVVectorOutputProvider
 from itzi_core.drainage import CouplingTypes
 
-from tests.core.fixtures_vector_output import create_dummy_drainage_network
-from tests.core.fixtures_vector_output import expected_node_coords, expected_vertices
+from tests.fixtures_vector_output import create_dummy_drainage_network
+from tests.fixtures_vector_output import expected_node_coords, expected_vertices
 
 
 @pytest.mark.cloud

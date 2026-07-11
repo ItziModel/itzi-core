@@ -22,7 +22,10 @@ import pytest
 
 from itzi_core.simulation_builder import SimulationBuilder
 from itzi_core.providers.domain_data import DomainData
-from itzi_core.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
+from itzi_core.providers.memory_output import (
+    MemoryRasterOutputProvider,
+    MemoryVectorOutputProvider,
+)
 from itzi_core.data_containers import SurfaceFlowParameters, SimulationConfig
 
 

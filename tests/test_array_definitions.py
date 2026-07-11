@@ -11,6 +11,7 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
+
 from collections import Counter
 
 from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory

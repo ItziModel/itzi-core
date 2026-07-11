@@ -14,6 +14,7 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
+
 import json
 import zipfile
 import hashlib
@@ -25,7 +26,7 @@ import pytest
 import xarray as xr
 import icechunk
 
-from tests.core.ea8b.helpers import EA8B_REFERENCE_MAX_RSR, EA8B_REFERENCE_MIN_NSE
+from tests.ea8b.helpers import EA8B_REFERENCE_MAX_RSR, EA8B_REFERENCE_MIN_NSE
 
 
 pytestmark = pytest.mark.cloud

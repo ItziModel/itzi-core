@@ -81,7 +81,7 @@ class HotstartWriter:
         # Build metadata using Pydantic model for validation
         metadata = HotstartMetadata(
             creation_date=datetime.now(timezone.utc),
-            itzi_version=version("itzi"),
+            itzi_version=version("itzi-core"),
             hotstart_version=HOTSTART_VERSION,
             domain_data=domain_data,
             simulation_config=simulation_config,

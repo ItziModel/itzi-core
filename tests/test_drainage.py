@@ -11,6 +11,7 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
+
 import os
 from datetime import timedelta
 
@@ -18,7 +19,7 @@ import pandas as pd
 import pytest
 import pyswmm
 
-from itzi import SwmmInputParser
+from itzi_core import SwmmInputParser
 from itzi_core.drainage import DrainageNode, CouplingTypes, DrainageSimulation
 from itzi_core.simulation_builder import get_links_list
 
@@ -72,7 +73,6 @@ def drainage_sim_results(test_data_path):
     return ds_results
 
 
-@pytest.mark.forked  # Avoid pyswmm.errors.MultiSimulationError: Multi-Simulation Error.
 def test_drainage_coupling_stability(drainage_sim_results, helpers):
     """Test the stability of the drainage coupling."""
     # roughness = helpers.roughness(drainage_sim_results)
