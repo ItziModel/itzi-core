@@ -51,11 +51,11 @@ dev = [
     "requests>=2.34",
     "pytest-benchmark[histogram]==5.*",
     "scipy>=1.18",
-    "pre-commit>=4.6",
     "ruff>=0.15",
     "ty>=0.0.55",
     "pyinstrument>=5.1",
     "rioxarray>=0.22.0",
+    "prek>=0.4.8",
 ]
 
 [build-system]
