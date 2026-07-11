@@ -332,12 +332,16 @@ class build_ext_compiler_check(build_ext):
 
 extensions = [
     Extension(
-        "itzi_core.compute.partial_inertia_h", sources=["src/itzi_core/compute/partial_inertia_h.pyx"]
+        "itzi_core.compute.partial_inertia_h",
+        sources=["src/itzi_core/compute/partial_inertia_h.pyx"],
     ),
     Extension(
-        "itzi_core.compute.partial_inertia_q", sources=["src/itzi_core/compute/partial_inertia_q.pyx"]
+        "itzi_core.compute.partial_inertia_q",
+        sources=["src/itzi_core/compute/partial_inertia_q.pyx"],
     ),
-    Extension("itzi_core.compute.rastermetrics", sources=["src/itzi_core/compute/rastermetrics.pyx"]),
+    Extension(
+        "itzi_core.compute.rastermetrics", sources=["src/itzi_core/compute/rastermetrics.pyx"]
+    ),
     Extension("itzi_core.compute.hydrology", sources=["src/itzi_core/compute/hydrology.pyx"]),
     Extension("itzi_core.compute.snippets", sources=["benchmarks/snippets.pyx"]),
 ]

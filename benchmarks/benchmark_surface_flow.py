@@ -114,7 +114,9 @@ def benchmark_surface_flow_n_seconds(eggbox_simulation, n_seconds=30):
 
 
 @pytest.mark.parametrize("num_cells", num_cells_params, ids=num_cells_ids)
-@pytest.mark.parametrize("cell_size", [5], ids=["5m"])  # Set as parameter to get it in the output json
+@pytest.mark.parametrize(
+    "cell_size", [5], ids=["5m"]
+)  # Set as parameter to get it in the output json
 def test_benchmark_surface_flow_n_steps(benchmark, num_cells, cell_size, n_steps=10):
     """Run the benchmark for a given number of cells and cell size"""
     eggbox_sim = setup_eggbox_simulation(num_cells=num_cells, cell_size=cell_size)
@@ -124,7 +126,9 @@ def test_benchmark_surface_flow_n_steps(benchmark, num_cells, cell_size, n_steps
 
 @pytest.mark.parametrize("num_cells", num_cells_params, ids=num_cells_ids)
 @pytest.mark.parametrize("cell_size", cell_size_params, ids=cell_size_ids)
-@pytest.mark.parametrize("n_seconds", [30], ids=["30s"])  # Set as parameter to get it in the output json
+@pytest.mark.parametrize(
+    "n_seconds", [30], ids=["30s"]
+)  # Set as parameter to get it in the output json
 def test_benchmark_surface_flow_n_seconds(benchmark, num_cells, cell_size, n_seconds):
     """Run the benchmark for a given number of cells and cell size"""
     results = []

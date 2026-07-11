@@ -11,12 +11,17 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
+
 import math
 
 import numpy as np
 import pytest
 
-from itzi_core.compute.partial_inertia_q import set_solve_q_tile_size, get_solve_q_tile_size, solve_q
+from itzi_core.compute.partial_inertia_q import (
+    set_solve_q_tile_size,
+    get_solve_q_tile_size,
+    solve_q,
+)
 from itzi_core.data_containers import SurfaceFlowParameters
 
 NUM_CELLS_TO_SHAPE: dict[int, tuple[int, int]] = {
