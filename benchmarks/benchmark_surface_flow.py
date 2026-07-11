@@ -6,9 +6,9 @@ import datetime
 import numpy as np
 import pytest
 
-from itzi.data_containers import SurfaceFlowParameters
-from itzi.rasterdomain import RasterDomain
-from itzi.surfaceflow import SurfaceFlowSimulation
+from itzi_core.data_containers import SurfaceFlowParameters
+from itzi_core.rasterdomain import RasterDomain
+from itzi_core.surfaceflow import SurfaceFlowSimulation
 
 
 def gen_eggbox(
@@ -31,8 +31,10 @@ def gen_eggbox(
     return ZX + ZY
 
 
-num_cells_params = [10_000, 100_000, 1_000_000, 10_000_000]
-cell_size_params = [1, 2, 5, 10, 20]
+num_cells_params = [1_000_000, 10_000_000]
+num_cells_ids = ["1M", "10M"]
+cell_size_params = [1, 5, 10, 20]
+cell_size_ids = ["1m", "5m", "10m", "20m"]
 
 
 def setup_eggbox_simulation(num_cells=10_000, cell_size=5):
@@ -99,19 +101,18 @@ def benchmark_surface_flow_n_seconds(eggbox_simulation, n_seconds=30):
     return n_steps
 
 
-@pytest.mark.parametrize("num_cells", num_cells_params)
-@pytest.mark.parametrize("cell_size", [5])  # Set as parameter to get it in the output json
-@pytest.mark.parametrize("n_steps", [5, 10])
-def test_benchmark_surface_flow_n_steps(benchmark, num_cells, cell_size, n_steps):
+@pytest.mark.parametrize("num_cells", num_cells_params, ids=num_cells_ids)
+@pytest.mark.parametrize("cell_size", [5], ids=["5m"])  # Set as parameter to get it in the output json
+def test_benchmark_surface_flow_n_steps(benchmark, num_cells, cell_size, n_steps=10):
     """Run the benchmark for a given number of cells and cell size"""
     eggbox_sim = setup_eggbox_simulation(num_cells=num_cells, cell_size=cell_size)
     benchmark(benchmark_surface_flow_n_steps, eggbox_sim, n_steps)
     benchmark.extra_info["lattice_updates"] = n_steps * num_cells
 
 
-@pytest.mark.parametrize("num_cells", num_cells_params)
-@pytest.mark.parametrize("cell_size", cell_size_params)
-@pytest.mark.parametrize("n_seconds", [30])  # Set as parameter to get it in the output json
+@pytest.mark.parametrize("num_cells", num_cells_params, ids=num_cells_ids)
+@pytest.mark.parametrize("cell_size", cell_size_params, ids=cell_size_ids)
+@pytest.mark.parametrize("n_seconds", [30], ids=["30s"])  # Set as parameter to get it in the output json
 def test_benchmark_surface_flow_n_seconds(benchmark, num_cells, cell_size, n_seconds):
     """Run the benchmark for a given number of cells and cell size"""
     results = []

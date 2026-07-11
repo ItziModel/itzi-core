@@ -84,3 +84,7 @@ markers = [
 
 [tool.ruff]
 line-length = 99
+
+[tool.ty.rules]
+# Cython modules are not resolved
+unresolved-import = "ignore"

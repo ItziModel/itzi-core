@@ -3,7 +3,7 @@ import math
 import numpy as np
 import pytest
 
-from itzi import rastermetrics
+from itzi_core.compute import rastermetrics
 
 num_cells_params = [1_000_000, 100_000_000]
 

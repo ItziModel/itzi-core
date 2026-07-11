@@ -3,7 +3,7 @@ import math
 import numpy as np
 import pytest
 
-from itzi import snippets
+from itzi_core.compute import snippets
 
 num_cells_params = [10_000_000]
 num_cells_ids = ["10M"]

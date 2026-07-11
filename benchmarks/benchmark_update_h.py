@@ -3,8 +3,8 @@ import math
 import numpy as np
 import pytest
 
-from itzi.compute.partial_inertia_h import set_solve_h_tile_size, get_solve_h_tile_size, solve_h
-from itzi.data_containers import SurfaceFlowParameters
+from itzi_core.compute.partial_inertia_h import set_solve_h_tile_size, get_solve_h_tile_size, solve_h
+from itzi_core.data_containers import SurfaceFlowParameters
 
 NUM_CELLS_TO_SHAPE: dict[int, tuple[int, int]] = {
     1_000_000: (1_000, 1_000),
