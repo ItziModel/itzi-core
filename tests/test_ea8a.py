@@ -324,7 +324,6 @@ def ea_test8a_sim(ea_test8a_xarray_data, test_data_path, test_data_temp_path):
             dtmax=5.0,
             cfl=0.5,
             theta=0.7,
-            vrouting=0.1,
             hmin=0.005,
         ),
         stats_file="stats_ea8a.csv",

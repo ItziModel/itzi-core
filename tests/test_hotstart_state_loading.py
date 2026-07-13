@@ -435,7 +435,6 @@ class TestSimulationBuilderHotstart:
             ("dtmax", 0.2, "dtmax"),
             ("slope_threshold", 1e-5, "slope_threshold"),
             ("max_slope", 5.0, "max_slope"),
-            ("vrouting", 2.0, "v_routing"),
         ],
     )
     def test_build_allows_surface_flow_resume_parameter_change(
