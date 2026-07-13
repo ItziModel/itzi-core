@@ -24,10 +24,8 @@ class DefaultValues:
     CFL = 0.7
     # Damping weighting coefficient
     THETA = 0.9
-    # Gravity constant (m/s²)
+    # Standard gravity (m/s²)
     G = 9.80665
-    # Routing velocity (m/s)
-    VROUTING = 0.1
     # Maximum time-step duration (s)
     DTMAX = 5.0
     # Slope threshold (m/m). Value above which the routing is applied

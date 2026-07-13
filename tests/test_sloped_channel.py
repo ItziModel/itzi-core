@@ -142,7 +142,6 @@ def test_sloped_channel(
         hmin=min_depth,
         cfl=cfl,
         # theta=,
-        # vrouting=0.1,
         dtmax=dtmax,
         slope_threshold=slope_threshold,
         max_slope=max_slope,

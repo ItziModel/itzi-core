@@ -49,7 +49,6 @@ class SurfaceFlowSimulation:
         self.min_flow_depth = flow_params.hmin
         self.slope_threshold = flow_params.slope_threshold
         self.max_slope = flow_params.max_slope
-        self.v_routing = flow_params.vrouting
         self.dx = domain.dx
         self.dy = domain.dy
         self.cell_surf = self.dx * self.dy

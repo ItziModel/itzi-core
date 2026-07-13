@@ -185,7 +185,6 @@ class SurfaceFlowParameters(BaseModel):
     cfl: PositiveFloat = Field(DefaultValues.CFL, ge=0.01, le=1)
     theta: NonNegativeFloat = Field(DefaultValues.THETA, ge=0, le=1)
     g: NonNegativeFloat = DefaultValues.G
-    vrouting: NonNegativeFloat = DefaultValues.VROUTING
     dtmax: PositiveFloat = DefaultValues.DTMAX
     slope_threshold: NonNegativeFloat = DefaultValues.SLOPE_THRESHOLD
     max_slope: NonNegativeFloat = DefaultValues.MAX_SLOPE
