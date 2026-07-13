@@ -42,7 +42,11 @@ from itzi_core.itzi_error import HotstartError
 
 if TYPE_CHECKING:
     from itzi_core.providers.domain_data import DomainData
-    from itzi_core.providers.base import RasterInputProvider, RasterOutputProvider, VectorOutputProvider
+    from itzi_core.providers.base import (
+        RasterInputProvider,
+        RasterOutputProvider,
+        VectorOutputProvider,
+    )
     from itzi_core.data_containers import (
         SimulationConfig,
         HotstartSimulationState,
