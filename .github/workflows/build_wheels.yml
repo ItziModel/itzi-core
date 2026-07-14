@@ -1,9 +1,13 @@
 name: Build
 
 on:
+  workflow_call:
   workflow_dispatch:
   pull_request:
     branches: [ "main" ]
+
+permissions:
+  contents: read
 
 jobs:
   build_wheels:
@@ -30,6 +34,7 @@ jobs:
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
           CIBW_ARCHS: auto64  # Don't build 32 bits wheels
+          CIBW_BUILD: "cp312-* cp313-*"
           CIBW_SKIP: pp*  # Don't build pypy wheels
           CIBW_ENVIRONMENT: "ITZI_BDIST_WHEEL=1 NO_STABLE_ABI=1"  # Trigger generic compiler flags
           CIBW_ENVIRONMENT_MACOS: >
