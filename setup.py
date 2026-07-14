@@ -343,7 +343,7 @@ extensions = [
         "itzi_core.compute.rastermetrics", sources=["src/itzi_core/compute/rastermetrics.pyx"]
     ),
     Extension("itzi_core.compute.hydrology", sources=["src/itzi_core/compute/hydrology.pyx"]),
-    Extension("itzi_core.compute.snippets", sources=["benchmarks/snippets.pyx"]),
+    Extension("itzi_core.compute.snippets", sources=["src/itzi_core/compute/snippets.pyx"]),
 ]
 setup(
     ext_modules=cythonize(extensions, nthreads=BUILD_JOBS),
