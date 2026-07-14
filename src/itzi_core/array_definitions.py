@@ -361,32 +361,6 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         var_loc="face",
     ),
     ArrayDefinition(
-        key="dire",
-        csdms_name="land_surface_water__x_component_of_flow_direction",
-        cf_name="",
-        category=[ArrayCategory.INTERNAL],
-        description="Rain routing at the eastern cell edge "
-        "0: the flow is going dowstream, index-wise, "
-        "1: the flow is going upstream, index-wise "
-        "-1: no routing happening on that face",
-        unit="1",
-        cf_unit="",
-        var_loc="edge",
-    ),
-    ArrayDefinition(
-        key="dirs",
-        csdms_name="land_surface_water__y_component_of_flow_direction",
-        cf_name="",
-        category=[ArrayCategory.INTERNAL],
-        description="Rain routing at the southern cell edge "
-        "0: the flow is going dowstream, index-wise, "
-        "1: the flow is going upstream, index-wise "
-        "-1: no routing happening on that face",
-        unit="1",
-        cf_unit="",
-        var_loc="edge",
-    ),
-    ArrayDefinition(
         key="ext",
         csdms_name="land_surface_water__external_leq-volume_flux",
         cf_name="",
