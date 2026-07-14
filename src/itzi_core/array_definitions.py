@@ -14,7 +14,6 @@ GNU Lesser General Public License for more details.
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 import numpy as np
 
@@ -43,7 +42,7 @@ class ArrayDefinition:
     cf_unit: str  # The unit expected by the CF convention
     var_loc: str  # Location of the value. Either "face" or "edge"
     fill_value: float = 0.0  # Fill value (replace NaN)
-    computes_from: Optional[str] = None  # For accumulation arrays
+    computes_from: str | None = None  # For accumulation arrays
 
 
 # Centralized array definitions - Single source of truth
@@ -59,7 +58,7 @@ _INPUT_ARRAY_DEFINITIONS = [
         unit="m",
         cf_unit="m",
         var_loc="face",
-        fill_value=np.finfo(np.float32).max,
+        fill_value=float(np.finfo(np.float32).max),
     ),
     ArrayDefinition(
         key="friction",
@@ -359,32 +358,6 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         unit="m s-1",
         cf_unit="",
         var_loc="face",
-    ),
-    ArrayDefinition(
-        key="dire",
-        csdms_name="land_surface_water__x_component_of_flow_direction",
-        cf_name="",
-        category=[ArrayCategory.INTERNAL],
-        description="Rain routing at the eastern cell edge "
-        "0: the flow is going dowstream, index-wise, "
-        "1: the flow is going upstream, index-wise "
-        "-1: no routing happening on that face",
-        unit="1",
-        cf_unit="",
-        var_loc="edge",
-    ),
-    ArrayDefinition(
-        key="dirs",
-        csdms_name="land_surface_water__y_component_of_flow_direction",
-        cf_name="",
-        category=[ArrayCategory.INTERNAL],
-        description="Rain routing at the southern cell edge "
-        "0: the flow is going dowstream, index-wise, "
-        "1: the flow is going upstream, index-wise "
-        "-1: no routing happening on that face",
-        unit="1",
-        cf_unit="",
-        var_loc="edge",
     ),
     ArrayDefinition(
         key="ext",
