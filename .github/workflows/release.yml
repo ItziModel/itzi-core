@@ -57,7 +57,7 @@ jobs:
 
       - name: Check distribution metadata
         run: |
-          python -m pip install --disable-pip-version-check twine
+          python -m pip install --disable-pip-version-check --upgrade "packaging>=24.2" twine
           python -m twine check dist/*
 
       - name: Install the source distribution
