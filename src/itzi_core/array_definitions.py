@@ -14,7 +14,6 @@ GNU Lesser General Public License for more details.
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 import numpy as np
 
@@ -43,7 +42,7 @@ class ArrayDefinition:
     cf_unit: str  # The unit expected by the CF convention
     var_loc: str  # Location of the value. Either "face" or "edge"
     fill_value: float = 0.0  # Fill value (replace NaN)
-    computes_from: Optional[str] = None  # For accumulation arrays
+    computes_from: str | None = None  # For accumulation arrays
 
 
 # Centralized array definitions - Single source of truth
@@ -59,7 +58,7 @@ _INPUT_ARRAY_DEFINITIONS = [
         unit="m",
         cf_unit="m",
         var_loc="face",
-        fill_value=np.finfo(np.float32).max,
+        fill_value=float(np.finfo(np.float32).max),
     ),
     ArrayDefinition(
         key="friction",
