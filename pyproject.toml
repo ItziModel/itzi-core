@@ -1,7 +1,7 @@
 [project]
 name = "itzi-core"
-version = "0.1.0"
-description = "A distributed dynamic flood model."
+version = "0.2.0"
+description = "A cloud-native dynamic flood model."
 authors = [
     {name = "Laurent Courty", email = "lrntct@gmail.com"},
 ]
