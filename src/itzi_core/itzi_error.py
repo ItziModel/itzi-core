@@ -13,19 +13,13 @@ GNU Lesser General Public License for more details.
 """
 
 
-class ItziError(Exception):
-    """General error class"""
-
-    pass
-
-
-class NullError(ItziError):
+class NullError(RuntimeError):
     """Raised when null values is detected in simulation"""
 
     pass
 
 
-class DtError(ItziError):
+class DtError(RuntimeError):
     """Error related to time-step calculation"""
 
     def __init__(self, msg):
@@ -35,7 +29,7 @@ class DtError(ItziError):
         return repr(self.msg)
 
 
-class MassBalanceError(ItziError):
+class MassBalanceError(RuntimeError):
     """Raised when mass balance error exceeds threshold"""
 
     def __init__(self, msg: str):
@@ -45,15 +39,7 @@ class MassBalanceError(ItziError):
         return repr(self.msg)
 
 
-class ItziFatal(ItziError):
-    def __init__(self, msg):
-        self.msg = msg
-
-    def __str__(self):
-        return repr(self.msg)
-
-
-class HotstartError(ItziError):
+class HotstartError(RuntimeError):
     """Raised when hotstart file operations fail."""
 
     def __init__(self, msg):

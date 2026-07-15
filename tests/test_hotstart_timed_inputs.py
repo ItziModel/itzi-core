@@ -16,7 +16,6 @@ GNU Lesser General Public License for more details.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-import logging
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -24,7 +23,7 @@ import pytest
 
 from itzi_core.const import InfiltrationModelType, TemporalType
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
-from itzi_core.itzi_error import ItziFatal
+from itzi_core.itzi_error import NullError
 from itzi_core.providers.memory_input import MemoryRasterInputProvider, TimedRasterSlice
 from itzi_core.providers.memory_output import (
     MemoryRasterOutputProvider,
@@ -407,7 +406,7 @@ def test_build_fails_when_dem_input_has_only_nan_cells(domain_5by5) -> None:
         temporal_type=TemporalType.ABSOLUTE,
     )
 
-    with pytest.raises(ItziFatal, match=r"input map <dem> contains only NULL/NaN cells"):
+    with pytest.raises(NullError, match=r"input map <dem> contains only NULL/NaN cells"):
         _build_provider_simulation(
             sim_config,
             domain_5by5,
@@ -427,24 +426,16 @@ def test_build_warns_when_non_dem_input_has_only_nan_cells(domain_5by5, caplog) 
         temporal_type=TemporalType.ABSOLUTE,
     )
 
-    itzi_logger = logging.getLogger("itzi")
-    with caplog.at_level(logging.WARNING, logger="itzi"):
-        itzi_logger.addHandler(caplog.handler)
-        try:
-            simulation = _build_provider_simulation(
-                sim_config,
+    with pytest.raises(RuntimeWarning) as warn_info:
+        simulation = _build_provider_simulation(
+            sim_config,
+            domain_5by5,
+            static_arrays=_make_static_arrays(
                 domain_5by5,
-                static_arrays=_make_static_arrays(
-                    domain_5by5,
-                    rain=np.full(domain_5by5.domain_data.shape, np.nan, dtype=np.float32),
-                ),
-            )
-        finally:
-            itzi_logger.removeHandler(caplog.handler)
-
-    warning_messages = [record.message for record in caplog.records]
-    assert any(
-        "input map <rain> contains only NULL/NaN cells inside the active domain" in message
-        for message in warning_messages
-    )
-    assert np.allclose(simulation.raster_domain.get_array("rain"), 0.0)
+                rain=np.full(domain_5by5.domain_data.shape, np.nan, dtype=np.float32),
+            ),
+        )
+        assert "input map <rain> contains only NULL/NaN cells inside the active domain" in str(
+            warn_info.value
+        )
+        assert np.allclose(simulation.raster_domain.get_array("rain"), 0.0)

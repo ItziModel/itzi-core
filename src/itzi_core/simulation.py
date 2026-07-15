@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from typing import Self, TYPE_CHECKING
 import copy
 import io
+import logging
 
 import numpy as np
 
@@ -24,7 +25,6 @@ from itzi_core.data_containers import ContinuityData, SimulationData
 from itzi_core.data_containers import SimulationConfig, DrainageNodeCouplingData
 from itzi_core.data_containers import HotstartSimulationState
 from itzi_core.hotstart import HotstartWriter
-import itzi_core.messenger as msgr
 from itzi_core.itzi_error import NullError, MassBalanceError, DtError
 from itzi_core.compute import rastermetrics
 from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
@@ -37,6 +37,9 @@ if TYPE_CHECKING:
     from itzi_core.rasterdomain import RasterDomain, TimedArray
     from itzi_core.report import Report
     from itzi_core.providers.domain_data import DomainData
+
+
+logger = logging.getLogger(__name__)
 
 
 class Simulation:
@@ -190,7 +193,7 @@ class Simulation:
         try:
             self.surface_flow.solve_dt()
         except DtError as e:
-            msgr.fatal(f"{step_start}: Time-step computation error detected in simulation: {e}")
+            raise DtError(f"{step_start}: Time-step computation error detected in simulation: {e}")
         self.find_dt(step_start + self.surface_flow.dt)
         step_end: datetime = step_start + self.dt
 
@@ -201,13 +204,13 @@ class Simulation:
         try:
             self.surface_flow.dt = self.dt
         except DtError as e:
-            msgr.fatal(f"{step_start}: Time-step errors detected in simulation: {e}")
+            raise DtError(f"{step_start}: Time-step errors detected in simulation: {e}")
         # surface_flow.step() raise NullError in case of NaN/NULL cell
         # if this happen, stop simulation
         try:
             self.surface_flow.step()
         except NullError:
-            msgr.fatal("{}: Null value detected in simulation, terminating".format(step_start))
+            raise NullError(f"{step_start}: Null value detected in simulation, terminating")
 
         # Align timed inputs to the interval end before closing and reporting it
         # under that time label. Due submodels will consume that label on the next update cycle.
@@ -231,7 +234,7 @@ class Simulation:
 
         # Reporting last to get simulated values #
         if should_write_report:
-            msgr.verbose(f"{step_end}: Writing output maps...")
+            logger.debug(f"{step_end}: Writing output maps...")
             self.report.step(
                 self._build_simulation_data(
                     sim_time=step_end,
@@ -383,7 +386,7 @@ class Simulation:
                 else:
                     new_arr = ta.get(current_time)
                 # update array
-                msgr.debug("{}: update input array <{}>".format(current_time, arr_key))
+                logger.debug("{}: update input array <{}>".format(current_time, arr_key))
                 self._validate_input_array_data(arr_key, new_arr, current_time)
                 self.set_array(arr_key, new_arr, current_time)
         self._update_next_input_ts(current_time)
@@ -433,9 +436,9 @@ class Simulation:
                 "inside the active domain"
             )
         if arr_key == "dem":
-            msgr.fatal(msg)
+            raise NullError(msg)
         else:
-            msgr.warning(msg)
+            raise RuntimeWarning(msg)
 
     def set_array(self, arr_id: str, arr: np.ndarray, sim_time: datetime | None = None):
         """Set an array of the simulation domain."""

@@ -30,7 +30,6 @@ from itzi_core.massbalance import MassBalanceLogger
 from itzi_core.report import Report
 from itzi_core.drainage import DrainageSimulation, DrainageNode, DrainageLink, CouplingTypes
 from itzi_core.swmm_input_parser import SwmmInputParser
-import itzi_core.messenger as msgr
 import itzi_core.infiltration as infiltration
 from itzi_core.hydrology import Hydrology
 from itzi_core.simulation import Simulation
@@ -433,7 +432,6 @@ class SimulationBuilder:
 
     def _create_raster_domain(self, cell_shape) -> rasterdomain.RasterDomain:
         """Create a raster domain."""
-        msgr.debug("Setting up raster domain...")
         try:
             raster_domain = rasterdomain.RasterDomain(
                 dtype=self.dtype,
@@ -441,7 +439,7 @@ class SimulationBuilder:
                 cell_shape=cell_shape,
             )
         except MemoryError:
-            msgr.fatal("Out of memory.")
+            raise MemoryError("Cannot create the domain: Out of memory.")
         return raster_domain
 
     def _create_infiltration_model(
@@ -451,7 +449,6 @@ class SimulationBuilder:
         """Create an infiltration model based on configuration."""
         inf_model = self.sim_config.infiltration_model
         dtinf = self.sim_config.dtinf
-        msgr.debug("Setting up raster infiltration...")
 
         inf_class = {
             InfiltrationModelType.CONSTANT: infiltration.InfConstantRate,
@@ -480,8 +477,6 @@ class SimulationBuilder:
         """
         if not self.sim_config.swmm_inp:
             return None, None
-
-        msgr.debug("Setting up drainage model...")
 
         swmm_input_path = str(self.sim_config.swmm_inp)
 
