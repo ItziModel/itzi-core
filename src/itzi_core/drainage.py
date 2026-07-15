@@ -25,7 +25,6 @@ import pyswmm
 import numpy as np
 
 from itzi_core import DefaultValues
-from itzi_core import messenger as msgr
 from itzi_core.data_containers import (
     DrainageNodeData,
     DrainageLinkData,
@@ -78,7 +77,7 @@ class DrainageSimulation:
         self.swmm_model: PySWMM = self.swmm_sim._model
         # Check if the unit is m3/s
         if self.swmm_sim.flow_units != "CMS":
-            msgr.fatal("SWMM simulation unit must be CMS")
+            raise ValueError(f"SWMM simulation unit must be CMS, found {self.swmm_sim.flow_units}")
         # Start model
         if hotstart_filename:
             self.swmm_model.swmm_use_hotstart(hotstart_filename)
