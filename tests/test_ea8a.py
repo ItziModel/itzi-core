@@ -36,7 +36,7 @@ import rioxarray
 from itzi_core.profiler import profile_context
 from itzi_core.simulation_builder import SimulationBuilder
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
-from itzi_core.const import TemporalType, VerbosityLevel
+from itzi_core.const import TemporalType
 from itzi_core.providers.xarray_input import XarrayRasterInputProvider
 from itzi_core.providers.memory_output import (
     MemoryRasterOutputProvider,
@@ -50,8 +50,6 @@ pytestmark = pytest.mark.cloud
 
 TEST8A_URL = "https://zenodo.org/api/records/15256842/files/Test8A_dataset_2010.zip/content"
 TEST8A_MD5 = "46b589ee000ff87c9077fcc51fa71e8e"
-
-os.environ["ITZI_VERBOSE"] = str(VerbosityLevel.SUPER_QUIET)
 
 
 @pytest.fixture(scope="session")

@@ -28,9 +28,9 @@ class DefaultValues:
     G = 9.80665
     # Maximum time-step duration (s)
     DTMAX = 5.0
-    # Slope threshold (m/m). Value above which the routing is applied
+    # Slope threshold (m/m). Value above which the GMS is applied
     SLOPE_THRESHOLD = 0.8
-    # Maximum slope (m/m). Max value of slope to use in routing
+    # Maximum slope (m/m). Max value of slope to use with GMS
     MAX_SLOPE = SLOPE_THRESHOLD
     # Hydrology time step (s)
     DTINF = 60.0
@@ -46,16 +46,6 @@ class DefaultValues:
     # coefficients for drainage coupling stability
     RELAXATION_FACTOR = 0.8
     DAMPING_FACTOR = 0.5
-
-
-class VerbosityLevel:
-    """Messenger verbosity levels"""
-
-    SUPER_QUIET = 0
-    QUIET = 1
-    MESSAGE = 2
-    VERBOSE = 3
-    DEBUG = 4
 
 
 class TemporalType(StrEnum):
