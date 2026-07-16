@@ -354,7 +354,7 @@ class Simulation:
         if current_time >= self.end_time:
             self.next_ts["input"] = self.end_time
             return self
-        # DEM is needed for WSE and rain routing direction
+        # DEM is needed for WSE
         if not self.timed_arrays["dem"].is_valid(current_time):
             new_dem: np.ndarray = self.timed_arrays["dem"].get(current_time)
             self._validate_input_array_data("dem", new_dem, current_time)

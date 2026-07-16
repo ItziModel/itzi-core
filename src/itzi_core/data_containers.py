@@ -271,16 +271,3 @@ class HotstartMetadata(BaseModel):
     domain_data: DomainData
     simulation_config: SimulationConfig
     simulation_state: HotstartSimulationState
-
-
-class GrassParams(BaseModel):
-    """Parameters for GRASS GIS session."""
-
-    model_config = ConfigDict(frozen=True)
-
-    grassdata: str | None = None
-    location: str | None = None
-    mapset: str | None = None
-    region: str | None = None
-    mask: str | None = None
-    grass_bin: str | None = None
