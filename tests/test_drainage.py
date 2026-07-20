@@ -12,8 +12,9 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
-import os
 from datetime import timedelta
+from pathlib import Path
+import shutil
 
 import pandas as pd
 import pytest
@@ -25,9 +26,11 @@ from itzi_core.simulation_builder import get_links_list
 
 
 @pytest.fixture(scope="class")
-def drainage_sim_results(test_data_path):
+def drainage_sim_results(test_data_path, tmp_path_factory):
     # SWMM config file based on EA test 8b
-    inp_file = os.path.join(test_data_path, "test_drainage.inp")
+    source_inp = Path(test_data_path) / "test_drainage.inp"
+    inp_file = tmp_path_factory.mktemp("drainage") / source_inp.name
+    shutil.copy2(source_inp, inp_file)
     # from input file
     coupling_node_id = "J1"
     # Dummy surface state
@@ -35,8 +38,8 @@ def drainage_sim_results(test_data_path):
     surface_states[coupling_node_id] = {"z": 100, "h": 0.0}
     cell_surf = 25.0
     # Create simulation
-    swmm_sim = pyswmm.Simulation(inp_file)
-    swmm_inp = SwmmInputParser(inp_file)
+    swmm_sim = pyswmm.Simulation(str(inp_file))
+    swmm_inp = SwmmInputParser(str(inp_file))
     sim_start_time = swmm_sim.start_time
     sim_end_time = swmm_sim.end_time
     # Create Node objects

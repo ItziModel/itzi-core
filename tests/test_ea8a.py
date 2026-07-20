@@ -25,11 +25,9 @@ import numpy as np
 import pytest
 
 # Skip entire module if optional dependencies are missing
-pytest.importorskip("requests")
 pytest.importorskip("xarray")
 pytest.importorskip("rioxarray")
 
-import requests
 import xarray as xr
 import rioxarray
 
@@ -48,29 +46,15 @@ from itzi_core.providers.memory_output import (
 pytestmark = pytest.mark.cloud
 
 
-TEST8A_URL = "https://zenodo.org/api/records/15256842/files/Test8A_dataset_2010.zip/content"
 TEST8A_MD5 = "46b589ee000ff87c9077fcc51fa71e8e"
 
 
 @pytest.fixture(scope="session")
-def test8a_file(test_data_temp_path, helpers):
-    """Download the test 8a main file."""
-    file_name = "Test8A_dataset_2010.zip"
-    file_path = os.path.join(test_data_temp_path, file_name)
-    # Check if the file exists and has the right hash
-    try:
-        assert helpers.md5(file_path) == TEST8A_MD5
-    except Exception:
-        # Download the file
-        print("downloading file from Zenodo...")
-        file_response = requests.get(TEST8A_URL, stream=True, timeout=5)
-        if file_response.status_code == 200:
-            with open(file_path, "wb") as data_file:
-                for chunk in file_response.iter_content(chunk_size=8192):
-                    data_file.write(chunk)
-            print(f"File successfully downloaded to {file_path}")
-        else:
-            print(f"Failed to download file: Status code {file_response.status_code}")
+def test8a_file(test_data_path, helpers):
+    """Return the committed EA8A test archive."""
+    file_path = Path(test_data_path) / "EA_test_8" / "a" / "Test8A_dataset_2010.zip"
+    if not file_path.is_file() or helpers.md5(file_path) != TEST8A_MD5:
+        pytest.fail("EA8A test archive is missing or invalid; run `git lfs pull`.")
     return file_path
 
 

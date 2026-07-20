@@ -2,6 +2,8 @@
 *.c
 *.so
 *.zip
+!tests/test_data/EA_test_8/a/Test8A_dataset_2010.zip
+!tests/test_data/EA_test_8/b/Test8B_dataset_2010.zip
 *.out
 *.rpt
 .~*
