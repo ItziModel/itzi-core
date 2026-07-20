@@ -27,7 +27,6 @@ import pytest
 # This conftest is imported during collection, before `-m "not cloud"` deselection
 # takes effect, so plain imports would raise ModuleNotFoundError in minimal test
 # environments such as wheel-build checks.
-pytest.importorskip("requests")
 icechunk = pytest.importorskip("icechunk")
 obstore = pytest.importorskip("obstore")
 xr = pytest.importorskip("xarray")
@@ -43,7 +42,6 @@ from itzi_core.providers.icechunk_output import IcechunkRasterOutputProvider
 from itzi_core.providers.csv_output import CSVVectorOutputProvider
 
 
-TEST8B_URL = "https://zenodo.org/api/records/15256842/files/Test8B_dataset_2010.zip/content"
 TEST8B_MD5 = "84b865cedd28f8156cfe70b84004b62c"
 
 
@@ -62,23 +60,10 @@ def ea8b_temp_path(test_data_temp_path) -> Path:
 
 
 @pytest.fixture(scope="session")
-def ea8b_test_data(test_data_temp_path, helpers):
-    file_name = "Test8B_dataset_2010.zip"
-    file_path = Path(test_data_temp_path) / file_name
-    try:
-        assert helpers.md5(file_path) == TEST8B_MD5
-    except Exception:
-        print("downloading file from Zenodo...")
-        import requests
-
-        file_response = requests.get(TEST8B_URL, stream=True, timeout=5)
-        if file_response.status_code == 200:
-            with open(file_path, "wb") as data_file:
-                for chunk in file_response.iter_content(chunk_size=8192):
-                    data_file.write(chunk)
-            print(f"File successfully downloaded to {file_path}")
-        else:
-            print(f"Failed to download file: Status code {file_response.status_code}")
+def ea8b_test_data(test_data_path, helpers):
+    file_path = Path(test_data_path) / "EA_test_8" / "b" / "Test8B_dataset_2010.zip"
+    if not file_path.is_file() or helpers.md5(file_path) != TEST8B_MD5:
+        pytest.fail("EA8B test archive is missing or invalid; run `git lfs pull`.")
     return file_path
 
 
@@ -157,7 +142,9 @@ def ea8b_simulation(ea8b_data, test_data_path, ea8b_temp_path):
         db_file.unlink()
 
     output_storage = icechunk.in_memory_storage()
-    inp_file = os.path.join(test_data_path, "EA_test_8", "b", "test8b_drainage_ponding.inp")
+    source_inp = Path(test_data_path) / "EA_test_8" / "b" / "test8b_drainage_ponding.inp"
+    inp_file = ea8b_temp_path / source_inp.name
+    shutil.copy2(source_inp, inp_file)
 
     sim_start_time = datetime.min
     sim_end_time = sim_start_time + timedelta(hours=3, minutes=20)
@@ -174,7 +161,7 @@ def ea8b_simulation(ea8b_data, test_data_path, ea8b_temp_path):
         input_map_names={"dem": "dem", "friction": "friction"},
         output_map_names={"water_depth": "test_water_depth"},
         drainage_output="out_drainage",
-        swmm_inp=inp_file,
+        swmm_inp=str(inp_file),
         stats_file="ea8b.csv",
         surface_flow_parameters=surface_flow_params,
         orifice_coeff=1.0,
@@ -257,6 +244,7 @@ def ea8b_simulation(ea8b_data, test_data_path, ea8b_temp_path):
         "split_time": split_time,
         "sim_start_time": sim_start_time,
         "data": ea8b_data,
+        "swmm_inp": inp_file,
     }
 
 

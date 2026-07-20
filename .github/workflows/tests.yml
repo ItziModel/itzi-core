@@ -23,6 +23,8 @@ jobs:
         sudo apt-get install -y ca-certificates clang build-essential libomp-dev nodejs
 
     - uses: actions/checkout@v6
+      with:
+        lfs: true
 
     - name: Install uv and Python
       run: |

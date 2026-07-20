@@ -19,6 +19,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from pathlib import Path
 import os
+import shutil
 import tempfile
 from typing import Any
 
@@ -36,6 +37,14 @@ SPLIT_TIME = timedelta(hours=1, minutes=40)
 SWMM_J1_TOTAL_INFLOW_MAX_DIFF = 0.25
 SWMM_C0_FLOW_MAX_DIFF = 0.25
 SWMM_J1_INTEGRATED_INFLOW_MAX_DIFF = 2.0
+
+
+@pytest.fixture
+def ea8b_inp_path(test_data_path: str, tmp_path: Path) -> Path:
+    source_inp = Path(test_data_path) / "EA_test_8" / "b" / "test8b_drainage_ponding.inp"
+    inp_file = tmp_path / source_inp.name
+    shutil.copy2(source_inp, inp_file)
+    return inp_file
 
 
 def _record_snapshot(
@@ -339,13 +348,12 @@ def _run_with_hotstart(
         "this test documents the current standalone SWMM limitation"
     ),
 )
-def test_swmm_hotstart_roundtrip(test_data_path: str) -> None:
+def test_swmm_hotstart_roundtrip(ea8b_inp_path: Path) -> None:
     """Verify SWMM-only hotstart resume matches uninterrupted EA8b output."""
-    inp_file = Path(test_data_path) / "EA_test_8" / "b" / "test8b_drainage_ponding.inp"
     split_seconds = SPLIT_TIME.total_seconds()
 
-    reference = _run_uninterrupted(str(inp_file), split_seconds)
-    resumed = _run_with_hotstart(str(inp_file), split_seconds)
+    reference = _run_uninterrupted(str(ea8b_inp_path), split_seconds)
+    resumed = _run_with_hotstart(str(ea8b_inp_path), split_seconds)
 
     assert resumed["node_ids"] == reference["node_ids"]
     assert resumed["link_ids"] == reference["link_ids"]
@@ -373,7 +381,7 @@ def test_swmm_hotstart_roundtrip(test_data_path: str) -> None:
 
 
 @pytest.mark.slow
-def test_swmm_hotstart_roundtrip_guardrails(test_data_path: str) -> None:
+def test_swmm_hotstart_roundtrip_guardrails(ea8b_inp_path: Path) -> None:
     """Keep a standalone SWMM guardrail on the known resume-sensitive quantities.
 
     SWMM hotstart is not restart-exact for the EA8b network, especially around the
@@ -382,11 +390,10 @@ def test_swmm_hotstart_roundtrip_guardrails(test_data_path: str) -> None:
     that were useful during the investigation, without relying on large diagnostic
     artifacts.
     """
-    inp_file = Path(test_data_path) / "EA_test_8" / "b" / "test8b_drainage_ponding.inp"
     split_seconds = SPLIT_TIME.total_seconds()
 
-    reference = _run_uninterrupted(str(inp_file), split_seconds)
-    resumed = _run_with_hotstart(str(inp_file), split_seconds)
+    reference = _run_uninterrupted(str(ea8b_inp_path), split_seconds)
+    resumed = _run_with_hotstart(str(ea8b_inp_path), split_seconds)
 
     ref_times = np.asarray(reference["elapsed_seconds"])
     resumed_times = np.asarray(resumed["elapsed_seconds"])

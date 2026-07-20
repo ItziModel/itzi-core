@@ -48,7 +48,6 @@ dev = [
     "pytest>=9.1",
     "pytest-cov==6.*",
     "pandas>=3.0.3",
-    "requests>=2.34",
     "pytest-benchmark[histogram]==5.*",
     "scipy>=1.18",
     "ruff>=0.15",

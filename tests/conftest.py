@@ -107,13 +107,9 @@ def test_data_path():
 
 
 @pytest.fixture(scope="session")
-def test_data_temp_path():
-    """Directory where generated test data resides."""
-    dir_path = os.path.dirname(os.path.realpath(__file__))
-    temp_path = os.path.join(dir_path, "test_data_temp")
-    if not os.path.exists(temp_path):
-        os.makedirs(temp_path)
-    return temp_path
+def test_data_temp_path(tmp_path_factory):
+    """Directory for generated test data."""
+    return str(tmp_path_factory.mktemp("test_data"))
 
 
 @pytest.fixture(

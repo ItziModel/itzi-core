@@ -54,7 +54,6 @@ def test_ea8b_hotstart_roundtrip(
     ea8b_simulation,
     ea8b_reference,
     ea8b_data,
-    test_data_path,
     ea8b_temp_path,
     helpers,
 ):
@@ -87,7 +86,7 @@ def test_ea8b_hotstart_roundtrip(
         input_map_names={"dem": "dem", "friction": "friction"},
         output_map_names={"water_depth": "test_water_depth"},
         drainage_output="out_drainage",
-        swmm_inp=f"{test_data_path}/EA_test_8/b/test8b_drainage_ponding.inp",
+        swmm_inp=str(ea8b_simulation["swmm_inp"]),
         stats_file="ea8b_hotstart.csv",
         surface_flow_parameters=surface_flow_params,
         orifice_coeff=1.0,
