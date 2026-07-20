@@ -14,7 +14,7 @@ dependencies = [
 # 3.12 for typing. pyswmm does not support python > 3.13
 requires-python = ">=3.12,<3.14"
 readme = "README.md"
-license = " LGPL-2.1-or-later"
+license = "LGPL-2.1-or-later"
 keywords = ["science", "engineering", "hydrology", "flood", "inundation"]
 classifiers = [
     "Development Status :: 4 - Beta",
