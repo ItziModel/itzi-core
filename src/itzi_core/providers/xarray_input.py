@@ -313,10 +313,12 @@ class XarrayRasterInputProvider(RasterInputProvider):
 
     @staticmethod
     def is_array_sorted(arr: np.ndarray, ascending: bool = True) -> bool:
+        differences = np.diff(arr)
+        zero = np.timedelta64(0, "ns") if np.issubdtype(differences.dtype, np.timedelta64) else 0
         if ascending:
-            return bool(np.all(np.diff(arr) >= 0))
+            return bool(np.all(differences >= zero))
         else:
-            return bool(np.all(np.diff(arr) <= 0))
+            return bool(np.all(differences <= zero))
 
     @staticmethod
     def get_active_window(coord_array, target_value):
