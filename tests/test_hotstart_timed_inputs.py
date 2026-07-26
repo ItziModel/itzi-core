@@ -15,6 +15,7 @@ GNU Lesser General Public License for more details.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
@@ -24,6 +25,7 @@ import pytest
 from itzi_core.const import InfiltrationModelType, TemporalType
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
 from itzi_core.itzi_error import HotstartError, NullError
+from itzi_core.providers.base import RasterInputProvider
 from itzi_core.providers.memory_input import MemoryRasterInputProvider, TimedRasterSlice
 from itzi_core.providers.memory_output import (
     MemoryRasterOutputProvider,
@@ -42,6 +44,42 @@ RAIN_MM_PER_HOUR = {
     20: 360.0,
     30: 540.0,
 }
+
+
+class MapAwareRasterInputProvider(RasterInputProvider):
+    """Resolve canonical inputs through the current configured source names."""
+
+    def __init__(
+        self,
+        domain_data,
+        input_map_names: Mapping[str, str | None],
+        source_slices: Mapping[str, Sequence[TimedRasterSlice]],
+        start_time: datetime,
+        end_time: datetime,
+    ) -> None:
+        self.domain_data = domain_data
+        self.input_map_names = dict(input_map_names)
+        self.source_slices = {
+            source_name: tuple(slices) for source_name, slices in source_slices.items()
+        }
+        self.start_time = start_time
+        self.end_time = end_time
+        self.requests: list[tuple[str, str | None, datetime]] = []
+
+    def get_domain_data(self):
+        return self.domain_data
+
+    def get_array(
+        self,
+        map_key: str,
+        current_time: datetime,
+    ) -> tuple[np.ndarray | None, datetime, datetime]:
+        source_name = self.input_map_names.get(map_key)
+        self.requests.append((map_key, source_name, current_time))
+        for source_slice in self.source_slices.get(source_name, ()):
+            if source_slice.start_time <= current_time < source_slice.end_time:
+                return source_slice.array.copy(), source_slice.start_time, source_slice.end_time
+        return None, self.start_time, self.end_time
 
 
 def _run_to_end(simulation: "Simulation", *, skip_initialize: bool = False) -> None:
@@ -203,6 +241,53 @@ def _build_provider_simulation(
     return builder.build()
 
 
+def _make_map_config(
+    start_time: datetime,
+    end_time: datetime,
+    input_map_names: dict[str, str | None],
+) -> SimulationConfig:
+    return _make_simulation_config(
+        start_time,
+        end_time,
+        temporal_type=TemporalType.RELATIVE,
+    ).model_copy(update={"input_map_names": input_map_names})
+
+
+def _source_slice(
+    start_time: datetime,
+    end_time: datetime,
+    array: np.ndarray,
+) -> TimedRasterSlice:
+    return TimedRasterSlice(start_time=start_time, end_time=end_time, array=array)
+
+
+def _build_map_aware_provider_simulation(
+    sim_config: SimulationConfig,
+    domain_5by5,
+    *,
+    source_slices: Mapping[str, Sequence[TimedRasterSlice]],
+    hotstart_bytes: bytes | None = None,
+) -> tuple["Simulation", MapAwareRasterInputProvider]:
+    provider = MapAwareRasterInputProvider(
+        domain_5by5.domain_data,
+        sim_config.input_map_names,
+        source_slices,
+        sim_config.start_time,
+        sim_config.end_time,
+    )
+    builder = (
+        SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
+        .with_input_provider(provider)
+        .with_raster_output_provider(
+            MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
+        )
+        .with_vector_output_provider(MemoryVectorOutputProvider({}))
+    )
+    if hotstart_bytes is not None:
+        builder.with_hotstart(hotstart_bytes)
+    return builder.build(), provider
+
+
 def _run_reference_with_hotstart_checkpoint(
     sim_config: SimulationConfig,
     domain_5by5,
@@ -309,12 +394,103 @@ def test_resume_with_absolute_time_memory_inputs(domain_5by5) -> None:
     )
 
 
-def test_resume_rejects_changed_input_map_names(domain_5by5) -> None:
+def test_resume_applies_changed_input_sources_at_checkpoint(domain_5by5) -> None:
     start_time = datetime(2000, 1, 1)
     end_time = start_time + timedelta(seconds=25)
-    timed_rain_slices, _ = _make_hotstart_timed_rain_slices(
-        domain_5by5.domain_data.shape, start_time
+    checkpoint_target = start_time + timedelta(seconds=12)
+    archived_rain_boundary = start_time + timedelta(seconds=20)
+    resumed_rain_boundary = start_time + timedelta(seconds=15)
+    shape = domain_5by5.domain_data.shape
+    archived_names = {
+        "dem": "dem_archive",
+        "friction": "friction_archive",
+        "water_depth": "depth_archive",
+        "rain": "rain_archive",
+    }
+    archived_config = _make_map_config(start_time, end_time, archived_names)
+    archived_sources = {
+        "dem_archive": [_source_slice(start_time, end_time, domain_5by5.arr_dem_flat)],
+        "friction_archive": [_source_slice(start_time, end_time, domain_5by5.arr_n)],
+        "depth_archive": [_source_slice(start_time, end_time, domain_5by5.arr_start_h)],
+        "rain_archive": [
+            _source_slice(start_time, start_time + timedelta(seconds=10), np.zeros(shape)),
+            _source_slice(
+                start_time + timedelta(seconds=10),
+                archived_rain_boundary,
+                np.full(shape, 360.0, dtype=np.float32),
+            ),
+            _source_slice(
+                archived_rain_boundary,
+                end_time,
+                np.full(shape, 540.0, dtype=np.float32),
+            ),
+        ],
+    }
+    archived, _ = _build_map_aware_provider_simulation(
+        archived_config,
+        domain_5by5,
+        source_slices=archived_sources,
     )
+    archived.initialize()
+    archived.update_until(checkpoint_target - start_time)
+    assert archived.sim_time == checkpoint_target
+    assert archived.next_ts["input"] == archived_rain_boundary
+    archived_dem = archived.raster_domain.get_array("dem").copy()
+    hotstart_bytes = archived.create_hotstart().getvalue()
+
+    resumed_names = {
+        **archived_names,
+        "friction": "friction_resumed",
+        "rain": "rain_resumed",
+    }
+    resumed_config = _make_map_config(start_time, end_time, resumed_names)
+    resumed_sources = {
+        # This unchanged configured source must not overwrite the archived raster.
+        "dem_archive": [
+            _source_slice(start_time, end_time, np.full(shape, 999.0, dtype=np.float32))
+        ],
+        "depth_archive": [_source_slice(start_time, end_time, domain_5by5.arr_start_h)],
+        "friction_resumed": [
+            _source_slice(start_time, end_time, np.full(shape, 0.08, dtype=np.float32))
+        ],
+        "rain_resumed": [
+            _source_slice(
+                start_time + timedelta(seconds=10),
+                resumed_rain_boundary,
+                np.full(shape, 720.0, dtype=np.float32),
+            )
+        ],
+    }
+    resumed, provider = _build_map_aware_provider_simulation(
+        resumed_config,
+        domain_5by5,
+        source_slices=resumed_sources,
+        hotstart_bytes=hotstart_bytes,
+    )
+
+    assert ("friction", "friction_resumed", checkpoint_target) in provider.requests
+    assert ("rain", "rain_resumed", checkpoint_target) in provider.requests
+    np.testing.assert_allclose(
+        resumed.raster_domain.get_array("friction"),
+        np.full(shape, 0.08, dtype=np.float32),
+    )
+    np.testing.assert_allclose(
+        resumed.raster_domain.get_array("rain"),
+        np.full(shape, 720.0 / (1000.0 * 3600.0), dtype=np.float32),
+    )
+    np.testing.assert_array_equal(resumed.raster_domain.get_array("dem"), archived_dem)
+    assert resumed.next_ts["hydrology"] == checkpoint_target
+    assert resumed.next_ts["input"] == resumed_rain_boundary
+    assert resumed.next_ts["input"] != archived_rain_boundary
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [("water_depth", "other_depth"), ("water_surface_elevation", "wse")],
+)
+def test_resume_rejects_changed_stage_input_map_names(domain_5by5, key: str, value: str) -> None:
+    start_time = datetime(2000, 1, 1)
+    end_time = start_time + timedelta(seconds=25)
     sim_config = _make_simulation_config(
         start_time,
         end_time,
@@ -324,21 +500,52 @@ def test_resume_rejects_changed_input_map_names(domain_5by5) -> None:
         sim_config,
         domain_5by5,
         static_arrays=_make_static_arrays(domain_5by5),
-        timed_arrays={"rain": timed_rain_slices},
+        timed_arrays={},
+        split_target_time=start_time + timedelta(seconds=12),
+    )
+    changed_config = sim_config.model_copy(
+        update={"input_map_names": {**sim_config.input_map_names, key: value}}
+    )
+
+    with pytest.raises(HotstartError, match=key):
+        _build_provider_simulation(
+            changed_config,
+            domain_5by5,
+            static_arrays=_make_static_arrays(domain_5by5),
+            hotstart_bytes=hotstart_bytes,
+        )
+
+
+def test_resume_rejects_changed_input_map_without_provider(domain_5by5) -> None:
+    start_time = datetime(2000, 1, 1)
+    end_time = start_time + timedelta(seconds=25)
+    sim_config = _make_simulation_config(
+        start_time,
+        end_time,
+        temporal_type=TemporalType.RELATIVE,
+    )
+    _, hotstart_bytes, _ = _run_reference_with_hotstart_checkpoint(
+        sim_config,
+        domain_5by5,
+        static_arrays=_make_static_arrays(domain_5by5),
+        timed_arrays={},
         split_target_time=start_time + timedelta(seconds=12),
     )
     changed_config = sim_config.model_copy(
         update={"input_map_names": {**sim_config.input_map_names, "rain": "other_rain"}}
     )
-
-    with pytest.raises(HotstartError, match="input map names mismatch"):
-        _build_provider_simulation(
-            changed_config,
-            domain_5by5,
-            static_arrays=_make_static_arrays(domain_5by5),
-            timed_arrays={"rain": timed_rain_slices},
-            hotstart_bytes=hotstart_bytes,
+    builder = (
+        SimulationBuilder(changed_config, domain_5by5.arr_mask, np.float32)
+        .with_domain_data(domain_5by5.domain_data)
+        .with_raster_output_provider(
+            MemoryRasterOutputProvider({"out_map_names": changed_config.output_map_names})
         )
+        .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .with_hotstart(hotstart_bytes)
+    )
+
+    with pytest.raises(HotstartError, match="changed input map names require an input provider"):
+        builder.build()
 
 
 def test_resume_rejects_conflicting_timed_input_boundary(domain_5by5) -> None:

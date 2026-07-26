@@ -34,17 +34,25 @@ class TimedInputManager:
 
     def read_at(self, sim_time: datetime) -> tuple[list[tuple[str, np.ndarray]], datetime]:
         """Prepare detached arrays to apply at ``sim_time`` and the next input boundary."""
-        return self._prepare_at(sim_time, include_updates=True)
+        return self._prepare_at(sim_time)
 
     def prime_at(self, sim_time: datetime) -> datetime:
         """Align input caches to ``sim_time`` without replacing restored raster state."""
-        _, next_input = self._prepare_at(sim_time, include_updates=False)
+        _, next_input = self._prepare_at(sim_time, update_keys=frozenset())
         return next_input
+
+    def prepare_resume_at(
+        self,
+        sim_time: datetime,
+        changed_keys: set[str],
+    ) -> tuple[list[tuple[str, np.ndarray]], datetime]:
+        """Prime all inputs and return updates only for sources changed on resume."""
+        return self._prepare_at(sim_time, update_keys=changed_keys)
 
     def _prepare_at(
         self,
         sim_time: datetime,
-        include_updates: bool,
+        update_keys: set[str] | frozenset[str] | None = None,
     ) -> tuple[list[tuple[str, np.ndarray]], datetime]:
         if sim_time >= self.end_time:
             return [], self.end_time
@@ -56,11 +64,11 @@ class TimedInputManager:
         try:
             updates: list[tuple[str, np.ndarray]] = []
             # WSE conversion depends on the DEM at the same time label.
-            self._prepare_array("dem", sim_time, updates if include_updates else None)
+            self._prepare_array("dem", sim_time, updates, update_keys)
             for key in self.timed_arrays:
                 if key == "dem" or not self._is_active(key):
                     continue
-                self._prepare_array(key, sim_time, updates if include_updates else None)
+                self._prepare_array(key, sim_time, updates, update_keys)
 
             next_input = self.end_time
             for key, timed_array in self.timed_arrays.items():
@@ -81,7 +89,8 @@ class TimedInputManager:
         self,
         key: str,
         sim_time: datetime,
-        updates: list[tuple[str, np.ndarray]] | None,
+        updates: list[tuple[str, np.ndarray]],
+        update_keys: set[str] | frozenset[str] | None,
     ) -> None:
         timed_array = self.timed_arrays[key]
         if timed_array.is_valid(sim_time):
@@ -90,7 +99,7 @@ class TimedInputManager:
         array = np.array(self._convert(key, timed_array.get(sim_time)), copy=True)
         self._validate_array(key, array, sim_time)
         logger.debug("%s: update input array <%s>", sim_time, key)
-        if updates is not None:
+        if update_keys is None or key in update_keys:
             updates.append((key, array))
 
     def _is_active(self, key: str) -> bool:

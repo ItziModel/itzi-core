@@ -58,6 +58,18 @@ if TYPE_CHECKING:
 class SimulationBuilder:
     """Builder for creating Simulation objects with different provider configurations."""
 
+    _STAGE_INPUT_KEYS = frozenset({"water_depth", "water_surface_elevation"})
+    _HYDROLOGY_INPUT_KEYS = frozenset(
+        {
+            "rain",
+            "losses",
+            "infiltration",
+            "effective_porosity",
+            "capillary_pressure",
+            "hydraulic_conductivity",
+            "soil_water_content",
+        }
+    )
     _ALLOWED_RESUME_SURFACE_FLOW_CHANGES = {
         "cfl",
         "theta",
@@ -199,12 +211,29 @@ class SimulationBuilder:
                 f"hotstart={hotstart_config.infiltration_model}"
             )
 
-        if self.sim_config.input_map_names != hotstart_config.input_map_names:
+        changed_input_keys = self._changed_input_keys(hotstart_config)
+        changed_stage_keys = changed_input_keys & self._STAGE_INPUT_KEYS
+        if changed_stage_keys:
             raise HotstartError(
-                "Hotstart input map names mismatch: input sources cannot change on resume"
+                "Hotstart input map changes are not supported for evolved stage inputs: "
+                f"{', '.join(sorted(changed_stage_keys))}"
+            )
+        if changed_input_keys and self.raster_input_provider is None:
+            raise HotstartError(
+                "Hotstart changed input map names require an input provider for resume"
             )
 
         self._validate_surface_flow_parameter_congruence(hotstart_config.surface_flow_parameters)
+
+    def _changed_input_keys(self, hotstart_config: SimulationConfig) -> set[str]:
+        """Return canonical inputs whose configured external source changed on resume."""
+        archived_names = hotstart_config.input_map_names
+        resumed_names = self.sim_config.input_map_names
+        return {
+            key
+            for key in archived_names.keys() | resumed_names.keys()
+            if archived_names.get(key) != resumed_names.get(key)
+        }
 
     def _validate_surface_flow_parameter_congruence(
         self,
@@ -388,6 +417,7 @@ class SimulationBuilder:
             simulation_state = self.hotstart_loader.get_simulation_state()
             simulation.restore_state(simulation_state)
             hotstart_config = self.hotstart_loader.get_simulation_config()
+            changed_input_keys = self._changed_input_keys(hotstart_config)
             restored_input_deadline = simulation.schedule.deadline("input")
             restored_end_deadline = simulation.schedule.deadline("end")
             end_time_changed = self.sim_config.end_time != hotstart_config.end_time
@@ -401,8 +431,19 @@ class SimulationBuilder:
                     )
                 simulation.schedule.set_deadline("input", simulation.end_time)
             else:
-                primed_input_deadline = timed_input_manager.prime_at(simulation.sim_time)
-                if not end_time_changed and primed_input_deadline != restored_input_deadline:
+                updates, primed_input_deadline = timed_input_manager.prepare_resume_at(
+                    simulation.sim_time,
+                    changed_input_keys,
+                )
+                for array_key, array in updates:
+                    simulation.set_array(array_key, array, simulation.sim_time)
+                if changed_input_keys & self._HYDROLOGY_INPUT_KEYS:
+                    simulation.schedule.set_deadline("hydrology", simulation.sim_time)
+                if (
+                    not changed_input_keys
+                    and not end_time_changed
+                    and primed_input_deadline != restored_input_deadline
+                ):
                     raise HotstartError(
                         "Hotstart timed-input boundary conflicts with the restored schedule: "
                         f"provider={primed_input_deadline}, restored={restored_input_deadline}"

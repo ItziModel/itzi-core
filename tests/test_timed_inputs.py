@@ -95,6 +95,29 @@ def test_read_at_rolls_back_caches_when_a_later_input_fails() -> None:
     assert next_input == end
 
 
+def test_prepare_resume_returns_only_changed_input_updates() -> None:
+    start = datetime(2000, 1, 1)
+    rain_boundary = start + timedelta(seconds=5)
+    end = start + timedelta(seconds=10)
+    dem = StubTimedArray(np.full((1, 1), 10.0, dtype=np.float32), start, end)
+    friction = StubTimedArray(np.full((1, 1), 0.05, dtype=np.float32), start, end)
+    rain = StubTimedArray(np.full((1, 1), 360.0, dtype=np.float32), start, rain_boundary)
+    manager = TimedInputManager(
+        {"dem": dem, "friction": friction, "rain": rain},
+        input_wse=False,
+        end_time=end,
+        mask=np.zeros((1, 1), dtype=bool),
+    )
+
+    updates, next_input = manager.prepare_resume_at(start, {"rain"})
+
+    assert [key for key, _ in updates] == ["rain"]
+    assert dem.is_valid(start)
+    assert friction.is_valid(start)
+    assert rain.is_valid(start)
+    assert next_input == rain_boundary
+
+
 @pytest.mark.parametrize(
     ("input_wse", "active_key", "inactive_key"),
     [
