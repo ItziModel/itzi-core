@@ -17,7 +17,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import TypedDict, TYPE_CHECKING, Tuple, List
 from io import StringIO
-from pathlib import Path
+from pathlib import PurePosixPath, PureWindowsPath
 import csv
 
 import pandas as pd
@@ -62,13 +62,15 @@ class CSVVectorOutputProvider(VectorOutputProvider):
         except AttributeError:
             self.srid = 0
         self.store = config["store"]
-        # Normalize path for obstore (requires forward slashes)
-        # Use resolve() to handle relative paths like "./out", but skip for empty strings
         prefix_str = config["results_prefix"]
-        if prefix_str:
-            results_prefix = Path(prefix_str).resolve().as_posix()
-        else:
-            results_prefix = ""
+        prefix_path = PurePosixPath(prefix_str.replace("\\", "/"))
+        if (
+            prefix_path.is_absolute()
+            or PureWindowsPath(prefix_str).drive
+            or ".." in prefix_path.parts
+        ):
+            raise ValueError("results_prefix must be a relative path without parent traversal")
+        results_prefix = prefix_path.as_posix() if prefix_path.parts else ""
 
         self.existing_ids = {"link": None, "node": None}  # Objects ids already in the file
         self.existing_max_time = {"link": None, "node": None}  # Max of sim_time in existing_file
@@ -84,7 +86,7 @@ class CSVVectorOutputProvider(VectorOutputProvider):
             self.headers[geom_type] = ["sim_time"] + base_headers + ["srid", "geometry"]
 
             results_name = f"{config['drainage_results_name']}_{geom_type}s.csv"
-            self.file_paths[geom_type] = f"{results_prefix}/{results_name}"
+            self.file_paths[geom_type] = (PurePosixPath(results_prefix) / results_name).as_posix()
             # No need to check if we overwrite
             if not config["overwrite"]:
                 self._check_existing_csv(geom_type)
