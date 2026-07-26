@@ -14,6 +14,7 @@ GNU Lesser General Public License for more details.
 
 from __future__ import annotations
 from datetime import datetime, timedelta
+from collections.abc import Mapping
 from typing import Self, TYPE_CHECKING
 import copy
 import io
@@ -28,6 +29,8 @@ from itzi_core.hotstart import HotstartWriter
 from itzi_core.itzi_error import NullError, MassBalanceError, DtError
 from itzi_core.compute import rastermetrics
 from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi_core.simulation_schedule import SimulationSchedule
+from itzi_core.timed_inputs import TimedInputManager
 
 if TYPE_CHECKING:
     from itzi_core.data_containers import SimulationConfig, DrainageNodeCouplingData
@@ -50,7 +53,8 @@ class Simulation:
         sim_config: SimulationConfig,
         domain_data: DomainData,
         raster_domain: RasterDomain,
-        timed_arrays: dict[str, TimedArray] | None,
+        schedule: SimulationSchedule,
+        timed_input_manager: TimedInputManager | None,
         hydrology_model: Hydrology,
         surface_flow: SurfaceFlowSimulation,
         drainage_model: DrainageSimulation | None,
@@ -59,20 +63,15 @@ class Simulation:
     ):
         self.sim_config = sim_config
         self.raster_domain = raster_domain
-        self.start_time = sim_config.start_time
-        self.end_time = sim_config.end_time
-        # set simulation time to start_time
-        self.sim_time = self.start_time
+        self.schedule = schedule
         self.domain_data = domain_data
-        self.raster_domain = raster_domain
-        self.timed_arrays = timed_arrays
+        self.timed_input_manager = timed_input_manager
         self.hydrology_model = hydrology_model
         self.drainage_model = drainage_model
         self.drainage_nodes_list = drainage_nodes_list
         self.surface_flow = surface_flow
         self.report = report
 
-        self.input_wse = bool(sim_config.input_map_names.get("water_surface_elevation"))
         # Mass balance error checking
         self.continuity_data: ContinuityData | None = None
         self.mass_balance_error_threshold = sim_config.surface_flow_parameters.max_error
@@ -85,20 +84,7 @@ class Simulation:
         self.accum_update_time: dict[str, datetime] = {
             accum: None for source, accum in self.accum_mapping.items()
         }
-        # First time-step is forced
-        self.dt = timedelta(seconds=0.001)
-        self.nextstep: datetime = self.sim_time + self.dt
-        # dict of next time-step (datetime object)
-        self.next_ts: dict[str, datetime] = {"end": self.end_time}
-        self.next_ts["input"] = self.end_time
-        for k in ["hydrology", "drainage"]:
-            self.next_ts[k] = self.start_time
-        # Schedule the first record step to avoid duplication with initialize()
-        self.next_ts["record"] = self.start_time + self.report.dt
-        # case if no drainage simulation
-        if not self.drainage_model:
-            self.next_ts["drainage"] = self.end_time
-        else:
+        if self.drainage_model:
             self.node_id_to_loc: dict[str, tuple[int, int]] = {
                 n.node_id: (n.row, n.col)
                 for n in self.drainage_nodes_list
@@ -117,8 +103,36 @@ class Simulation:
             "since_start": 0,
             "since_last_report": 0,
         }
-        # Update input arrays
-        self.update_input_arrays()
+
+    @property
+    def sim_time(self) -> datetime:
+        return self.schedule.now
+
+    @property
+    def dt(self) -> timedelta:
+        return self.schedule.dt
+
+    @property
+    def next_ts(self) -> Mapping[str, datetime]:
+        return self.schedule.deadlines
+
+    @property
+    def nextstep(self) -> datetime:
+        return self.schedule.nextstep
+
+    @property
+    def start_time(self) -> datetime:
+        return self.schedule.start_time
+
+    @property
+    def end_time(self) -> datetime:
+        return self.schedule.end_time
+
+    @property
+    def timed_arrays(self) -> dict[str, TimedArray] | None:
+        if self.timed_input_manager is None:
+            return None
+        return self.timed_input_manager.timed_arrays
 
     def initialize(self) -> Self:
         """Record the initial stage of the simulation, before time-stepping."""
@@ -142,33 +156,9 @@ class Simulation:
 
         for arr_key in self.accum_mapping.keys():
             self._update_accum_array(arr_key, self.sim_time)
-        # Package data into SimulationData object
-        raw_arrays = {
-            k: self.raster_domain.get_unmasked(k)
-            for k in self.raster_domain.k_all
-            if k not in self.raster_domain.k_accum
-        }
-        accumulation_arrays = {
-            k: self.raster_domain.get_unmasked(k) for k in self.raster_domain.k_accum
-        }
-        if self.drainage_model:
-            drainage_network_data = self.drainage_model.get_drainage_network_data()
-        else:
-            drainage_network_data = None
-
-        simulation_data = SimulationData(
-            sim_time=self.sim_time,
-            time_step=self.dt.total_seconds(),
-            time_steps_counter=0,
-            continuity_data=self.get_continuity_data(),
-            raw_arrays=raw_arrays,
-            accumulation_arrays=accumulation_arrays,
-            cell_dx=self.raster_domain.dx,
-            cell_dy=self.raster_domain.dy,
-            drainage_network_data=drainage_network_data,
-        )
+        self.continuity_data = self.get_continuity_data()
         # Pass data to the reporting module
-        self.report.step(simulation_data)
+        self.report.step(self._build_simulation_data(self.sim_time, 0))
 
         # d. Reset accumulators
         self.raster_domain.reset_accumulations()
@@ -179,30 +169,31 @@ class Simulation:
     def update(self) -> Self:
         """Advance one physical interval and report it at the interval end."""
         step_start: datetime = self.sim_time
+        if step_start >= self.end_time:
+            raise ValueError("Simulation has reached its configured end time")
 
-        if step_start == self.next_ts["hydrology"]:
+        if step_start == self.schedule.deadline("hydrology"):
             self.hydrology_model.solve_dt()
-            self.next_ts["hydrology"] += self.hydrology_model.dt
+            self.schedule.advance_event("hydrology", self.hydrology_model.dt)
             self.hydrology_model.step()
-        if step_start == self.next_ts["drainage"] and self.drainage_model:
+        if step_start == self.schedule.deadline("drainage") and self.drainage_model:
             self.drainage_model.step()
             self._apply_drainage_coupling()
-            self.next_ts["drainage"] += self.drainage_model.dt
+            self.schedule.advance_event("drainage", self.drainage_model.dt)
 
         # Choose the current interval width from the state at step_start
         try:
             self.surface_flow.solve_dt()
         except DtError as e:
             raise DtError(f"{step_start}: Time-step computation error detected in simulation: {e}")
-        self.find_dt(step_start + self.surface_flow.dt)
-        step_end: datetime = step_start + self.dt
+        step_end = self.schedule.select_step_end(step_start + self.surface_flow.dt)
 
         # surface flow #
         # update arrays of infiltration, rainfall etc.
         self.raster_domain.update_ext_array()
         # force time-step to be the general time-step
         try:
-            self.surface_flow.dt = self.dt
+            self.surface_flow.dt = self.schedule.dt
         except DtError as e:
             raise DtError(f"{step_start}: Time-step errors detected in simulation: {e}")
         # surface_flow.step() raise NullError in case of NaN/NULL cell
@@ -214,7 +205,11 @@ class Simulation:
 
         # Align timed inputs to the interval end before closing and reporting it
         # under that time label. Due submodels will consume that label on the next update cycle.
-        self.update_input_arrays(step_end)
+        if self.timed_input_manager is not None:
+            updates, next_input = self.timed_input_manager.read_at(step_end)
+            for array_key, array in updates:
+                self.set_array(array_key, array, step_end)
+            self.schedule.set_deadline("input", next_input)
 
         # Update accumulation arrays
         for arr_key in self.accum_mapping.keys():
@@ -225,7 +220,7 @@ class Simulation:
         steps_since_report = self.time_steps_counters["since_last_report"] + 1
         is_first_ts = step_start == self.start_time
         is_final_ts = step_end == self.end_time
-        is_record_due = step_end == self.next_ts["record"]
+        is_record_due = step_end == self.schedule.deadline("record")
         should_write_report = is_record_due or is_final_ts
         is_ts_over_threshold = steps_since_report % 200 == 0
         is_error_comp_due = is_first_ts or is_ts_over_threshold or should_write_report
@@ -247,7 +242,7 @@ class Simulation:
             for key in self.accum_update_time:
                 self.accum_update_time[key] = step_end
             if is_record_due:
-                self.next_ts["record"] += self.report.dt
+                self.schedule.advance_event("record", self.report.dt)
             steps_since_report = 0
 
         if is_error_comp_due:
@@ -259,10 +254,9 @@ class Simulation:
                 )
 
         # Reset time and counters for next time-step
-        self.sim_time = step_end
+        self.schedule.commit_step(step_end)
         self.time_steps_counters["since_start"] = steps_since_start
         self.time_steps_counters["since_last_report"] = steps_since_report
-        self.nextstep = min(self.next_ts.values())
 
         # Save hotstart
         if self.sim_config.hotstart_config:
@@ -276,16 +270,16 @@ class Simulation:
 
         return self
 
-    def update_until(self, then: timedelta):
+    def update_until(self, then: timedelta) -> Self:
         """Run the simulation until a time in seconds after start_time"""
         end_time = self.start_time + then
         if end_time <= self.sim_time:
             raise ValueError("End time must be superior to current time")
-        # Set temp end time (shorten last time step if necessary)
-        self.next_ts["temp_end"] = end_time
-        while self.sim_time < end_time:
-            self.update()
-        del self.next_ts["temp_end"]
+        if end_time > self.end_time:
+            raise ValueError("End time must not exceed the configured simulation end time")
+        with self.schedule.stop_at(end_time):
+            while self.sim_time < end_time:
+                self.update()
         # Make sure everything went well
         assert self.sim_time == end_time
         return self
@@ -343,104 +337,12 @@ class Simulation:
             drainage_network_data=drainage_network_data,
         )
 
-    def update_input_arrays(self, sim_time: datetime | None = None) -> Self:
-        """Get new array using TimedArrays,
-        convert units, and update the rasterdomain
-        """
-        current_time = self.sim_time if sim_time is None else sim_time
-        if self.timed_arrays is None:
-            self.next_ts["input"] = self.end_time
-            return self
-        if current_time >= self.end_time:
-            self.next_ts["input"] = self.end_time
-            return self
-        # DEM is needed for WSE
-        if not self.timed_arrays["dem"].is_valid(current_time):
-            new_dem: np.ndarray = self.timed_arrays["dem"].get(current_time)
-            self._validate_input_array_data("dem", new_dem, current_time)
-            self.set_array("dem", new_dem, current_time)
-        # loop through the arrays
-        for arr_key, ta in self.timed_arrays.items():
-            # DEM done before
-            if arr_key == "dem":
-                continue
-            # WSE is updating water depth, either one of the other should update
-            if (arr_key == "water_depth" and self.input_wse) or (
-                arr_key == "water_surface_elevation" and not self.input_wse
-            ):
-                continue
-            if not ta.is_valid(current_time):
-                # Convert mm/h to m/s
-                if arr_key in [
-                    "rain",
-                    "hydraulic_conductivity",
-                    "infiltration",
-                    "losses",
-                ]:
-                    new_arr = ta.get(current_time) / (1000 * 3600)
-                # Convert mm to m
-                elif arr_key in [
-                    "capillary_pressure",
-                ]:
-                    new_arr = ta.get(current_time) / 1000
-                else:
-                    new_arr = ta.get(current_time)
-                # update array
-                logger.debug("{}: update input array <{}>".format(current_time, arr_key))
-                self._validate_input_array_data(arr_key, new_arr, current_time)
-                self.set_array(arr_key, new_arr, current_time)
-        self._update_next_input_ts(current_time)
-        return self
-
-    def _update_next_input_ts(self, sim_time: datetime | None = None) -> None:
-        """Determine the next scheduler step for input arrays.
-        Each TimedArray cache stores the end of the currently active half-open
-        interval [arr_start, arr_end). The smallest arr_end is therefore the next
-        input change time the scheduler must not step across.
-        """
-        current_time = self.sim_time if sim_time is None else sim_time
-        if self.timed_arrays is None or current_time >= self.end_time:
-            self.next_ts["input"] = self.end_time
-            return
-        next_input = self.end_time
-        for arr_key, ta in self.timed_arrays.items():
-            if (arr_key == "water_depth" and self.input_wse) or (
-                arr_key == "water_surface_elevation" and not self.input_wse
-            ):
-                continue
-            if not ta.is_valid(current_time):
-                continue
-            next_input = min(next_input, ta.arr_end)
-        self.next_ts["input"] = next_input
-
-    def _validate_input_array_data(
+    def set_array(
         self,
-        arr_key: str,
+        arr_id: str,
         arr: np.ndarray,
         sim_time: datetime | None = None,
-    ) -> None:
-        """Fail or warn when a provider-backed input has no valid cells."""
-        current_time = self.sim_time if sim_time is None else sim_time
-        active_cells = arr[~self.raster_domain.mask]
-        active_cell_count = active_cells.size
-        finite_cell_count = int(np.count_nonzero(np.isfinite(active_cells)))
-
-        if finite_cell_count > 0:
-            return
-
-        if active_cell_count == 0:
-            msg = f"{current_time}: active domain contains no cells for input map <{arr_key}>"
-        else:
-            msg = (
-                f"{current_time}: input map <{arr_key}> contains only NULL/NaN cells "
-                "inside the active domain"
-            )
-        if arr_key == "dem":
-            raise NullError(msg)
-        else:
-            raise RuntimeWarning(msg)
-
-    def set_array(self, arr_id: str, arr: np.ndarray, sim_time: datetime | None = None):
+    ) -> Self:
         """Set an array of the simulation domain."""
         current_time = self.sim_time if sim_time is None else sim_time
         if arr_id in ["inflow", "rain"]:
@@ -450,27 +352,9 @@ class Simulation:
             self.surface_flow.update_flow_dir()
         return self
 
-    def get_array(self, arr_id: str):
+    def get_array(self, arr_id: str) -> np.ndarray:
         """Here form BMI interface."""
         return self.raster_domain.get_array(arr_id)
-
-    def find_dt(self, surface_flow_end: datetime) -> Self:
-        """find next time step"""
-        # Force a record step at the end of the simulation
-        # finalize() now only flushes the terminal state, but the last report still lands on end.
-        self.next_ts["record"] = min(self.next_ts["end"], self.next_ts["record"])
-        self.next_ts["input"] = min(self.next_ts["end"], self.next_ts["input"])
-        # Hydrology should run when input are updated
-        self.next_ts["hydrology"] = min(
-            self.next_ts["hydrology"],
-            self.next_ts["input"],
-        )
-        self.nextstep = min(self.next_ts.values())
-        future_steps: list[datetime] = [surface_flow_end]
-        future_steps.extend(ts for ts in self.next_ts.values() if ts > self.sim_time)
-        step_end = min(future_steps)
-        self.dt: timedelta = step_end - self.sim_time
-        return self
 
     def get_continuity_data(self) -> ContinuityData:
         """ """
@@ -550,7 +434,7 @@ class Simulation:
         simulation_state = HotstartSimulationState(
             sim_time=self.sim_time,
             dt=self.dt.total_seconds(),
-            next_ts=self.next_ts,
+            next_ts=self.schedule.snapshot_deadlines(),
             time_steps_counters=self.time_steps_counters,
             accum_update_time=self.accum_update_time,
             old_domain_volume=self.old_domain_volume,
@@ -616,21 +500,13 @@ class Simulation:
         Returns:
             Self for method chaining.
 
-        Note:
-            - nextstep is recomputed from next_ts via find_dt() rather than
-              restored directly, ensuring scheduler invariants are maintained.
-            - This method does NOT restore raster state; use
-              RasterDomain.load_state() for that purpose.
+        This method does NOT restore raster state; use RasterDomain.load_state() for that purpose.
         """
-        # Restore simulation time
-        self.sim_time = simulation_state.sim_time
-
-        # Restore time step
-        self.dt = timedelta(seconds=simulation_state.dt)
-
-        # Restore next timestamp schedule
-        self.next_ts = dict(simulation_state.next_ts)
-        self.next_ts.setdefault("input", self.end_time)
+        self.schedule.restore(
+            simulation_state.sim_time,
+            timedelta(seconds=simulation_state.dt),
+            simulation_state.next_ts,
+        )
 
         # Restore time step counters
         self.time_steps_counters = dict(simulation_state.time_steps_counters)
@@ -641,35 +517,29 @@ class Simulation:
         # Restore old domain volume for continuity tracking
         self.old_domain_volume = simulation_state.old_domain_volume
 
-        # Recompute nextstep from the restored next_ts to maintain scheduler invariants
-        # This ensures find_dt() and update() will work correctly
-        self.nextstep = min(self.next_ts.values())
-
         return self
 
     def reconcile_hotstart_resume(self, hotstart_config: SimulationConfig) -> Self:
         """Apply resume-time config changes allowed after hotstart restoration.
         This method is called after `restore_state()`,
         and reconciles the new user-provided config with the original config from the hotstart file."""
-        schedule_changed = False
-
         if self.end_time != hotstart_config.end_time:
-            self.next_ts["end"] = self.end_time
-            self.next_ts["input"] = min(self.next_ts.get("input", self.end_time), self.end_time)
+            self.schedule.set_deadline("end", self.end_time)
+            self.schedule.set_deadline(
+                "input", min(self.schedule.deadline("input"), self.end_time)
+            )
             if not self.drainage_model:
-                self.next_ts["drainage"] = self.end_time
-            schedule_changed = True
+                self.schedule.set_deadline("drainage", self.end_time)
 
         if self.report.dt != hotstart_config.record_step:
-            self.next_ts["record"] = min(self.end_time, self.sim_time + self.report.dt)
+            self.schedule.set_deadline(
+                "record", min(self.end_time, self.sim_time + self.report.dt)
+            )
             self.report.last_step = copy.copy(self.sim_time)
-            schedule_changed = True
 
         if self.hydrology_model.dt != timedelta(seconds=hotstart_config.dtinf):
-            self.next_ts["hydrology"] = min(self.end_time, self.sim_time + self.hydrology_model.dt)
-            schedule_changed = True
-
-        if schedule_changed:
-            self.nextstep = min(self.next_ts.values())
+            self.schedule.set_deadline(
+                "hydrology", min(self.end_time, self.sim_time + self.hydrology_model.dt)
+            )
 
         return self
