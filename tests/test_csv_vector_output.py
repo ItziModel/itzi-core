@@ -41,9 +41,14 @@ from tests.fixtures_vector_output import create_dummy_drainage_network
 from tests.fixtures_vector_output import expected_node_coords, expected_vertices
 
 
+@pytest.fixture
+def results_prefix():
+    return "test_data"
+
+
 @pytest.mark.cloud
 class TestCSVVector:
-    def test_csv(self, test_data_temp_path, sim_time):
+    def test_csv(self, results_prefix, sim_time):
         """Verify CSV vector files."""
         # write the drainage network
         drainage_network = create_dummy_drainage_network()
@@ -52,7 +57,7 @@ class TestCSVVector:
         provider_config: CSVVectorOutputConfig = {
             "crs": pyproj.CRS.from_epsg(6372),
             "store": obj_store,
-            "results_prefix": test_data_temp_path,
+            "results_prefix": results_prefix,
             "drainage_results_name": file_prefix,
             "overwrite": True,
         }
@@ -61,8 +66,8 @@ class TestCSVVector:
         csv_provider.write_vector(drainage_network, sim_time + timedelta(seconds=60))
 
         # Load the files
-        links_file_path = test_data_temp_path + "/" + f"{file_prefix}_links.csv"
-        nodes_file_path = test_data_temp_path + "/" + f"{file_prefix}_nodes.csv"
+        links_file_path = results_prefix + "/" + f"{file_prefix}_links.csv"
+        nodes_file_path = results_prefix + "/" + f"{file_prefix}_nodes.csv"
         links_csv = StringIO(
             bytes(obstore.get(obj_store, links_file_path).bytes()).decode("utf-8")
         )
@@ -83,7 +88,7 @@ class TestCSVVector:
         _validate_links_attributes(df_links)
         _validate_links_geometries(df_links)
 
-    def test_csv_no_geom_no_srid(self, test_data_temp_path, sim_time):
+    def test_csv_no_geom_no_srid(self, results_prefix, sim_time):
         """Verify CSV vector files without geometries."""
         # Write the drainage network without coordinates
         drainage_network = create_dummy_drainage_network(with_coords=False)
@@ -92,7 +97,7 @@ class TestCSVVector:
         provider_config = {
             "crs": None,
             "store": obj_store,
-            "results_prefix": test_data_temp_path,
+            "results_prefix": results_prefix,
             "drainage_results_name": file_prefix,
             "overwrite": True,
         }
@@ -101,8 +106,8 @@ class TestCSVVector:
         csv_provider.write_vector(drainage_network, sim_time + timedelta(seconds=60))
 
         # Load results and do the tests
-        links_file_path = test_data_temp_path + "/" + f"{file_prefix}_links.csv"
-        nodes_file_path = test_data_temp_path + "/" + f"{file_prefix}_nodes.csv"
+        links_file_path = results_prefix + "/" + f"{file_prefix}_links.csv"
+        nodes_file_path = results_prefix + "/" + f"{file_prefix}_nodes.csv"
         links_csv = StringIO(
             bytes(obstore.get(obj_store, links_file_path).bytes()).decode("utf-8")
         )
@@ -120,6 +125,66 @@ class TestCSVVector:
         _validate_nodes_attributes(df_nodes)
         # links
         _validate_links_attributes(df_links)
+
+    def test_relative_prefix_local_store_is_independent_of_cwd(
+        self, tmp_path, monkeypatch, sim_time
+    ):
+        store = obstore.store.LocalStore(str(tmp_path / "store"), mkdir=True)
+        working_directory = tmp_path / "working_directory"
+        working_directory.mkdir()
+        monkeypatch.chdir(working_directory)
+        provider_config: CSVVectorOutputConfig = {
+            "crs": None,
+            "store": store,
+            "results_prefix": "data",
+            "drainage_results_name": "drainage",
+            "overwrite": True,
+        }
+
+        csv_provider = CSVVectorOutputProvider(provider_config)
+        csv_provider.write_vector(create_dummy_drainage_network(), sim_time)
+
+        expected_keys = ["data/drainage_links.csv", "data/drainage_nodes.csv"]
+        assert sorted(csv_provider.file_paths.values()) == expected_keys
+        assert sorted(item["path"] for item in obstore.list(store).collect()) == expected_keys
+        assert all(str(working_directory) not in key for key in csv_provider.file_paths.values())
+
+    @pytest.mark.parametrize(
+        ("prefix", "expected_prefix"),
+        [("", ""), (r"data\nested", "data/nested"), ("./data//nested/", "data/nested")],
+    )
+    def test_results_prefix_normalization(self, prefix, expected_prefix):
+        store = obstore.store.MemoryStore()
+        provider_config: CSVVectorOutputConfig = {
+            "crs": None,
+            "store": store,
+            "results_prefix": prefix,
+            "drainage_results_name": "drainage",
+            "overwrite": True,
+        }
+
+        csv_provider = CSVVectorOutputProvider(provider_config)
+
+        separator = "/" if expected_prefix else ""
+        expected_keys = [
+            f"{expected_prefix}{separator}drainage_links.csv",
+            f"{expected_prefix}{separator}drainage_nodes.csv",
+        ]
+        assert sorted(csv_provider.file_paths.values()) == expected_keys
+        assert sorted(item["path"] for item in obstore.list(store).collect()) == expected_keys
+
+    @pytest.mark.parametrize("prefix", ["/data", "../data", "data/../archive", r"C:\data"])
+    def test_rejects_unsafe_results_prefix(self, prefix):
+        provider_config: CSVVectorOutputConfig = {
+            "crs": None,
+            "store": obstore.store.MemoryStore(),
+            "results_prefix": prefix,
+            "drainage_results_name": "drainage",
+            "overwrite": True,
+        }
+
+        with pytest.raises(ValueError, match="results_prefix must be a relative path"):
+            CSVVectorOutputProvider(provider_config)
 
 
 def _validate_common_fields(df, sim_time):
@@ -233,7 +298,7 @@ def _validate_links_geometries(df_links):
 
 @pytest.mark.cloud
 class TestCSVVectorAppend:
-    def test_append_success(self, test_data_temp_path):
+    def test_append_success(self, results_prefix):
         """Verify successful append mode when conditions are met."""
         drainage_network = create_dummy_drainage_network()
         sim_time_1 = timedelta(seconds=0)
@@ -244,7 +309,7 @@ class TestCSVVectorAppend:
         provider_config = {
             "crs": pyproj.CRS.from_epsg(6372),
             "store": obj_store,
-            "results_prefix": test_data_temp_path,
+            "results_prefix": results_prefix,
             "drainage_results_name": file_prefix,
             "overwrite": True,
         }
@@ -260,7 +325,7 @@ class TestCSVVectorAppend:
         csv_provider_append.write_vector(drainage_network, sim_time_3)
 
         # Verify all three time steps are present
-        nodes_file_path = test_data_temp_path + "/" + f"{file_prefix}_nodes.csv"
+        nodes_file_path = results_prefix + "/" + f"{file_prefix}_nodes.csv"
         nodes_csv = StringIO(
             bytes(obstore.get(obj_store, nodes_file_path).bytes()).decode("utf-8")
         )
@@ -280,13 +345,14 @@ class TestCSVVectorAppend:
         """Verify ValueError when trying to append nodes data to links file."""
         drainage_network = create_dummy_drainage_network()
         sim_time = timedelta(seconds=0)
-        obj_store = obstore.store.LocalStore()
+        obj_store = obstore.store.LocalStore(test_data_temp_path)
         file_prefix = "test_column_mismatch"
+        results_prefix = "data"
         # First, write links data
         provider_config = {
             "crs": pyproj.CRS.from_epsg(6372),
             "store": obj_store,
-            "results_prefix": test_data_temp_path,
+            "results_prefix": results_prefix,
             "drainage_results_name": file_prefix,
             "overwrite": True,
         }
@@ -294,8 +360,8 @@ class TestCSVVectorAppend:
         csv_provider.write_vector(drainage_network, sim_time)
 
         # Manually swap the files to simulate column mismatch
-        nodes_file = Path(test_data_temp_path) / Path(f"{file_prefix}_nodes.csv")
-        links_file = Path(test_data_temp_path) / Path(f"{file_prefix}_links.csv")
+        nodes_file = Path(test_data_temp_path) / results_prefix / f"{file_prefix}_nodes.csv"
+        links_file = Path(test_data_temp_path) / results_prefix / f"{file_prefix}_links.csv"
         # Overwrite nodes file with links content
         nodes_file.write_text(links_file.read_text())
 
@@ -305,7 +371,7 @@ class TestCSVVectorAppend:
             csv_provider_append = CSVVectorOutputProvider(provider_config)
             csv_provider_append.write_vector(drainage_network, timedelta(seconds=60))
 
-    def test_append_time_type_mismatch_timedelta_to_datetime(self, test_data_temp_path):
+    def test_append_time_type_mismatch_timedelta_to_datetime(self, results_prefix):
         """Verify ValueError when appending datetime to file with timedelta."""
         drainage_network = create_dummy_drainage_network()
 
@@ -313,7 +379,7 @@ class TestCSVVectorAppend:
         provider_config = {
             "crs": pyproj.CRS.from_epsg(6372),
             "store": obstore.store.MemoryStore(),
-            "results_prefix": test_data_temp_path,
+            "results_prefix": results_prefix,
             "drainage_results_name": "test_time_type_mismatch_td",
             "overwrite": True,
         }
@@ -329,7 +395,7 @@ class TestCSVVectorAppend:
                 drainage_network, datetime(year=2020, month=3, day=23, hour=10)
             )
 
-    def test_append_time_type_mismatch_datetime_to_timedelta(self, test_data_temp_path):
+    def test_append_time_type_mismatch_datetime_to_timedelta(self, results_prefix):
         """Verify ValueError when appending timedelta to file with datetime."""
         drainage_network = create_dummy_drainage_network()
 
@@ -337,7 +403,7 @@ class TestCSVVectorAppend:
         provider_config = {
             "crs": pyproj.CRS.from_epsg(6372),
             "store": obstore.store.MemoryStore(),
-            "results_prefix": test_data_temp_path,
+            "results_prefix": results_prefix,
             "drainage_results_name": "test_time_type_mismatch_dt",
             "overwrite": True,
         }
@@ -351,7 +417,7 @@ class TestCSVVectorAppend:
         with pytest.raises(ValueError, match="time.*type|type.*mismatch"):
             csv_provider_append.write_vector(drainage_network, timedelta(seconds=60))
 
-    def test_append_node_ids_mismatch(self, test_data_temp_path):
+    def test_append_node_ids_mismatch(self, results_prefix):
         """Verify ValueError when appending with different node IDs."""
         drainage_network = create_dummy_drainage_network()
         sim_time = timedelta(seconds=0)
@@ -360,7 +426,7 @@ class TestCSVVectorAppend:
         provider_config = {
             "crs": pyproj.CRS.from_epsg(6372),
             "store": obstore.store.MemoryStore(),
-            "results_prefix": test_data_temp_path,
+            "results_prefix": results_prefix,
             "drainage_results_name": "test_node_ids_mismatch",
             "overwrite": True,
         }
@@ -404,7 +470,7 @@ class TestCSVVectorAppend:
         with pytest.raises(ValueError, match="[Oo]bject.*ids.*mismatch"):
             csv_provider_append.write_vector(modified_network, timedelta(seconds=60))
 
-    def test_append_link_ids_mismatch(self, test_data_temp_path):
+    def test_append_link_ids_mismatch(self, results_prefix):
         """Verify ValueError when appending with different link IDs."""
         drainage_network = create_dummy_drainage_network()
         sim_time = timedelta(seconds=0)
@@ -413,7 +479,7 @@ class TestCSVVectorAppend:
         provider_config = {
             "crs": pyproj.CRS.from_epsg(6372),
             "store": obstore.store.MemoryStore(),
-            "results_prefix": test_data_temp_path,
+            "results_prefix": results_prefix,
             "drainage_results_name": "test_link_ids_mismatch",
             "overwrite": True,
         }
@@ -449,7 +515,7 @@ class TestCSVVectorAppend:
         with pytest.raises(ValueError, match="[Oo]bject.*ids.*mismatch"):
             csv_provider_append.write_vector(modified_network, timedelta(seconds=60))
 
-    def test_append_time_not_increasing(self, test_data_temp_path):
+    def test_append_time_not_increasing(self, results_prefix):
         """Verify ValueError when appending with time < maximum existing time."""
         drainage_network = create_dummy_drainage_network()
 
@@ -457,7 +523,7 @@ class TestCSVVectorAppend:
         provider_config = {
             "crs": pyproj.CRS.from_epsg(6372),
             "store": obstore.store.MemoryStore(),
-            "results_prefix": test_data_temp_path,
+            "results_prefix": results_prefix,
             "drainage_results_name": "test_time_not_increasing",
             "overwrite": True,
         }
@@ -472,7 +538,7 @@ class TestCSVVectorAppend:
         with pytest.raises(ValueError, match="Time not increasing"):
             csv_provider_append.write_vector(drainage_network, timedelta(seconds=60))
 
-    def test_append_time_equal_to_maximum(self, test_data_temp_path):
+    def test_append_time_equal_to_maximum(self, results_prefix):
         """Verify ValueError when appending with time equal to maximum existing time."""
         drainage_network = create_dummy_drainage_network()
 
@@ -480,7 +546,7 @@ class TestCSVVectorAppend:
         provider_config = {
             "crs": pyproj.CRS.from_epsg(6372),
             "store": obstore.store.MemoryStore(),
-            "results_prefix": test_data_temp_path,
+            "results_prefix": results_prefix,
             "drainage_results_name": "test_time_equal",
             "overwrite": True,
         }
