@@ -15,11 +15,156 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
+from math import atan2, copysign, pi, sqrt
+
 import numpy as np
 import pytest
-from math import atan2, pi
 
 from itzi_core.compute.partial_inertia_h import solve_h
+from itzi_core.compute.partial_inertia_q import solve_q
+
+
+def _solve_q_at_face(
+    *,
+    axis: str,
+    depth: float,
+    slope: float,
+    hmin: float,
+    slope_threshold: float,
+    max_slope: float,
+    dtype: type[np.floating] = np.float64,
+    n0: float = 0.05,
+    n1: float | None = None,
+) -> float:
+    """Return the new discharge at one interior face of a padded domain."""
+    shape = (5, 5)
+    target = (2, 2)
+    neighbor = (2, 3) if axis == "east" else (3, 2)
+
+    arr_z = np.zeros(shape, dtype=dtype)
+    arr_z[neighbor] = -slope
+    arr_n = np.full(shape, n0, dtype=dtype)
+    if n1 is not None:
+        arr_n[neighbor] = n1
+    arr_h = np.full(shape, depth, dtype=dtype)
+    arr_qe = np.zeros(shape, dtype=dtype)
+    arr_qs = np.zeros(shape, dtype=dtype)
+    arr_hfe = np.zeros(shape, dtype=dtype)
+    arr_hfs = np.zeros(shape, dtype=dtype)
+    arr_bctype = np.zeros(shape, dtype=dtype)
+    arr_qe_new = np.zeros(shape, dtype=dtype)
+    arr_qs_new = np.zeros(shape, dtype=dtype)
+
+    solve_q(
+        arr_z=arr_z,
+        arr_n=arr_n,
+        arr_h=arr_h,
+        arr_qe=arr_qe,
+        arr_qs=arr_qs,
+        arr_hfe=arr_hfe,
+        arr_hfs=arr_hfs,
+        arr_bctype=arr_bctype,
+        arr_qe_new=arr_qe_new,
+        arr_qs_new=arr_qs_new,
+        dt=0.1,
+        dx=1.0,
+        dy=1.0,
+        g=9.81,
+        theta=0.7,
+        hf_min=hmin,
+        slope_threshold=slope_threshold,
+        max_slope=max_slope,
+    )
+    flow_array = arr_qe_new if axis == "east" else arr_qs_new
+    return float(flow_array[target])
+
+
+def _gms_discharge(depth: float, n: float, slope: float, max_slope: float) -> float:
+    return copysign(depth ** (5.0 / 3.0) / n * sqrt(min(abs(slope), max_slope)), slope)
+
+
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+@pytest.mark.parametrize(
+    ("depth", "uses_gms"),
+    [
+        (0.04, True),
+        (0.05, True),
+        (0.06, False),
+    ],
+)
+def test_solve_q_selects_routing_formula_at_depth_threshold(dtype, depth, uses_gms):
+    """Shallow faces use GMS; only depths strictly above hmin use Almeida."""
+    slope = 0.1
+    discharge = _solve_q_at_face(
+        axis="east",
+        depth=depth,
+        slope=slope,
+        hmin=0.05,
+        slope_threshold=0.8,
+        max_slope=1.0,
+        dtype=dtype,
+    )
+
+    expected = (
+        _gms_discharge(depth, n=0.05, slope=slope, max_slope=1.0)
+        if uses_gms
+        else 9.81 * depth * 0.1 * slope
+    )
+    assert discharge == pytest.approx(expected, rel=1e-6, abs=1e-8)
+
+
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+@pytest.mark.parametrize(
+    ("slope", "uses_gms"),
+    [
+        (0.79, False),
+        (0.8, True),
+        (0.81, True),
+    ],
+)
+def test_solve_q_selects_routing_formula_at_slope_threshold(dtype, slope, uses_gms):
+    """Only slopes strictly below slope_threshold use the Almeida formula."""
+    depth = 0.1
+    discharge = _solve_q_at_face(
+        axis="east",
+        depth=depth,
+        slope=slope,
+        hmin=0.05,
+        slope_threshold=0.8,
+        max_slope=2.0,
+        dtype=dtype,
+    )
+
+    expected = (
+        _gms_discharge(depth, n=0.05, slope=slope, max_slope=2.0)
+        if uses_gms
+        else 9.81 * depth * 0.1 * slope
+    )
+    assert discharge == pytest.approx(expected, rel=1e-6, abs=1e-8)
+
+
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+@pytest.mark.parametrize(
+    ("axis", "slope"), [("east", 10.0), ("east", -10.0), ("south", 10.0), ("south", -10.0)]
+)
+def test_solve_q_gms_caps_slope_and_preserves_direction(dtype, axis, slope):
+    """GMS applies the slope cap and the averaged Manning coefficient on both axes."""
+    depth = 0.1
+    max_slope = 0.2
+    discharge = _solve_q_at_face(
+        axis=axis,
+        depth=depth,
+        slope=slope,
+        hmin=0.05,
+        slope_threshold=0.8,
+        max_slope=max_slope,
+        dtype=dtype,
+        n0=0.04,
+        n1=0.06,
+    )
+
+    expected = _gms_discharge(depth, n=0.05, slope=slope, max_slope=max_slope)
+    assert discharge == pytest.approx(expected, rel=1e-5, abs=1e-8)
 
 
 def test_velocity_direction_calculation():
