@@ -169,6 +169,8 @@ class Simulation:
     def update(self) -> Self:
         """Advance one physical interval and report it at the interval end."""
         step_start: datetime = self.sim_time
+        if step_start >= self.end_time:
+            raise ValueError("Simulation has reached its configured end time")
 
         if step_start == self.schedule.deadline("hydrology"):
             self.hydrology_model.solve_dt()

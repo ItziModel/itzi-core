@@ -96,3 +96,9 @@ def test_restore_rejects_unknown_or_stale_deadlines(times) -> None:
             timedelta(seconds=1),
             {**deadlines, "input": start + timedelta(seconds=5)},
         )
+    with pytest.raises(HotstartError, match="record deadline .*precedes"):
+        schedule.restore(
+            start + timedelta(seconds=10),
+            timedelta(seconds=1),
+            {**deadlines, "record": start + timedelta(seconds=5)},
+        )

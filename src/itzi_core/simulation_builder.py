@@ -389,10 +389,16 @@ class SimulationBuilder:
             simulation.restore_state(simulation_state)
             hotstart_config = self.hotstart_loader.get_simulation_config()
             restored_input_deadline = simulation.schedule.deadline("input")
+            restored_end_deadline = simulation.schedule.deadline("end")
             end_time_changed = self.sim_config.end_time != hotstart_config.end_time
             simulation.reconcile_hotstart_resume(hotstart_config)
 
             if timed_input_manager is None:
+                if restored_input_deadline < restored_end_deadline:
+                    raise HotstartError(
+                        "Hotstart has a pending timed-input deadline but no input provider "
+                        "is configured for resume"
+                    )
                 simulation.schedule.set_deadline("input", simulation.end_time)
             else:
                 primed_input_deadline = timed_input_manager.prime_at(simulation.sim_time)

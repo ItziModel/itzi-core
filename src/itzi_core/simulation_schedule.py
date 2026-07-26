@@ -124,7 +124,7 @@ class SimulationSchedule:
             raise HotstartError(
                 f"Hotstart schedule has unknown deadlines: {', '.join(sorted(unknown))}"
             )
-        for event in ("end", "input", "hydrology", "drainage"):
+        for event in self._EVENTS:
             if restored[event] < sim_time:
                 raise HotstartError(
                     f"Hotstart {event} deadline {restored[event]} precedes simulation time {sim_time}"

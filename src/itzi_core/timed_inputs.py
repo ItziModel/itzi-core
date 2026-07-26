@@ -49,19 +49,33 @@ class TimedInputManager:
         if sim_time >= self.end_time:
             return [], self.end_time
 
-        updates: list[tuple[str, np.ndarray]] = []
-        # WSE conversion depends on the DEM at the same time label.
-        self._prepare_array("dem", sim_time, updates if include_updates else None)
-        for key in self.timed_arrays:
-            if key == "dem" or not self._is_active(key):
-                continue
-            self._prepare_array(key, sim_time, updates if include_updates else None)
+        cache_state = {
+            key: (timed_array.arr_start, timed_array.arr_end, timed_array.arr)
+            for key, timed_array in self.timed_arrays.items()
+        }
+        try:
+            updates: list[tuple[str, np.ndarray]] = []
+            # WSE conversion depends on the DEM at the same time label.
+            self._prepare_array("dem", sim_time, updates if include_updates else None)
+            for key in self.timed_arrays:
+                if key == "dem" or not self._is_active(key):
+                    continue
+                self._prepare_array(key, sim_time, updates if include_updates else None)
 
-        next_input = self.end_time
-        for key, timed_array in self.timed_arrays.items():
-            if self._is_active(key) and timed_array.is_valid(sim_time):
-                next_input = min(next_input, timed_array.arr_end)
-        return updates, next_input
+            next_input = self.end_time
+            for key, timed_array in self.timed_arrays.items():
+                if self._is_active(key) and timed_array.is_valid(sim_time):
+                    next_input = min(next_input, timed_array.arr_end)
+            return updates, next_input
+        except Exception:
+            # TimedArray.get() updates its cache before validation succeeds. Restore all
+            # cache entries so a retry cannot skip an input that was never applied.
+            for key, (arr_start, arr_end, array) in cache_state.items():
+                timed_array = self.timed_arrays[key]
+                timed_array.arr_start = arr_start
+                timed_array.arr_end = arr_end
+                timed_array.arr = array
+            raise
 
     def _prepare_array(
         self,
