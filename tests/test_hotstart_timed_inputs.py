@@ -23,7 +23,7 @@ import pytest
 
 from itzi_core.const import InfiltrationModelType, TemporalType
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
-from itzi_core.itzi_error import NullError
+from itzi_core.itzi_error import HotstartError, NullError
 from itzi_core.providers.memory_input import MemoryRasterInputProvider, TimedRasterSlice
 from itzi_core.providers.memory_output import (
     MemoryRasterOutputProvider,
@@ -304,6 +304,80 @@ def test_resume_with_absolute_time_memory_inputs(domain_5by5) -> None:
         domain_5by5,
         temporal_type=TemporalType.ABSOLUTE,
     )
+
+
+def test_resume_rejects_changed_input_map_names(domain_5by5) -> None:
+    start_time = datetime(2000, 1, 1)
+    end_time = start_time + timedelta(seconds=25)
+    timed_rain_slices, _ = _make_hotstart_timed_rain_slices(
+        domain_5by5.domain_data.shape, start_time
+    )
+    sim_config = _make_simulation_config(
+        start_time,
+        end_time,
+        temporal_type=TemporalType.RELATIVE,
+    )
+    _, hotstart_bytes, _ = _run_reference_with_hotstart_checkpoint(
+        sim_config,
+        domain_5by5,
+        static_arrays=_make_static_arrays(domain_5by5),
+        timed_arrays={"rain": timed_rain_slices},
+        split_target_time=start_time + timedelta(seconds=12),
+    )
+    changed_config = sim_config.model_copy(
+        update={"input_map_names": {**sim_config.input_map_names, "rain": "other_rain"}}
+    )
+
+    with pytest.raises(HotstartError, match="input map names mismatch"):
+        _build_provider_simulation(
+            changed_config,
+            domain_5by5,
+            static_arrays=_make_static_arrays(domain_5by5),
+            timed_arrays={"rain": timed_rain_slices},
+            hotstart_bytes=hotstart_bytes,
+        )
+
+
+def test_resume_rejects_conflicting_timed_input_boundary(domain_5by5) -> None:
+    start_time = datetime(2000, 1, 1)
+    end_time = start_time + timedelta(seconds=25)
+    timed_rain_slices, _ = _make_hotstart_timed_rain_slices(
+        domain_5by5.domain_data.shape, start_time
+    )
+    sim_config = _make_simulation_config(
+        start_time,
+        end_time,
+        temporal_type=TemporalType.RELATIVE,
+    )
+    _, hotstart_bytes, _ = _run_reference_with_hotstart_checkpoint(
+        sim_config,
+        domain_5by5,
+        static_arrays=_make_static_arrays(domain_5by5),
+        timed_arrays={"rain": timed_rain_slices},
+        split_target_time=start_time + timedelta(seconds=12),
+    )
+    changed_slices = [
+        timed_rain_slices[0],
+        TimedRasterSlice(
+            start_time=start_time + timedelta(seconds=10),
+            end_time=start_time + timedelta(seconds=22),
+            array=np.full(domain_5by5.domain_data.shape, RAIN_MM_PER_HOUR[10], dtype=np.float32),
+        ),
+        TimedRasterSlice(
+            start_time=start_time + timedelta(seconds=22),
+            end_time=start_time + timedelta(seconds=30),
+            array=np.full(domain_5by5.domain_data.shape, RAIN_MM_PER_HOUR[20], dtype=np.float32),
+        ),
+    ]
+
+    with pytest.raises(HotstartError, match="boundary conflicts"):
+        _build_provider_simulation(
+            sim_config,
+            domain_5by5,
+            static_arrays=_make_static_arrays(domain_5by5),
+            timed_arrays={"rain": changed_slices},
+            hotstart_bytes=hotstart_bytes,
+        )
 
 
 @pytest.mark.parametrize(
