@@ -12,45 +12,41 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
-import pytest
-import tempfile
-from datetime import datetime
+from datetime import UTC, datetime
 
-from itzi_core.massbalance import MassBalanceLogger
+import pytest
+
 from itzi_core.data_containers import MassBalanceData
+from itzi_core.providers.base import MassBalanceOutputProvider
+from itzi_core.providers.csv_mass_balance_output import CSVMassBalanceOutputProvider
 
 
 @pytest.fixture
-def logger_fixture():
-    start_time = datetime.now()
-    temp_file = tempfile.NamedTemporaryFile(delete=False)
-    file_name = temp_file.name
-    yield {
-        "start_time": start_time,
-        "file_name": file_name,
-    }
-    temp_file.close()
+def provider_fixture(tmp_path):
+    return {"file_name": str(tmp_path / "stats.csv")}
 
 
-def test_init_with_custom_filename(logger_fixture):
-    logger = MassBalanceLogger(
-        file_name=logger_fixture["file_name"],
+def test_init_with_custom_filename(provider_fixture):
+    provider = CSVMassBalanceOutputProvider(
+        file_name=provider_fixture["file_name"],
     )
-    assert logger.file_name == logger_fixture["file_name"]
+    assert isinstance(provider, MassBalanceOutputProvider)
+    assert provider.file_name == provider_fixture["file_name"]
 
 
-def test_init_with_default_filename():
-    logger = MassBalanceLogger(
+def test_init_with_default_filename(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    provider = CSVMassBalanceOutputProvider(
         file_name="",
     )
-    assert logger.file_name.endswith("_stats.csv")
+    assert provider.file_name.endswith("_stats.csv")
 
 
-def test_log_absolute_time(logger_fixture):
-    logger = MassBalanceLogger(
-        file_name=logger_fixture["file_name"],
+def test_log_absolute_time(provider_fixture):
+    provider = CSVMassBalanceOutputProvider(
+        file_name=provider_fixture["file_name"],
     )
-    test_time = datetime.now()
+    test_time = datetime.now(UTC)
     test_data = MassBalanceData(
         simulation_time=test_time,
         average_timestep=12.42345,
@@ -67,8 +63,8 @@ def test_log_absolute_time(logger_fixture):
         percent_error=0.123456,
     )
 
-    logger.log(test_data)
-    with open(logger_fixture["file_name"], "r") as f:
+    provider.log(test_data)
+    with open(provider_fixture["file_name"], "r") as f:
         lines = f.readlines()
         assert str(test_time) in lines[1]  # datetime formatting
         assert "123.456789" in lines[1]  # float formatting

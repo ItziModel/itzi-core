@@ -14,10 +14,10 @@ GNU Lesser General Public License for more details.
 
 import os
 import shutil
+import zipfile
 from datetime import datetime, timedelta
 from io import StringIO
 from pathlib import Path
-import zipfile
 
 import numpy as np
 import pandas as pd
@@ -34,13 +34,13 @@ rioxarray = pytest.importorskip("rioxarray")
 pyproj = pytest.importorskip("pyproj")
 
 # ruff: noqa: E402
-from itzi_core.simulation_builder import SimulationBuilder
-from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
 from itzi_core.const import TemporalType
-from itzi_core.providers.xarray_input import XarrayRasterInputProvider
-from itzi_core.providers.icechunk_output import IcechunkRasterOutputProvider
+from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
+from itzi_core.providers.csv_mass_balance_output import CSVMassBalanceOutputProvider
 from itzi_core.providers.csv_output import CSVVectorOutputProvider
-
+from itzi_core.providers.icechunk_output import IcechunkRasterOutputProvider
+from itzi_core.providers.xarray_input import XarrayRasterInputProvider
+from itzi_core.simulation_builder import SimulationBuilder
 
 TEST8B_MD5 = "84b865cedd28f8156cfe70b84004b62c"
 
@@ -162,7 +162,6 @@ def ea8b_simulation(ea8b_data, test_data_path, ea8b_temp_path):
         output_map_names={"water_depth": "test_water_depth"},
         drainage_output="out_drainage",
         swmm_inp=str(inp_file),
-        stats_file="ea8b.csv",
         surface_flow_parameters=surface_flow_params,
         orifice_coeff=1.0,
     )
@@ -207,6 +206,7 @@ def ea8b_simulation(ea8b_data, test_data_path, ea8b_temp_path):
         .with_input_provider(raster_input_provider)
         .with_raster_output_provider(raster_output_provider)
         .with_vector_output_provider(vector_output_provider)
+        .with_mass_balance_output_provider(CSVMassBalanceOutputProvider(file_name="ea8b.csv"))
         .build()
     )
 

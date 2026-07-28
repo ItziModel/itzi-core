@@ -14,15 +14,14 @@ GNU Lesser General Public License for more details.
 
 from __future__ import annotations
 
-from typing import Dict, Tuple, TYPE_CHECKING
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict
-from pydantic import PositiveFloat, NonNegativeFloat, NonNegativeInt, Field
+from pydantic import BaseModel, ConfigDict, Field, NonNegativeFloat, NonNegativeInt, PositiveFloat
 
-from itzi_core.const import DefaultValues, TemporalType, InfiltrationModelType
+from itzi_core.const import DefaultValues, InfiltrationModelType, TemporalType
 from itzi_core.providers.domain_data import DomainData
 
 if TYPE_CHECKING:
@@ -35,7 +34,7 @@ class DrainageNodeCouplingData(BaseModel):
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     node_id: str  # Name of the drainage node
-    node_object: "DrainageNode"
+    node_object: DrainageNode
     # Location in the coordinate system
     x: float | None
     y: float | None
@@ -79,7 +78,7 @@ class DrainageLinkData(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    vertices: None | Tuple[Tuple[float, float] | None, ...]
+    vertices: None | tuple[tuple[float, float] | None, ...]
     attributes: DrainageLinkAttributes
 
 
@@ -112,15 +111,15 @@ class DrainageNodeData(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    coordinates: None | Tuple[float, float]
+    coordinates: None | tuple[float, float]
     attributes: DrainageNodeAttributes
 
 
 class DrainageNetworkData(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    nodes: Tuple[DrainageNodeData, ...]
-    links: Tuple[DrainageLinkData, ...]
+    nodes: tuple[DrainageNodeData, ...]
+    links: tuple[DrainageLinkData, ...]
 
 
 class ContinuityData(BaseModel):
@@ -148,8 +147,8 @@ class SimulationData(BaseModel):
     time_step: float  # time step duration
     time_steps_counter: int  # number of time steps since last update
     continuity_data: ContinuityData | None  # Made optional for use in tests
-    raw_arrays: Dict[str, np.ndarray]
-    accumulation_arrays: Dict[str, np.ndarray]
+    raw_arrays: dict[str, np.ndarray]
+    accumulation_arrays: dict[str, np.ndarray]
     cell_dx: PositiveFloat  # cell size in east-west direction
     cell_dy: PositiveFloat  # cell size in north-south direction
     drainage_network_data: DrainageNetworkData | None
@@ -200,7 +199,7 @@ class HotstartRunConfig(BaseModel):
 class SimulationConfig(BaseModel):
     """Configuration data for a simulation run."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     # Simulation times
     start_time: datetime
@@ -210,12 +209,10 @@ class SimulationConfig(BaseModel):
     # Hotstart config
     hotstart_config: HotstartRunConfig | None = None
     # Input and output raster maps
-    input_map_names: Dict[str, str | None]
-    output_map_names: Dict[str, str | None]
+    input_map_names: dict[str, str | None]
+    output_map_names: dict[str, str | None]
     # Surface flow parameters
     surface_flow_parameters: SurfaceFlowParameters
-    # Mass balance file
-    stats_file: str | Path | None = None
     # Hydrology parameters
     dtinf: PositiveFloat = DefaultValues.DTINF
     infiltration_model: InfiltrationModelType = InfiltrationModelType.NULL
@@ -226,7 +223,7 @@ class SimulationConfig(BaseModel):
     free_weir_coeff: NonNegativeFloat = Field(DefaultValues.FREE_WEIR_COEFF, ge=0, le=1)
     submerged_weir_coeff: NonNegativeFloat = Field(DefaultValues.SUBMERGED_WEIR_COEFF, ge=0, le=1)
 
-    def as_str_dict(self) -> Dict:
+    def as_str_dict(self) -> dict:
         """Convert the configuration to a dictionary with string representations."""
         raw_dict = self.model_dump()
         raw_dict["start_time"] = self.start_time.isoformat()
@@ -242,9 +239,9 @@ class HotstartSimulationState(BaseModel):
 
     sim_time: datetime
     dt: float  # seconds
-    next_ts: Dict[str, datetime]
-    time_steps_counters: Dict[str, int]
-    accum_update_time: Dict[str, datetime]
+    next_ts: dict[str, datetime]
+    time_steps_counters: dict[str, int]
+    accum_update_time: dict[str, datetime]
     old_domain_volume: float
     # Hashes are computed by HotstartWriter and injected before serialization;
     # callers building the state before archive creation leave them as empty defaults.

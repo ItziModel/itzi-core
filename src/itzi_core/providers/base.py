@@ -15,12 +15,15 @@ GNU Lesser General Public License for more details.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Mapping, TYPE_CHECKING
+from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from datetime import datetime, timedelta
+
     import numpy as np
-    from itzi_core.data_containers import SimulationData, DrainageNetworkData
+
+    from itzi_core.data_containers import DrainageNetworkData, MassBalanceData, SimulationData
     from itzi_core.providers.domain_data import DomainData
 
 
@@ -29,7 +32,7 @@ class RasterInputProvider(ABC):
 
     @abstractmethod
     def __init__(self, config: Mapping) -> None:
-        pass
+        """Initialize the input provider."""
 
     def get_origin(self) -> tuple[float, float]:
         """Return the coordinates of the NW corner
@@ -40,7 +43,6 @@ class RasterInputProvider(ABC):
     @abstractmethod
     def get_domain_data(self) -> DomainData:
         """Return a DomainData object."""
-        pass
 
     @abstractmethod
     def get_array(
@@ -52,7 +54,6 @@ class RasterInputProvider(ABC):
         If no array is active at `current_time`, return `None` plus the half-open interval
         for which that "no data" result remains valid.
         """
-        pass
 
 
 class RasterOutputProvider(ABC):
@@ -61,19 +62,16 @@ class RasterOutputProvider(ABC):
     @abstractmethod
     def __init__(self, config: Mapping) -> None:
         """Initialize output provider with simulation configuration."""
-        pass
 
     @abstractmethod
     def write_arrays(
         self, array_dict: Mapping[str, np.ndarray], sim_time: datetime | timedelta
     ) -> None:
         """Write all arrays for the current time step."""
-        pass
 
     @abstractmethod
     def finalize(self, final_data: SimulationData) -> None:
         """Finalize outputs and cleanup."""
-        pass
 
 
 class VectorOutputProvider(ABC):
@@ -82,16 +80,24 @@ class VectorOutputProvider(ABC):
     @abstractmethod
     def __init__(self, config: Mapping) -> None:
         """Initialize output provider with simulation configuration."""
-        pass
 
     @abstractmethod
     def write_vector(
         self, drainage_data: DrainageNetworkData | None, sim_time: datetime | timedelta
     ) -> None:
         """Write simulation data for current time step."""
-        pass
 
     @abstractmethod
     def finalize(self, drainage_data: DrainageNetworkData | None) -> None:
         """Finalize outputs and cleanup."""
-        pass
+
+
+class MassBalanceOutputProvider(ABC):
+    """Abstract base class for mass-balance outputs."""
+
+    @abstractmethod
+    def log(self, report_data: MassBalanceData) -> None:
+        """Persist a completed mass-balance report."""
+
+    def finalize(self) -> None:
+        """Finalize outputs and cleanup."""

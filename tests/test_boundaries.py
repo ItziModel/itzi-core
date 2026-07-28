@@ -19,26 +19,22 @@ from datetime import datetime, timedelta
 import numpy as np
 import pytest
 
-from itzi_core.simulation_builder import SimulationBuilder
+from itzi_core.const import InfiltrationModelType, TemporalType
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
 from itzi_core.providers.memory_output import (
     MemoryRasterOutputProvider,
     MemoryVectorOutputProvider,
 )
-from itzi_core.const import InfiltrationModelType, TemporalType
+from itzi_core.simulation_builder import SimulationBuilder
 
 
 @pytest.fixture(scope="module")
-def sim_5by5_open_boundaries(domain_5by5, helpers, tmp_path_factory):
+def sim_5by5_open_boundaries(domain_5by5, helpers):
     """Run a 5x5 simulation for 600s with 60s record step and open boundaries.
 
     Outputs: water_depth, volume_error, mean_boundary_flow
     Boundary condition type 2 (open) is set at all 16 edge cells.
     """
-    # Create temp directory for stats file
-    temp_dir = tmp_path_factory.mktemp("open_bc_test")
-    stats_file = temp_dir / "5by5_open_boundaries.csv"
-
     # Build SimulationConfig
     sim_config = SimulationConfig(
         start_time=datetime(2000, 1, 1, 0, 0, 0),
@@ -58,7 +54,6 @@ def sim_5by5_open_boundaries(domain_5by5, helpers, tmp_path_factory):
         # Use dtmax=2 as specified in 5by5_open_boundaries.ini
         surface_flow_parameters=SurfaceFlowParameters(dtmax=2.0),
         infiltration_model=InfiltrationModelType.NULL,
-        stats_file=str(stats_file),
     )
 
     # Create output provider

@@ -16,16 +16,19 @@ from __future__ import annotations
 
 import copy
 from datetime import datetime, timedelta
-from typing import Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
+from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi_core.compute import rastermetrics
 from itzi_core.const import TemporalType
-from itzi_core.data_containers import SimulationData, MassBalanceData
-from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi_core.data_containers import MassBalanceData, SimulationData
 
 if TYPE_CHECKING:
-    from itzi_core.providers.base import RasterOutputProvider, VectorOutputProvider
-    from itzi_core.massbalance import MassBalanceLogger
+    from itzi_core.providers.base import (
+        MassBalanceOutputProvider,
+        RasterOutputProvider,
+        VectorOutputProvider,
+    )
 
 
 class Report:
@@ -37,8 +40,8 @@ class Report:
         temporal_type: TemporalType,
         raster_output_provider: RasterOutputProvider,
         vector_output_provider: VectorOutputProvider,
-        mass_balance_logger: MassBalanceLogger,
-        out_map_names: Dict,
+        mass_balance_output_provider: MassBalanceOutputProvider | None,
+        out_map_names: dict,
         dt,
     ):
         self.temporal_type = temporal_type
@@ -48,9 +51,9 @@ class Report:
         self.vector_provider = vector_output_provider
         # The saved map names, defined by the user
         self.out_map_names = out_map_names
-        self.mass_balance_logger = mass_balance_logger
+        self.mass_balance_output_provider = mass_balance_output_provider
         # a dict containing lists of maps written to gis to be registered
-        self.output_maplist = {k: [] for k in self.out_map_names.keys()}
+        self.output_maplist = {k: [] for k in self.out_map_names}
         # a dict of array written at a given step. Keys are the same as out_map_names
         self.output_arrays = {}
         self.dt = dt
@@ -67,7 +70,7 @@ class Report:
         self.raster_provider.write_arrays(
             array_dict=self.output_arrays, sim_time=converted_sim_time
         )
-        if self.mass_balance_logger:
+        if self.mass_balance_output_provider is not None:
             self.write_mass_balance(simulation_data, converted_sim_time)
         drainage_data = simulation_data.drainage_network_data
         self.save_drainage_values(converted_sim_time, drainage_data)
@@ -79,6 +82,8 @@ class Report:
         """Finalize output providers after the last report has been written."""
         self.raster_provider.finalize(final_data)
         self.vector_provider.finalize(final_data.drainage_network_data)
+        if self.mass_balance_output_provider is not None:
+            self.mass_balance_output_provider.finalize()
         return self
 
     def get_output_arrays(self, data: SimulationData):
@@ -179,7 +184,9 @@ class Report:
             volume_error=continuity_data.volume_error,
             percent_error=continuity_data.continuity_error,
         )
-        self.mass_balance_logger.log(report_data)
+        provider = self.mass_balance_output_provider
+        assert provider is not None
+        provider.log(report_data)
         return self
 
     def save_drainage_values(self, sim_time, drainage_data):

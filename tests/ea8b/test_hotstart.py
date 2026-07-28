@@ -21,22 +21,21 @@ GNU Lesser General Public License for more details.
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
-import hashlib
 import os
 import zipfile
 from datetime import timedelta
 
 import numpy as np
+import obstore
 import pandas as pd
 import pytest
-import obstore
 
-from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
 from itzi_core.const import TemporalType
+from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
 from itzi_core.hotstart import HotstartLoader
-
 from tests.ea8b.helpers import (
     EA8B_FINAL_ARRAY_ATOL,
     assert_matches_reference,
@@ -44,7 +43,6 @@ from tests.ea8b.helpers import (
     drainage_results_to_coupling_series,
     get_reference_metrics,
 )
-
 
 pytestmark = pytest.mark.cloud
 
@@ -87,7 +85,6 @@ def test_ea8b_hotstart_roundtrip(
         output_map_names={"water_depth": "test_water_depth"},
         drainage_output="out_drainage",
         swmm_inp=str(ea8b_simulation["swmm_inp"]),
-        stats_file="ea8b_hotstart.csv",
         surface_flow_parameters=surface_flow_params,
         orifice_coeff=1.0,
     )
