@@ -20,13 +20,13 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pytest
 
-from itzi_core.simulation_builder import SimulationBuilder
+from itzi_core.const import InfiltrationModelType, TemporalType
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
 from itzi_core.providers.memory_output import (
     MemoryRasterOutputProvider,
     MemoryVectorOutputProvider,
 )
-from itzi_core.const import InfiltrationModelType, TemporalType
+from itzi_core.simulation_builder import SimulationBuilder
 
 if TYPE_CHECKING:
     from itzi_core.simulation import Simulation
@@ -60,14 +60,14 @@ def sim_5by5_max_values(domain_5by5, helpers) -> Simulation:
     )
 
     # Create output provider
-    raster_output = MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
+    raster_output = MemoryRasterOutputProvider(sim_config.output_map_names)
 
     # Build simulation
     simulation = (
         SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
         .with_domain_data(domain_5by5.domain_data)
         .with_raster_output_provider(raster_output)
-        .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .with_vector_output_provider(MemoryVectorOutputProvider())
         .build()
     )
 

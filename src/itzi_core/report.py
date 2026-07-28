@@ -24,6 +24,8 @@ from itzi_core.const import TemporalType
 from itzi_core.data_containers import MassBalanceData, SimulationData
 
 if TYPE_CHECKING:
+    from itzi.data_containers import DrainageNetworkData
+
     from itzi_core.providers.base import (
         MassBalanceOutputProvider,
         RasterOutputProvider,
@@ -73,7 +75,8 @@ class Report:
         if self.mass_balance_output_provider is not None:
             self.write_mass_balance(simulation_data, converted_sim_time)
         drainage_data = simulation_data.drainage_network_data
-        self.save_drainage_values(converted_sim_time, drainage_data)
+        if drainage_data is not None:
+            self.save_drainage_values(drainage_data, converted_sim_time)
         self.record_counter += 1
         self.last_step = copy.copy(sim_time)
         return self
@@ -81,7 +84,8 @@ class Report:
     def end(self, final_data: SimulationData):
         """Finalize output providers after the last report has been written."""
         self.raster_provider.finalize(final_data)
-        self.vector_provider.finalize(final_data.drainage_network_data)
+        if final_data.drainage_network_data is not None:
+            self.vector_provider.finalize(final_data.drainage_network_data)
         if self.mass_balance_output_provider is not None:
             self.mass_balance_output_provider.finalize()
         return self
@@ -189,7 +193,9 @@ class Report:
         provider.log(report_data)
         return self
 
-    def save_drainage_values(self, sim_time, drainage_data):
+    def save_drainage_values(
+        self, drainage_data: DrainageNetworkData, sim_time: datetime | timedelta
+    ):
         """Write vector map of drainage network"""
         self.vector_provider.write_vector(drainage_data, sim_time)
         return self

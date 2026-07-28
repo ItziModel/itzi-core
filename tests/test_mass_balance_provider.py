@@ -74,10 +74,8 @@ def _build_simulation(
     builder = (
         SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
         .with_domain_data(domain_5by5.domain_data)
-        .with_raster_output_provider(
-            MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
-        )
-        .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .with_raster_output_provider(MemoryRasterOutputProvider(sim_config.output_map_names))
+        .with_vector_output_provider(MemoryVectorOutputProvider())
     )
     if provider is not None:
         assert builder.with_mass_balance_output_provider(provider) is builder

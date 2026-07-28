@@ -12,18 +12,19 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
-from typing import Dict, Mapping, TypedDict, TYPE_CHECKING
+from collections.abc import Mapping
 from datetime import datetime, timedelta
 from importlib.metadata import version
+from typing import TYPE_CHECKING, TypedDict
 
 import numpy as np
 
 try:
-    import xarray as xr
     import icechunk
     import icechunk.xarray
-    import zarr
     import pyproj
+    import xarray as xr
+    import zarr
 except ImportError:
     raise ImportError(
         "To use the Icechunk backend, install itzi with: "
@@ -31,8 +32,8 @@ except ImportError:
         "or 'pip install itzi[cloud]'"
     )
 
-from itzi_core.providers.base import RasterOutputProvider
 from itzi_core.array_definitions import ARRAY_DEFINITIONS
+from itzi_core.providers.base import RasterOutputProvider
 
 if TYPE_CHECKING:
     from itzi_core.data_containers import SimulationData
@@ -76,7 +77,7 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
         self.cf_names = {arr_def.key: arr_def.cf_name for arr_def in ARRAY_DEFINITIONS}
         self.descriptions = {arr_def.key: arr_def.description for arr_def in ARRAY_DEFINITIONS}
 
-    def _get_spatial_coordinates(self) -> list[tuple[str, np.ndarray, Dict[str, str]]]:
+    def _get_spatial_coordinates(self) -> list[tuple[str, np.ndarray, dict[str, str]]]:
         # Assume both axis have the same unit
         unit_name = self.crs.axis_info[0].unit_name
         y_attrs = {

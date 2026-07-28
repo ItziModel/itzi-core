@@ -30,10 +30,6 @@ if TYPE_CHECKING:
 class RasterInputProvider(ABC):
     """Abstract base class for handling raster simulation inputs."""
 
-    @abstractmethod
-    def __init__(self, config: Mapping) -> None:
-        """Initialize the input provider."""
-
     def get_origin(self) -> tuple[float, float]:
         """Return the coordinates of the NW corner
         as a tuple (N, W)"""
@@ -60,10 +56,6 @@ class RasterOutputProvider(ABC):
     """Abstract base class for handling raster simulation outputs."""
 
     @abstractmethod
-    def __init__(self, config: Mapping) -> None:
-        """Initialize output provider with simulation configuration."""
-
-    @abstractmethod
     def write_arrays(
         self, array_dict: Mapping[str, np.ndarray], sim_time: datetime | timedelta
     ) -> None:
@@ -78,17 +70,13 @@ class VectorOutputProvider(ABC):
     """Abstract base class for drainage simulation outputs."""
 
     @abstractmethod
-    def __init__(self, config: Mapping) -> None:
-        """Initialize output provider with simulation configuration."""
-
-    @abstractmethod
     def write_vector(
-        self, drainage_data: DrainageNetworkData | None, sim_time: datetime | timedelta
+        self, drainage_data: DrainageNetworkData, sim_time: datetime | timedelta
     ) -> None:
         """Write simulation data for current time step."""
 
     @abstractmethod
-    def finalize(self, drainage_data: DrainageNetworkData | None) -> None:
+    def finalize(self, drainage_data: DrainageNetworkData) -> None:
         """Finalize outputs and cleanup."""
 
 

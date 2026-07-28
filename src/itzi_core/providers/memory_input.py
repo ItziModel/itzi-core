@@ -14,8 +14,9 @@ GNU Lesser General Public License for more details.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from datetime import datetime
-from typing import Mapping, NotRequired, Sequence, TypedDict
+from typing import NotRequired, TypedDict
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict

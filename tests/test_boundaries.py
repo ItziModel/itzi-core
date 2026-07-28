@@ -57,14 +57,14 @@ def sim_5by5_open_boundaries(domain_5by5, helpers):
     )
 
     # Create output provider
-    raster_output = MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
+    raster_output = MemoryRasterOutputProvider(sim_config.output_map_names)
 
     # Build simulation
     simulation = (
         SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
         .with_domain_data(domain_5by5.domain_data)
         .with_raster_output_provider(raster_output)
-        .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .with_vector_output_provider(MemoryVectorOutputProvider())
         .build()
     )
 

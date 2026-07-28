@@ -67,12 +67,12 @@ def _run_steep_plane(max_slope: float, stats_file: Path):
         infiltration_model=InfiltrationModelType.NULL,
     )
     array_mask = np.zeros((rows, cols), dtype=np.bool_)
-    raster_output = MemoryRasterOutputProvider({"out_map_names": config.output_map_names})
+    raster_output = MemoryRasterOutputProvider(config.output_map_names)
     simulation = (
         SimulationBuilder(config, array_mask, np.float32)
         .with_domain_data(domain_data)
         .with_raster_output_provider(raster_output)
-        .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .with_vector_output_provider(MemoryVectorOutputProvider())
         .with_mass_balance_output_provider(CSVMassBalanceOutputProvider(file_name=str(stats_file)))
         .build()
     )

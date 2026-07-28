@@ -33,7 +33,7 @@ jobs:
 
     - name: Pytest
       run: |
-        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --junitxml=junit/test-core-results.xml --cov-report=xml --cov-report=html tests/
+        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --junitxml=junit/test-core-results.xml --cov-report=xml --cov-report=html tests/*
 
     - name: Upload coverage
       uses: actions/upload-artifact@v6

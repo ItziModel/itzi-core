@@ -75,14 +75,14 @@ def sim_5by5_stats(domain_5by5, helpers, tmp_path_factory):
     )
 
     # Create output provider
-    raster_output = MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
+    raster_output = MemoryRasterOutputProvider(sim_config.output_map_names)
 
     # Build simulation
     simulation = (
         SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
         .with_domain_data(domain_5by5.domain_data)
         .with_raster_output_provider(raster_output)
-        .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .with_vector_output_provider(MemoryVectorOutputProvider())
         .with_mass_balance_output_provider(CSVMassBalanceOutputProvider(file_name=str(stats_file)))
         .build()
     )
@@ -262,10 +262,8 @@ def _run_timed_stats_simulation(
     simulation = (
         SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
         .with_input_provider(input_provider)
-        .with_raster_output_provider(
-            MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
-        )
-        .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .with_raster_output_provider(MemoryRasterOutputProvider(sim_config.output_map_names))
+        .with_vector_output_provider(MemoryVectorOutputProvider())
         .with_mass_balance_output_provider(CSVMassBalanceOutputProvider(file_name=str(stats_file)))
         .build()
     )

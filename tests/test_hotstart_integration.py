@@ -25,13 +25,13 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pytest
 
-from itzi_core.simulation_builder import SimulationBuilder
+from itzi_core.const import InfiltrationModelType, TemporalType
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
 from itzi_core.providers.memory_output import (
     MemoryRasterOutputProvider,
     MemoryVectorOutputProvider,
 )
-from itzi_core.const import InfiltrationModelType, TemporalType
+from itzi_core.simulation_builder import SimulationBuilder
 
 if TYPE_CHECKING:
     from itzi_core.simulation import Simulation
@@ -95,14 +95,14 @@ def build_simulation(
         hotstart_bytes: Optional hotstart archive bytes
     """
     raster_output = raster_output_provider or MemoryRasterOutputProvider(
-        {"out_map_names": sim_config.output_map_names}
+        sim_config.output_map_names
     )
 
     builder = (
         SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
         .with_domain_data(domain_5by5.domain_data)
         .with_raster_output_provider(raster_output)
-        .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .with_vector_output_provider(MemoryVectorOutputProvider())
     )
 
     if hotstart_bytes is not None:
@@ -369,7 +369,7 @@ def test_resume_allows_output_provider_change(
     sim_config = baseline_hotstart_run["sim_config"]
     hotstart_bytes = baseline_hotstart_run["checkpoints"]["split_30"]["hotstart_bytes"]
 
-    resumed_output = MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
+    resumed_output = MemoryRasterOutputProvider(sim_config.output_map_names)
     sim_b = build_simulation(
         sim_config,
         domain_5by5,
@@ -399,7 +399,7 @@ def test_resume_allows_output_map_name_change(
         ["water_depth", "qx", "qy", "volume_error"],
     )
     sim_b_config = sim_a_config.model_copy(update={"output_map_names": resumed_output_map_names})
-    resumed_output = MemoryRasterOutputProvider({"out_map_names": resumed_output_map_names})
+    resumed_output = MemoryRasterOutputProvider(resumed_output_map_names)
     sim_b = build_simulation(
         sim_b_config,
         domain_5by5,
@@ -446,7 +446,7 @@ def test_resume_applies_new_record_step_cadence(
 
     resumed_record_step = timedelta(seconds=10)
     resumed_config = original_config.model_copy(update={"record_step": resumed_record_step})
-    resumed_output = MemoryRasterOutputProvider({"out_map_names": resumed_config.output_map_names})
+    resumed_output = MemoryRasterOutputProvider(resumed_config.output_map_names)
     sim_b = build_simulation(
         resumed_config,
         domain_5by5,

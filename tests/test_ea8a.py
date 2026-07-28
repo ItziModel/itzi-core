@@ -310,8 +310,8 @@ def ea_test8a_sim(ea_test8a_xarray_data, test_data_path, test_data_temp_path):
     )
 
     # Create output providers
-    raster_output = MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
-    vector_output = MemoryVectorOutputProvider({})
+    raster_output = MemoryRasterOutputProvider(sim_config.output_map_names)
+    vector_output = MemoryVectorOutputProvider()
 
     # Create simulation domain data from input provider
     domain_data = input_provider.get_domain_data()
