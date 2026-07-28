@@ -13,8 +13,7 @@ GNU Lesser General Public License for more details.
 """
 
 import numpy as np
-
-from pydantic import BaseModel, ConfigDict, computed_field, model_validator, PositiveInt
+from pydantic import BaseModel, ConfigDict, PositiveInt, computed_field, model_validator
 
 
 class DomainData(BaseModel):

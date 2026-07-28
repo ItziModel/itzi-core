@@ -97,7 +97,7 @@ class CSVVectorOutputProvider(VectorOutputProvider):
         print(self.existing_max_time)
 
     def write_vector(
-        self, drainage_data: DrainageNetworkData | None, sim_time: datetime | timedelta
+        self, drainage_data: DrainageNetworkData, sim_time: datetime | timedelta
     ) -> None:
         """Save simulation data for current time step."""
         if not drainage_data:
@@ -117,9 +117,8 @@ class CSVVectorOutputProvider(VectorOutputProvider):
         self._update_csv(sim_time_str, "link", drainage_data.links)
         self.number_of_writes["link"] += 1
 
-    def finalize(self, drainage_data: DrainageNetworkData | None) -> None:
+    def finalize(self, drainage_data: DrainageNetworkData) -> None:
         """Finalize outputs and cleanup."""
-        pass
 
     def _check_existing_csv(self, geom_type: str):
         """In order to be compatible, an existing CSV should have:

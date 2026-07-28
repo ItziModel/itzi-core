@@ -12,32 +12,24 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
-from datetime import datetime, timedelta
-from typing import Mapping, TypedDict
+from collections.abc import Mapping
 from copy import deepcopy
+from datetime import datetime, timedelta
 
 import numpy as np
 
+from itzi_core.data_containers import DrainageNetworkData, SimulationData
 from itzi_core.providers.base import RasterOutputProvider, VectorOutputProvider
-from itzi_core.data_containers import SimulationData, DrainageNetworkData
-
-
-class MemoryRasterOutputConfig(TypedDict):
-    out_map_names: Mapping[str, str]
-
-
-class MemoryVectorOutputConfig(TypedDict):
-    pass
 
 
 class MemoryRasterOutputProvider(RasterOutputProvider):
     """Save rasters in memory as numpy arrays."""
 
-    def __init__(self, config: MemoryRasterOutputConfig) -> None:
+    def __init__(self, out_map_names: Mapping[str, str]) -> None:
         """Initialize output provider with simulation configuration."""
         # user-selected map names.
-        self.out_map_names = config["out_map_names"]
-        self.output_maps_dict: dict[str, list] = {k: [] for k in self.out_map_names.keys()}
+        self.out_map_names = out_map_names
+        self.output_maps_dict: dict[str, list] = {k: [] for k in self.out_map_names}
 
     def write_arrays(
         self, array_dict: Mapping[str, np.ndarray], sim_time: datetime | timedelta
@@ -48,13 +40,12 @@ class MemoryRasterOutputProvider(RasterOutputProvider):
 
     def finalize(self, final_data: SimulationData) -> None:
         """Finalize outputs and cleanup."""
-        pass
 
 
 class MemoryVectorOutputProvider(VectorOutputProvider):
     """Save drainage simulation outputs in memory."""
 
-    def __init__(self, config: MemoryVectorOutputConfig | None = None) -> None:
+    def __init__(self) -> None:
         """Initialize output provider with simulation configuration."""
         self.drainage_data = []
 
@@ -66,4 +57,3 @@ class MemoryVectorOutputProvider(VectorOutputProvider):
 
     def finalize(self, drainage_data: DrainageNetworkData) -> None:
         """Finalize outputs and cleanup."""
-        pass

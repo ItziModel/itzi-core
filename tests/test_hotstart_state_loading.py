@@ -23,6 +23,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from itzi_core.const import InfiltrationModelType, TemporalType
 from itzi_core.data_containers import (
     HotstartSimulationState,
     SimulationConfig,
@@ -37,7 +38,6 @@ from itzi_core.providers.memory_output import (
 )
 from itzi_core.rasterdomain import RasterDomain
 from itzi_core.simulation_builder import SimulationBuilder
-from itzi_core.const import InfiltrationModelType, TemporalType
 
 
 class TestRasterDomainLoadState:
@@ -146,12 +146,12 @@ class TestSimulationBuilderHotstart:
 
     @staticmethod
     def _create_hotstart_bytes(domain_5by5, sim_config: SimulationConfig) -> io.BytesIO:
-        raster_output = MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
+        raster_output = MemoryRasterOutputProvider(sim_config.output_map_names)
         simulation = (
             SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
             .with_domain_data(domain_5by5.domain_data)
             .with_raster_output_provider(raster_output)
-            .with_vector_output_provider(MemoryVectorOutputProvider({}))
+            .with_vector_output_provider(MemoryVectorOutputProvider())
             .build()
         )
         simulation.set_array("dem", domain_5by5.arr_dem_flat.copy())
@@ -167,12 +167,12 @@ class TestSimulationBuilderHotstart:
         hotstart_bytes: io.BytesIO,
         domain_data: DomainData | None = None,
     ):
-        raster_output = MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
+        raster_output = MemoryRasterOutputProvider(sim_config.output_map_names)
         builder = (
             SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
             .with_domain_data(domain_data or domain_5by5.domain_data)
             .with_raster_output_provider(raster_output)
-            .with_vector_output_provider(MemoryVectorOutputProvider({}))
+            .with_vector_output_provider(MemoryVectorOutputProvider())
             .with_hotstart(hotstart_bytes)
         )
         return builder.build()
@@ -214,12 +214,12 @@ class TestSimulationBuilderHotstart:
         valid_hotstart_bytes: io.BytesIO,
     ) -> None:
         """Builder should store HotstartLoader from BytesIO."""
-        raster_output = MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
+        raster_output = MemoryRasterOutputProvider(sim_config.output_map_names)
         builder = (
             SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
             .with_domain_data(domain_5by5.domain_data)
             .with_raster_output_provider(raster_output)
-            .with_vector_output_provider(MemoryVectorOutputProvider({}))
+            .with_vector_output_provider(MemoryVectorOutputProvider())
             .with_hotstart(valid_hotstart_bytes)
         )
 
@@ -238,12 +238,12 @@ class TestSimulationBuilderHotstart:
         valid_hotstart_bytes.seek(0)
         hotstart_file.write_bytes(valid_hotstart_bytes.read())
 
-        raster_output = MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
+        raster_output = MemoryRasterOutputProvider(sim_config.output_map_names)
         builder = (
             SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
             .with_domain_data(domain_5by5.domain_data)
             .with_raster_output_provider(raster_output)
-            .with_vector_output_provider(MemoryVectorOutputProvider({}))
+            .with_vector_output_provider(MemoryVectorOutputProvider())
             .with_hotstart(hotstart_file)
         )
 
@@ -555,9 +555,7 @@ class TestSimulationBuilderHotstart:
             swmm_inp=None,  # No drainage
         )
 
-        raster_output = MemoryRasterOutputProvider(
-            {"out_map_names": config_no_drainage.output_map_names}
-        )
+        raster_output = MemoryRasterOutputProvider(config_no_drainage.output_map_names)
 
         with pytest.raises(
             HotstartError, match="Hotstart contains drainage state but current configuration"
@@ -566,7 +564,7 @@ class TestSimulationBuilderHotstart:
                 SimulationBuilder(config_no_drainage, domain_5by5.arr_mask, np.float32)
                 .with_domain_data(domain_5by5.domain_data)
                 .with_raster_output_provider(raster_output)
-                .with_vector_output_provider(MemoryVectorOutputProvider({}))
+                .with_vector_output_provider(MemoryVectorOutputProvider())
                 .with_hotstart(hotstart_bytes)
                 .build()
             )
@@ -633,7 +631,7 @@ class TestSimulationBuilderHotstart:
                 SimulationBuilder(config_with_drainage, domain_5by5.arr_mask, np.float32)
                 .with_domain_data(domain_5by5.domain_data)
                 .with_raster_output_provider(raster_output)
-                .with_vector_output_provider(MemoryVectorOutputProvider({}))
+                .with_vector_output_provider(MemoryVectorOutputProvider())
                 .with_hotstart(hotstart_bytes)
                 .build()
             )

@@ -154,16 +154,12 @@ def mcdo_norain_sim(test_data_path, test_data_temp_path):
         ),
         surface_flow_parameters=SurfaceFlowParameters(dtmax=2, cfl=0.5),
     )
-    raster_output = MemoryRasterOutputProvider(
-        {
-            "out_map_names": config.output_map_names,
-        }
-    )
+    raster_output = MemoryRasterOutputProvider(config.output_map_names)
     simulation = (
         SimulationBuilder(config, array_mask, np.float32)
         .with_domain_data(domain_data)
         .with_raster_output_provider(raster_output)
-        .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .with_vector_output_provider(MemoryVectorOutputProvider())
         .with_mass_balance_output_provider(
             CSVMassBalanceOutputProvider(file_name="stats_mcdo_norain.csv")
         )
@@ -292,16 +288,12 @@ def mcdo_rain_sim(test_data_path, test_data_temp_path):
         surface_flow_parameters=SurfaceFlowParameters(dtmax=2, cfl=0.5),
         dtinf=1,
     )
-    raster_output = MemoryRasterOutputProvider(
-        {
-            "out_map_names": config.output_map_names,
-        }
-    )
+    raster_output = MemoryRasterOutputProvider(config.output_map_names)
     simulation = (
         SimulationBuilder(config, array_mask, np.float32)
         .with_domain_data(domain_data)
         .with_raster_output_provider(raster_output)
-        .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .with_vector_output_provider(MemoryVectorOutputProvider())
         .with_mass_balance_output_provider(
             CSVMassBalanceOutputProvider(file_name="stats_mcdo_rain.csv")
         )

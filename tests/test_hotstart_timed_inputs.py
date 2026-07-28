@@ -231,10 +231,8 @@ def _build_provider_simulation(
     builder = (
         SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
         .with_input_provider(input_provider)
-        .with_raster_output_provider(
-            MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
-        )
-        .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .with_raster_output_provider(MemoryRasterOutputProvider(sim_config.output_map_names))
+        .with_vector_output_provider(MemoryVectorOutputProvider())
     )
     if hotstart_bytes is not None:
         builder.with_hotstart(hotstart_bytes)
@@ -278,10 +276,8 @@ def _build_map_aware_provider_simulation(
     builder = (
         SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
         .with_input_provider(provider)
-        .with_raster_output_provider(
-            MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
-        )
-        .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .with_raster_output_provider(MemoryRasterOutputProvider(sim_config.output_map_names))
+        .with_vector_output_provider(MemoryVectorOutputProvider())
     )
     if hotstart_bytes is not None:
         builder.with_hotstart(hotstart_bytes)
@@ -537,10 +533,8 @@ def test_resume_rejects_changed_input_map_without_provider(domain_5by5) -> None:
     builder = (
         SimulationBuilder(changed_config, domain_5by5.arr_mask, np.float32)
         .with_domain_data(domain_5by5.domain_data)
-        .with_raster_output_provider(
-            MemoryRasterOutputProvider({"out_map_names": changed_config.output_map_names})
-        )
-        .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .with_raster_output_provider(MemoryRasterOutputProvider(changed_config.output_map_names))
+        .with_vector_output_provider(MemoryVectorOutputProvider())
         .with_hotstart(hotstart_bytes)
     )
 
@@ -611,10 +605,8 @@ def test_resume_rejects_pending_timed_input_without_provider(domain_5by5) -> Non
     builder = (
         SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
         .with_domain_data(domain_5by5.domain_data)
-        .with_raster_output_provider(
-            MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
-        )
-        .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .with_raster_output_provider(MemoryRasterOutputProvider(sim_config.output_map_names))
+        .with_vector_output_provider(MemoryVectorOutputProvider())
         .with_hotstart(hotstart_bytes)
     )
 
