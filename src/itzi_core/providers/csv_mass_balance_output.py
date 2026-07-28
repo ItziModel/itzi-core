@@ -12,21 +12,22 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
-from datetime import datetime
 import csv
 import numbers
+from datetime import datetime
 
 from itzi_core.data_containers import MassBalanceData
+from itzi_core.providers.base import MassBalanceOutputProvider
 
 
-class MassBalanceLogger:
+class CSVMassBalanceOutputProvider(MassBalanceOutputProvider):
     """Writes pre-calculated mass balance data to a CSV file."""
 
     def __init__(
         self,
         file_name: str,
     ):
-        """Initializes the logger and creates the output file with headers."""
+        """Initialize the provider and create the output file with headers."""
         self.fields = list(MassBalanceData.model_fields.keys())
         self.file_name = self._set_file_name(file_name)
         self._create_file()
@@ -34,7 +35,8 @@ class MassBalanceLogger:
     def _set_file_name(self, file_name: str) -> str:
         """Generate output file name"""
         if not file_name:
-            file_name = "{}_stats.csv".format(str(datetime.now().strftime("%Y-%m-%dT%H-%M-%S")))
+            timestamp = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")  # noqa: DTZ005
+            file_name = f"{timestamp}_stats.csv"
         return file_name
 
     def _create_file(self) -> None:
@@ -48,7 +50,7 @@ class MassBalanceLogger:
         line_to_write = {}
 
         for key, value in report_data.model_dump().items():
-            if value != value:  # test for NaN
+            if value != value:  # noqa: PLR0124  # test for NaN
                 line_to_write[key] = "-"
             elif "percent_error" == key:
                 line_to_write[key] = f"{value:.2%}"

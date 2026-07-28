@@ -23,13 +23,13 @@ import pytest
 
 from itzi_core.const import InfiltrationModelType, TemporalType
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
+from itzi_core.providers.csv_mass_balance_output import CSVMassBalanceOutputProvider
 from itzi_core.providers.domain_data import DomainData
 from itzi_core.providers.memory_output import (
     MemoryRasterOutputProvider,
     MemoryVectorOutputProvider,
 )
 from itzi_core.simulation_builder import SimulationBuilder
-
 
 RAIN_RATE = 0.02
 SIMULATION_DURATION = timedelta(milliseconds=100)
@@ -65,7 +65,6 @@ def _run_steep_plane(max_slope: float, stats_file: Path):
         ),
         dtinf=0.05,
         infiltration_model=InfiltrationModelType.NULL,
-        stats_file=stats_file,
     )
     array_mask = np.zeros((rows, cols), dtype=np.bool_)
     raster_output = MemoryRasterOutputProvider({"out_map_names": config.output_map_names})
@@ -74,6 +73,7 @@ def _run_steep_plane(max_slope: float, stats_file: Path):
         .with_domain_data(domain_data)
         .with_raster_output_provider(raster_output)
         .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .with_mass_balance_output_provider(CSVMassBalanceOutputProvider(file_name=str(stats_file)))
         .build()
     )
 

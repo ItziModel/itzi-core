@@ -12,25 +12,25 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
-import os
 import csv
+import os
+from collections import namedtuple
 from datetime import datetime, timedelta
 from pathlib import Path
-from collections import namedtuple
 
 import numpy as np
 import pandas as pd
 import pytest
 
-
-from itzi_core.simulation_builder import SimulationBuilder
 from itzi_core.const import TemporalType
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
+from itzi_core.providers.csv_mass_balance_output import CSVMassBalanceOutputProvider
 from itzi_core.providers.domain_data import DomainData
 from itzi_core.providers.memory_output import (
     MemoryRasterOutputProvider,
     MemoryVectorOutputProvider,
 )
+from itzi_core.simulation_builder import SimulationBuilder
 
 ASCIIMetadata = namedtuple(
     "ASCIIMetadata", ["ncols", "nrows", "xllcorner", "yllcorner", "cellsize"]
@@ -153,7 +153,6 @@ def mcdo_norain_sim(test_data_path, test_data_temp_path):
             "out_mcdo_norain", ["water_depth", "water_surface_elevation", "qx", "qy"]
         ),
         surface_flow_parameters=SurfaceFlowParameters(dtmax=2, cfl=0.5),
-        stats_file="stats_mcdo_norain.csv",
     )
     raster_output = MemoryRasterOutputProvider(
         {
@@ -165,6 +164,9 @@ def mcdo_norain_sim(test_data_path, test_data_temp_path):
         .with_domain_data(domain_data)
         .with_raster_output_provider(raster_output)
         .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .with_mass_balance_output_provider(
+            CSVMassBalanceOutputProvider(file_name="stats_mcdo_norain.csv")
+        )
         .build()
     )
     # Set the input arrays
@@ -289,7 +291,6 @@ def mcdo_rain_sim(test_data_path, test_data_temp_path):
         ),
         surface_flow_parameters=SurfaceFlowParameters(dtmax=2, cfl=0.5),
         dtinf=1,
-        stats_file="stats_mcdo_rain.csv",
     )
     raster_output = MemoryRasterOutputProvider(
         {
@@ -301,6 +302,9 @@ def mcdo_rain_sim(test_data_path, test_data_temp_path):
         .with_domain_data(domain_data)
         .with_raster_output_provider(raster_output)
         .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .with_mass_balance_output_provider(
+            CSVMassBalanceOutputProvider(file_name="stats_mcdo_rain.csv")
+        )
         .build()
     )
     # Set the input arrays

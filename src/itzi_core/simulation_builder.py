@@ -14,45 +14,44 @@ GNU Lesser General Public License for more details.
 
 from __future__ import annotations
 
+import io
 import tempfile
 from datetime import timedelta
-from typing import TYPE_CHECKING
-import io
 from pathlib import Path
+from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
-from numpy.typing import ArrayLike, DTypeLike
 import pyswmm
+from numpy.typing import ArrayLike, DTypeLike
 
-from itzi_core.surfaceflow import SurfaceFlowSimulation
-import itzi_core.rasterdomain as rasterdomain
-from itzi_core.massbalance import MassBalanceLogger
-from itzi_core.report import Report
-from itzi_core.drainage import DrainageSimulation, DrainageNode, DrainageLink, CouplingTypes
-from itzi_core.swmm_input_parser import SwmmInputParser
-import itzi_core.infiltration as infiltration
-from itzi_core.hydrology import Hydrology
-from itzi_core.simulation import Simulation
-from itzi_core.simulation_schedule import SimulationSchedule
-from itzi_core.timed_inputs import TimedInputManager
-from itzi_core.data_containers import DrainageNodeCouplingData
+from itzi_core import infiltration, rasterdomain
 from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi_core.const import InfiltrationModelType
+from itzi_core.data_containers import DrainageNodeCouplingData
+from itzi_core.drainage import CouplingTypes, DrainageLink, DrainageNode, DrainageSimulation
 from itzi_core.hotstart import HotstartLoader
+from itzi_core.hydrology import Hydrology
 from itzi_core.itzi_error import HotstartError
+from itzi_core.report import Report
+from itzi_core.simulation import Simulation
+from itzi_core.simulation_schedule import SimulationSchedule
+from itzi_core.surfaceflow import SurfaceFlowSimulation
+from itzi_core.swmm_input_parser import SwmmInputParser
+from itzi_core.timed_inputs import TimedInputManager
 
 if TYPE_CHECKING:
-    from itzi_core.providers.domain_data import DomainData
+    from itzi_core.data_containers import (
+        HotstartSimulationState,
+        SimulationConfig,
+        SurfaceFlowParameters,
+    )
     from itzi_core.providers.base import (
+        MassBalanceOutputProvider,
         RasterInputProvider,
         RasterOutputProvider,
         VectorOutputProvider,
     )
-    from itzi_core.data_containers import (
-        SimulationConfig,
-        HotstartSimulationState,
-        SurfaceFlowParameters,
-    )
+    from itzi_core.providers.domain_data import DomainData
 
 
 class SimulationBuilder:
@@ -70,7 +69,7 @@ class SimulationBuilder:
             "soil_water_content",
         }
     )
-    _ALLOWED_RESUME_SURFACE_FLOW_CHANGES = {
+    _ALLOWED_RESUME_SURFACE_FLOW_CHANGES: ClassVar[set[str]] = {
         "cfl",
         "theta",
         "dtmax",
@@ -94,13 +93,14 @@ class SimulationBuilder:
         self.domain_data: DomainData | None = None
         self.raster_output_provider: RasterOutputProvider | None = None
         self.vector_output_provider: VectorOutputProvider | None = None
+        self.mass_balance_output_provider: MassBalanceOutputProvider | None = None
 
         # Hotstart data (set via with_hotstart)
         self.hotstart_loader: HotstartLoader | None = None
 
     def with_hotstart(
         self, hotstart_path_or_bytes: Path | str | io.BytesIO | bytes
-    ) -> "SimulationBuilder":
+    ) -> SimulationBuilder:
         """Load and store validated hotstart data for state restoration during build.
 
         This method loads and validates the hotstart archive but does not perform
@@ -142,6 +142,14 @@ class SimulationBuilder:
     def with_vector_output_provider(self, provider: VectorOutputProvider) -> SimulationBuilder:
         """Set the vector output provider."""
         self.vector_output_provider = provider
+        return self
+
+    def with_mass_balance_output_provider(
+        self,
+        provider: MassBalanceOutputProvider,
+    ) -> SimulationBuilder:
+        """Set the provider used to persist mass-balance reports."""
+        self.mass_balance_output_provider = provider
         return self
 
     def _validate_hotstart_congruence(self) -> None:
@@ -380,17 +388,12 @@ class SimulationBuilder:
             )
 
         # Create report
-        self.mass_balance = None
-        if self.sim_config.stats_file:
-            self.mass_balance = MassBalanceLogger(
-                file_name=self.sim_config.stats_file,
-            )
         report = Report(
             start_time=self.sim_config.start_time,
             temporal_type=self.sim_config.temporal_type,
             raster_output_provider=self.raster_output_provider,
             vector_output_provider=self.vector_output_provider,
-            mass_balance_logger=self.mass_balance,
+            mass_balance_output_provider=self.mass_balance_output_provider,
             out_map_names=self.sim_config.output_map_names,
             dt=self.sim_config.record_step,
         )
@@ -460,14 +463,16 @@ class SimulationBuilder:
         return simulation
 
     def _create_timed_arrays(self) -> dict[str, rasterdomain.TimedArray]:
-        """ """
+        """Create configured time-varying raster inputs."""
         timed_arrays = {}
         input_keys = [
             arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.INPUT in arr_def.category
         ]
         raster_shape = (self.domain_data.rows, self.domain_data.cols)
-        # TimedArray expects a function as an init parameter
-        zeros_array_func = lambda: np.zeros(shape=raster_shape, dtype=self.dtype)  # noqa: E731
+
+        def zeros_array_func() -> np.ndarray:
+            return np.zeros(shape=raster_shape, dtype=self.dtype)
+
         for arr_key in input_keys:
             timed_arrays[arr_key] = rasterdomain.TimedArray(
                 arr_key, self.raster_input_provider, zeros_array_func
@@ -623,7 +628,7 @@ class SimulationBuilder:
 
 # Not in the main class to allow manual creation of a DrainageModel object for testing
 def get_links_list(pyswmm_links, links_vertices_dict, nodes_coor_dict) -> list[DrainageLink]:
-    """ """
+    """Build drainage links from parsed SWMM geometry."""
     links_list = []
     for pyswmm_link in pyswmm_links:
         # Add nodes coordinates to the vertices list

@@ -20,14 +20,15 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from itzi_core.simulation_builder import SimulationBuilder
+from itzi_core.const import InfiltrationModelType, TemporalType
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
+from itzi_core.providers.csv_mass_balance_output import CSVMassBalanceOutputProvider
 from itzi_core.providers.memory_input import MemoryRasterInputProvider, TimedRasterSlice
 from itzi_core.providers.memory_output import (
     MemoryRasterOutputProvider,
     MemoryVectorOutputProvider,
 )
-from itzi_core.const import InfiltrationModelType, TemporalType
+from itzi_core.simulation_builder import SimulationBuilder
 
 
 @pytest.fixture(scope="module")
@@ -71,7 +72,6 @@ def sim_5by5_stats(domain_5by5, helpers, tmp_path_factory):
         # Use default, same as 5by5_stats.ini
         surface_flow_parameters=SurfaceFlowParameters(),
         infiltration_model=InfiltrationModelType.CONSTANT,
-        stats_file=str(stats_file),
     )
 
     # Create output provider
@@ -83,6 +83,7 @@ def sim_5by5_stats(domain_5by5, helpers, tmp_path_factory):
         .with_domain_data(domain_5by5.domain_data)
         .with_raster_output_provider(raster_output)
         .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .with_mass_balance_output_provider(CSVMassBalanceOutputProvider(file_name=str(stats_file)))
         .build()
     )
 
@@ -240,7 +241,6 @@ def _run_timed_stats_simulation(
         ),
         surface_flow_parameters=SurfaceFlowParameters(hmin=0.0001, dtmax=20.0, cfl=0.2),
         infiltration_model=infiltration_model,
-        stats_file=str(stats_file),
     )
     input_provider = MemoryRasterInputProvider(
         {
@@ -266,6 +266,7 @@ def _run_timed_stats_simulation(
             MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
         )
         .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .with_mass_balance_output_provider(CSVMassBalanceOutputProvider(file_name=str(stats_file)))
         .build()
     )
 

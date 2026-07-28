@@ -15,32 +15,31 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
-from datetime import datetime, timedelta
 import os
-from pathlib import Path
 import zipfile
+from datetime import datetime, timedelta
+from pathlib import Path
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import pytest
 
 # Skip entire module if optional dependencies are missing
 pytest.importorskip("xarray")
 pytest.importorskip("rioxarray")
 
-import xarray as xr
 import rioxarray
+import xarray as xr
 
-from itzi_core.profiler import profile_context
-from itzi_core.simulation_builder import SimulationBuilder
-from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
 from itzi_core.const import TemporalType
-from itzi_core.providers.xarray_input import XarrayRasterInputProvider
+from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
+from itzi_core.profiler import profile_context
 from itzi_core.providers.memory_output import (
     MemoryRasterOutputProvider,
     MemoryVectorOutputProvider,
 )
-
+from itzi_core.providers.xarray_input import XarrayRasterInputProvider
+from itzi_core.simulation_builder import SimulationBuilder
 
 # Mark all tests in this module as cloud tests
 pytestmark = pytest.mark.cloud
@@ -308,7 +307,6 @@ def ea_test8a_sim(ea_test8a_xarray_data, test_data_path, test_data_temp_path):
             theta=0.7,
             hmin=0.005,
         ),
-        stats_file="stats_ea8a.csv",
     )
 
     # Create output providers
