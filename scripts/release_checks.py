@@ -9,7 +9,7 @@ from email.parser import BytesParser
 from pathlib import Path
 
 PROJECT_NAME = "itzi-core"
-EXPECTED_WHEEL_COUNT = 18
+EXPECTED_WHEEL_COUNT = 21
 
 
 def version_from_tag(tag: str) -> str:
@@ -33,10 +33,7 @@ def verify_artifacts(dist: Path, tag: str) -> None:
     if len(sdists) != 1:
         raise SystemExit(f"Expected one sdist, found {len(sdists)}: {sdists}")
     if len(wheels) != EXPECTED_WHEEL_COUNT:
-        raise SystemExit(
-            "Expected ten wheels (CPython 3.12 and 3.13 on each of seven platforms), "
-            f"found {len(wheels)}: {wheels}"
-        )
+        raise SystemExit(f"Expected {EXPECTED_WHEEL_COUNT} wheels, found {len(wheels)}: {wheels}")
 
     with tarfile.open(sdists[0]) as archive:
         pyproject = next(
