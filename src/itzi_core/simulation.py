@@ -393,7 +393,14 @@ class Simulation:
         )
 
     def _update_accum_array(self, k: str, sim_time: datetime) -> None:
-        """Update the accumulation arrays."""
+        """Integrate a held rate into its current reporting-interval total.
+
+        ``accum_mapping`` links each rate to a depth accumulator. In particular,
+        ``computed_infiltration`` and ``capped_losses`` contain applied, not
+        candidate, rates by the time this method runs. Multiplication by elapsed
+        seconds produces accumulated depth; reporting later reduces that depth
+        over active cells and multiplies it by cell area to obtain volume.
+        """
         ak = self.accum_mapping[k]
         if self.accum_update_time[ak] is None:
             self.accum_update_time[ak] = sim_time
