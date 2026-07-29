@@ -15,8 +15,11 @@ GNU Lesser General Public License for more details.
 from __future__ import annotations
 
 import copy
+import math
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
+
+import numpy as np
 
 from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi_core.compute import rastermetrics
@@ -31,6 +34,25 @@ if TYPE_CHECKING:
         RasterOutputProvider,
         VectorOutputProvider,
     )
+
+
+def calculate_closure(
+    volume_change: float,
+    volume_terms: tuple[float, ...],
+    active_domain_area: float,
+) -> tuple[float, float]:
+    """Calculate the signed closure residual and its throughput-normalized error."""
+    accounted_change = math.fsum(volume_terms)
+    closure_residual = volume_change - accounted_change
+    throughput = math.fsum(abs(term) for term in volume_terms)
+    normalizer = max(abs(volume_change), throughput)
+    absolute_tolerance = max(1e-12, active_domain_area * 1e-9)
+
+    if normalizer <= absolute_tolerance:
+        closure_error = 0.0 if abs(closure_residual) < absolute_tolerance else float("nan")
+    else:
+        closure_error = abs(closure_residual) / normalizer
+    return closure_residual, closure_error
 
 
 class Report:
@@ -167,6 +189,22 @@ class Report:
             data.accumulation_arrays["drainage_network_accum"], cell_area
         )
 
+        signed_volume_terms = (
+            boundary_vol,
+            rain_vol,
+            -infiltration_vol,
+            inflow_vol,
+            -losses_vol,
+            drain_net_vol,
+            continuity_data.volume_error,
+        )
+        active_cells = np.count_nonzero(np.isfinite(data.raw_arrays["water_depth"]))
+        closure_residual, closure_error = calculate_closure(
+            continuity_data.volume_change,
+            signed_volume_terms,
+            active_cells * cell_area,
+        )
+
         # 3. Assemble data and log
         interval_s = (data.sim_time - self.last_step).total_seconds()
         if data.time_steps_counter > 0:
@@ -187,6 +225,8 @@ class Report:
             volume_change=continuity_data.volume_change,
             volume_error=continuity_data.volume_error,
             percent_error=continuity_data.continuity_error,
+            closure_residual=closure_residual,
+            closure_error=closure_error,
         )
         provider = self.mass_balance_output_provider
         assert provider is not None

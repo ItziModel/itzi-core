@@ -55,9 +55,7 @@ class CSVMassBalanceOutputProvider(MassBalanceOutputProvider):
             elif "percent_error" == key:
                 line_to_write[key] = f"{value:.2%}"
             elif isinstance(value, numbers.Real) and not isinstance(value, int):
-                # Keep enough precision in the CSV for downstream coherence checks,
-                # especially when large boundary and inflow volumes nearly cancel.
-                line_to_write[key] = f"{value:.6f}"
+                line_to_write[key] = f"{value:.17g}"
             else:
                 line_to_write[key] = value
 

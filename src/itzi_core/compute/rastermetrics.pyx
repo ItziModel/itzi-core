@@ -29,11 +29,11 @@ cdef int small_array_size = 1_000_000
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-cdef DTYPE_t arr_sum(DTYPE_t[:, ::1] arr, bint padded=False):
+cdef double arr_sum(DTYPE_t[:, ::1] arr, bint padded=False):
     """Return the sum of an array using parallel reduction.
     """
     cdef int row_start, row_end, col_start, col_end, row_idx, col_idx
-    cdef DTYPE_t asum = 0.
+    cdef double asum = 0.
     cdef int total_elements
 
     if padded:
@@ -92,8 +92,8 @@ def set_ext_array(
 
 
 def calculate_total_volume(
-    DTYPE_t[:, ::1] depth_array, DTYPE_t cell_surface_area, bint padded=False
-) -> DTYPE_t:
+    DTYPE_t[:, ::1] depth_array, double cell_surface_area, bint padded=False
+) -> double:
     """Calculates the total volume from a depth array.
     Args:
         depth_array: 2D array of water depths (m)
@@ -102,7 +102,7 @@ def calculate_total_volume(
     Returns:
         Total water volume (m³)
     """
-    total_sum = arr_sum(depth_array, padded)
+    cdef double total_sum = arr_sum(depth_array, padded)
     return total_sum * cell_surface_area
 
 

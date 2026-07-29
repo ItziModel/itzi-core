@@ -172,6 +172,8 @@ class MassBalanceData(BaseModel):
     volume_change: float
     volume_error: float
     percent_error: float
+    closure_residual: float
+    closure_error: float
 
 
 class SurfaceFlowParameters(BaseModel):

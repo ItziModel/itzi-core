@@ -12,6 +12,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
+import csv
 from datetime import UTC, datetime
 
 import pytest
@@ -61,13 +62,20 @@ def test_log_absolute_time(provider_fixture):
         volume_change=12.34567,
         volume_error=12.34567,
         percent_error=0.123456,
+        closure_residual=1.234567890123456e-10,
+        closure_error=9.876543210987654e-12,
     )
 
     provider.log(test_data)
     with open(provider_fixture["file_name"], "r") as f:
-        lines = f.readlines()
-        assert str(test_time) in lines[1]  # datetime formatting
-        assert "123.456789" in lines[1]  # float formatting
-        assert "12.345670" in lines[1]  # float formatting
-        assert "34" in lines[1]  # int formatting
-        assert "12.35%" in lines[1]  # percentage formatting
+        reader = csv.DictReader(f)
+        assert reader.fieldnames == list(MassBalanceData.model_fields)
+        row = next(reader)
+
+    assert row["simulation_time"] == str(test_time)
+    assert float(row["boundary_volume"]) == test_data.boundary_volume
+    assert float(row["rainfall_volume"]) == test_data.rainfall_volume
+    assert row["timesteps"] == "34"
+    assert row["percent_error"] == "12.35%"
+    assert float(row["closure_residual"]) == test_data.closure_residual
+    assert float(row["closure_error"]) == test_data.closure_error

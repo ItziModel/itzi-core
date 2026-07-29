@@ -76,21 +76,10 @@ def test_repeated_rainfall_accumulation_matches_analytical_depth(dtype, expected
 @pytest.mark.parametrize(
     ("dtype", "shape"),
     [
-        pytest.param(
-            np.float32,
-            (1000, 1000),
-            marks=pytest.mark.xfail(
-                strict=True, reason="float32 serial reduction loses precision"
-            ),
-        ),
-        pytest.param(
-            np.float32,
-            (1001, 1000),
-            marks=pytest.mark.xfail(
-                strict=True, reason="float32 parallel reduction loses precision"
-            ),
-        ),
+        pytest.param(np.float32, (1000, 1000)),
+        pytest.param(np.float32, (1001, 1000)),
         pytest.param(np.float64, (1000, 1000)),
+        pytest.param(np.float64, (1001, 1000)),
     ],
 )
 def test_total_volume_matches_float64_reference(dtype, shape):
@@ -203,17 +192,18 @@ def test_rain_only_simulation_closes_mass_balance(dtype, initial_depth, timestep
     assert report.volume_change == pytest.approx(report.rainfall_volume, rel=1e-9)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="percent_error measures clipping only, not the source-volume closure residual",
-)
-def test_percent_error_detects_rainfall_closure_residual():
+def test_closure_error_detects_rainfall_residual_without_changing_percent_error():
     """The reported error should expose a rainfall-versus-volume discrepancy."""
     report = _run_rain_only_simulation(np.float32, timestep=1.0)
     residual = report.volume_change - report.rainfall_volume
-    expected_error = abs(residual / report.rainfall_volume)
+    normalizer = max(abs(report.volume_change), abs(report.rainfall_volume))
+    expected_error = abs(residual) / normalizer
 
-    assert report.percent_error == pytest.approx(expected_error)
+    assert report.volume_error == 0.0
+    assert report.percent_error == 0.0
+    assert report.closure_residual == pytest.approx(residual)
+    assert report.closure_residual != 0.0
+    assert report.closure_error == pytest.approx(expected_error)
 
 
 @pytest.mark.xfail(
