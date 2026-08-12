@@ -117,7 +117,7 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
                     return latest_time.values.astype("datetime64[ms]").astype(datetime)
                 elif np.issubdtype(latest_time.dtype, np.timedelta64):
                     return timedelta(
-                        seconds=int(latest_time.values.astype("timedelta64[s]").astype(int))
+                        milliseconds=int(latest_time.values.astype("timedelta64[ms]").astype(int))
                     )
                 else:
                     return None
@@ -229,8 +229,8 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
             time_unit = "milliseconds since 1970-01-01T00:00:00"
         elif isinstance(sim_time, timedelta):
             time_dtype = "timedelta64[s]"
-            sim_time_np = np.timedelta64(sim_time, "s")
-            time_unit = "seconds"
+            sim_time_np = np.timedelta64(sim_time, "ms")
+            time_unit = "milliseconds"
         else:
             raise ValueError(f"Unknown temporal type: {type(sim_time)}")
 
