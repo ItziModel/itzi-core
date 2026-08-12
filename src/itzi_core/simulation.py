@@ -278,9 +278,7 @@ class Simulation:
     def finalize(self) -> None:
         """Flush already-written results and close runtime resources."""
         # The last interval is reported by update() when its end lands on end_time.
-        if self.continuity_data is None:
-            self.continuity_data = self.get_continuity_data()
-        self.report.end(self._build_simulation_data(self.sim_time, 0))
+        self.report.end()
         if self.drainage_model:
             self.drainage_model.close()
 

@@ -53,3 +53,10 @@ def test_array_definitions():
             if attr == "cf_name" and len(duplicates) == 1 and "" in duplicates:
                 continue
             assert False, f"Found duplicates in <{attr}>: {duplicates}"
+
+
+def test_maximum_arrays_are_internal_outputs():
+    definitions = {arr_def.key: arr_def for arr_def in ARRAY_DEFINITIONS}
+    for key in ("hmax", "vmax"):
+        assert ArrayCategory.INTERNAL in definitions[key].category
+        assert ArrayCategory.OUTPUT in definitions[key].category

@@ -79,11 +79,10 @@ class Report:
         self.last_step = copy.copy(sim_time)
         return self
 
-    def end(self, final_data: SimulationData):
+    def end(self):
         """Finalize output providers after the last report has been written."""
-        self.raster_provider.finalize(final_data)
-        if final_data.drainage_network_data is not None:
-            self.vector_provider.finalize(final_data.drainage_network_data)
+        self.raster_provider.finalize()
+        self.vector_provider.finalize()
         if self.mass_balance_output_provider is not None:
             self.mass_balance_output_provider.finalize()
         return self
