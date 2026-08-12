@@ -44,6 +44,50 @@ cdef float DEG_360_F = 360.0
 cdef float EPS_F = 1e-12
 
 
+@cython.wraparound(False)
+@cython.boundscheck(False)
+@cython.initializedcheck(False)
+@cython.nonecheck(False)
+def arr_maximum_serial(
+    DTYPE_t[:, ::1] arr_maximum,
+    DTYPE_t[:, ::1] arr_values,
+):
+    """Update an element-wise maximum with a serial loop for benchmarking."""
+    cdef Py_ssize_t rows = arr_maximum.shape[0]
+    cdef Py_ssize_t cols = arr_maximum.shape[1]
+    cdef Py_ssize_t row_idx, col_idx
+
+    if rows != arr_values.shape[0] or cols != arr_values.shape[1]:
+        raise ValueError("Maximum arrays must have the same shape")
+
+    for row_idx in range(rows):
+        for col_idx in range(cols):
+            if arr_values[row_idx, col_idx] > arr_maximum[row_idx, col_idx]:
+                arr_maximum[row_idx, col_idx] = arr_values[row_idx, col_idx]
+
+
+@cython.wraparound(False)
+@cython.boundscheck(False)
+@cython.initializedcheck(False)
+@cython.nonecheck(False)
+def arr_maximum_parallel(
+    DTYPE_t[:, ::1] arr_maximum,
+    DTYPE_t[:, ::1] arr_values,
+):
+    """Update an element-wise maximum with OpenMP for benchmarking."""
+    cdef Py_ssize_t rows = arr_maximum.shape[0]
+    cdef Py_ssize_t cols = arr_maximum.shape[1]
+    cdef Py_ssize_t row_idx, col_idx
+
+    if rows != arr_values.shape[0] or cols != arr_values.shape[1]:
+        raise ValueError("Maximum arrays must have the same shape")
+
+    for row_idx in prange(rows, nogil=True, schedule="static"):
+        for col_idx in range(cols):
+            if arr_values[row_idx, col_idx] > arr_maximum[row_idx, col_idx]:
+                arr_maximum[row_idx, col_idx] = arr_values[row_idx, col_idx]
+
+
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
