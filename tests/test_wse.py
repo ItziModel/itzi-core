@@ -153,7 +153,10 @@ def test_timed_memory_input_updates_water_depth_from_wse(domain_5by5) -> None:
             "friction": "friction",
             "water_surface_elevation": "water_surface_elevation",
         },
-        output_map_names={"water_depth": "out_5by5_wse_timed_memory_water_depth"},
+        output_map_names={
+            "water_depth": "out_5by5_wse_timed_memory_water_depth",
+            "hmax": "out_5by5_wse_timed_memory_hmax",
+        },
         surface_flow_parameters=SurfaceFlowParameters(hmin=0.0001, dtmax=0.3, cfl=0.2),
         infiltration_model=InfiltrationModelType.NULL,
     )
@@ -182,10 +185,11 @@ def test_timed_memory_input_updates_water_depth_from_wse(domain_5by5) -> None:
             },
         }
     )
+    raster_output = MemoryRasterOutputProvider(sim_config.output_map_names)
     simulation = (
         SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
         .with_input_provider(input_provider)
-        .with_raster_output_provider(MemoryRasterOutputProvider(sim_config.output_map_names))
+        .with_raster_output_provider(raster_output)
         .with_vector_output_provider(MemoryVectorOutputProvider())
         .build()
     )
@@ -196,6 +200,10 @@ def test_timed_memory_input_updates_water_depth_from_wse(domain_5by5) -> None:
         simulation.raster_domain.get_array("water_depth"),
         np.full(domain_5by5.domain_data.shape, 0.2, dtype=np.float32),
         atol=1e-5,
+    )
+    np.testing.assert_allclose(
+        simulation.raster_domain.get_array("hmax"),
+        simulation.raster_domain.get_array("water_depth"),
     )
     assert simulation.timed_arrays is not None
     wse_timed_array = simulation.timed_arrays["water_surface_elevation"]
@@ -209,5 +217,11 @@ def test_timed_memory_input_updates_water_depth_from_wse(domain_5by5) -> None:
         np.full(domain_5by5.domain_data.shape, 0.35, dtype=np.float32),
         atol=1e-5,
     )
+    np.testing.assert_allclose(
+        simulation.raster_domain.get_array("hmax"),
+        simulation.raster_domain.get_array("water_depth"),
+    )
+    reported_hmax = raster_output.output_maps_dict["hmax"][-1][1]
+    np.testing.assert_allclose(reported_hmax, simulation.raster_domain.get_array("hmax"))
     assert wse_timed_array.arr_start == boundary_time
     assert wse_timed_array.arr_end == end_time
