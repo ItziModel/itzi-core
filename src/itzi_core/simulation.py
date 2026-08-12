@@ -142,17 +142,8 @@ class Simulation:
             padded=True,
         )
 
-        # Calculate hmax and vmax of the initial state
-        np.maximum(
-            self.raster_domain.get_array("hmax"),
-            self.raster_domain.get_array("water_depth"),
-            out=self.raster_domain.get_array("hmax"),
-        )
-        np.maximum(
-            self.raster_domain.get_array("vmax"),
-            self.raster_domain.get_array("v"),
-            out=self.raster_domain.get_array("vmax"),
-        )
+        self._update_maximum("water_depth", "hmax")
+        self._update_maximum("v", "vmax")
 
         for arr_key in self.accum_mapping.keys():
             self._update_accum_array(arr_key, self.sim_time)
@@ -287,9 +278,7 @@ class Simulation:
     def finalize(self) -> None:
         """Flush already-written results and close runtime resources."""
         # The last interval is reported by update() when its end lands on end_time.
-        if self.continuity_data is None:
-            self.continuity_data = self.get_continuity_data()
-        self.report.end(self._build_simulation_data(self.sim_time, 0))
+        self.report.end()
         if self.drainage_model:
             self.drainage_model.close()
 
@@ -348,6 +337,10 @@ class Simulation:
         if arr_id in ["inflow", "rain"]:
             self._update_accum_array(arr_id, current_time)
         self.raster_domain.update_array(arr_id, arr)
+        if arr_id in {"water_depth", "water_surface_elevation"}:
+            self._update_maximum("water_depth", "hmax")
+        elif arr_id == "v":
+            self._update_maximum("v", "vmax")
         if arr_id == "dem":
             self.surface_flow.update_flow_dir()
         return self
@@ -403,6 +396,12 @@ class Simulation:
             accum_array = self.raster_domain.get_padded(ak)
             rastermetrics.accumulate_rate_to_total(accum_array, rate_array, time_diff, padded=True)
             self.accum_update_time[ak] = sim_time
+
+    def _update_maximum(self, value_key: str, maximum_key: str) -> None:
+        """Synchronize a cumulative maximum with its current value array."""
+        values = self.raster_domain.get_array(value_key)
+        maximum = self.raster_domain.get_array(maximum_key)
+        np.maximum(maximum, values, out=maximum)
 
     def create_hotstart(self) -> io.BytesIO:
         """Create a hotstart file with the current state of the simulation.

@@ -14,17 +14,21 @@ GNU Lesser General Public License for more details.
 
 from __future__ import annotations
 
+import csv
 from datetime import datetime, timedelta
-from typing import TypedDict, TYPE_CHECKING, Tuple, List
 from io import StringIO
 from pathlib import PurePosixPath, PureWindowsPath
-import csv
+from typing import TYPE_CHECKING, TypedDict
 
 import pandas as pd
 
+from itzi_core.data_containers import (
+    DrainageLinkAttributes,
+    DrainageLinkData,
+    DrainageNodeAttributes,
+    DrainageNodeData,
+)
 from itzi_core.providers.base import VectorOutputProvider
-from itzi_core.data_containers import DrainageLinkData, DrainageLinkAttributes
-from itzi_core.data_containers import DrainageNodeData, DrainageNodeAttributes
 
 if TYPE_CHECKING:
     from itzi_core.data_containers import DrainageNetworkData
@@ -117,9 +121,6 @@ class CSVVectorOutputProvider(VectorOutputProvider):
         self._update_csv(sim_time_str, "link", drainage_data.links)
         self.number_of_writes["link"] += 1
 
-    def finalize(self, drainage_data: DrainageNetworkData) -> None:
-        """Finalize outputs and cleanup."""
-
     def _check_existing_csv(self, geom_type: str):
         """In order to be compatible, an existing CSV should have:
             - Same headers
@@ -206,18 +207,16 @@ class CSVVectorOutputProvider(VectorOutputProvider):
         self,
         sim_time_str: str,
         geom_type: str,
-        drainage_elements: Tuple[DrainageNodeData | DrainageLinkData, ...],
+        drainage_elements: tuple[DrainageNodeData | DrainageLinkData, ...],
     ):
         """Update adequate CSV in object store"""
         # Check compatibility on first write
         if 0 == self.number_of_writes[geom_type] and self.existing_ids[geom_type]:
             # IDs must match
-            new_ids = set(
-                [
-                    drainage_elem.attributes.model_dump()[f"{geom_type}_id"]
-                    for drainage_elem in drainage_elements
-                ]
-            )
+            new_ids = {
+                drainage_elem.attributes.model_dump()[f"{geom_type}_id"]
+                for drainage_elem in drainage_elements
+            }
             if not new_ids == self.existing_ids[geom_type]:
                 raise ValueError(
                     f"Object ids mismatch for {geom_type}: "
@@ -236,7 +235,7 @@ class CSVVectorOutputProvider(VectorOutputProvider):
         updated_csv = existing_csv + new_rows
         obstore.put(self.store, self.file_paths[geom_type], file=updated_csv.encode("utf-8"))
 
-    def _attrs_line(self, drainage_element: DrainageNodeData | DrainageLinkData) -> List[str, ...]:
+    def _attrs_line(self, drainage_element: DrainageNodeData | DrainageLinkData) -> list[str, ...]:
         """Return a list of attributes"""
         # Convert attributes to list
         attributes = [str(a) for a in drainage_element.attributes.model_dump().values()]
