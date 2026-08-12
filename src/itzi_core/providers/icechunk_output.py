@@ -25,6 +25,8 @@ try:
     import pyproj
     import xarray as xr
     import zarr
+    from pyproj.exceptions import CRSError
+    from zarr.errors import BaseZarrError, GroupNotFoundError
 except ImportError:
     raise ImportError(
         "To use the Icechunk backend, install itzi with: "
@@ -98,46 +100,47 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
 
     def has_existing_data(self) -> bool:
         """Check if the repository already contains data."""
+        session = self.repo.readonly_session("main")
         try:
-            session = self.repo.readonly_session("main")
             existing_ds = xr.open_zarr(session.store)
-            return len(existing_ds.data_vars) > 0
-        except Exception:
+        except GroupNotFoundError:
             return False
+        return len(existing_ds.data_vars) > 0
 
     def get_latest_timestamp(self) -> datetime | timedelta | None:
         """Get the latest timestamp from existing data, or None if no data exists."""
         session = self.repo.readonly_session("main")
         try:
             existing_ds = xr.open_zarr(session.store)
-            if "time" in existing_ds.coords and len(existing_ds.coords["time"]) > 0:
-                latest_time = existing_ds.coords["time"][-1]
-                # Convert numpy datetime64/timedelta64 back to Python types
-                if np.issubdtype(latest_time.dtype, np.datetime64):
-                    return latest_time.values.astype("datetime64[ms]").astype(datetime)
-                elif np.issubdtype(latest_time.dtype, np.timedelta64):
-                    return timedelta(
-                        milliseconds=int(latest_time.values.astype("timedelta64[ms]").astype(int))
-                    )
-                else:
-                    return None
-            else:
-                return None
-        except Exception:
+        except GroupNotFoundError:
             return None
+        if "time" in existing_ds.coords and len(existing_ds.coords["time"]) > 0:
+            latest_time = existing_ds.coords["time"][-1]
+            # Convert numpy datetime64/timedelta64 back to Python types
+            if np.issubdtype(latest_time.dtype, np.datetime64):
+                return latest_time.values.astype("datetime64[ms]").astype(datetime)
+            elif np.issubdtype(latest_time.dtype, np.timedelta64):
+                return timedelta(
+                    milliseconds=int(latest_time.values.astype("timedelta64[ms]").astype(int))
+                )
+        return None
 
     def check_repo_match(self) -> None:
         """Raises ValueError if entry data does not match the existing repo."""
         session = self.repo.readonly_session("main")
         try:
             existing_ds = xr.open_zarr(session.store)
-        except Exception as e:
+        except BaseZarrError as e:
             raise ValueError(f"Existing {session.store} is not a valid zarr store: {e}")
 
         try:
-            existing_crs = pyproj.CRS.from_wkt(existing_ds.attrs["crs_wkt"])
-        except Exception as e:
-            raise ValueError("Existing repository has no valid CRS metadata") from e
+            existing_crs_wkt = existing_ds.attrs["crs_wkt"]
+        except KeyError as e:
+            raise KeyError("Existing repository has no 'crs_wkt' attribute") from e
+        try:
+            existing_crs = pyproj.CRS.from_wkt(existing_crs_wkt)
+        except CRSError as e:
+            raise ValueError("Existing repository 'crs_wkt' attribute is not valid WKT") from e
         if existing_crs != self.crs:
             raise ValueError(
                 "Provided CRS does not match existing icechunk repository: "
@@ -228,7 +231,7 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
             sim_time_np = np.datetime64(sim_time, "ms")
             time_unit = "milliseconds since 1970-01-01T00:00:00"
         elif isinstance(sim_time, timedelta):
-            time_dtype = "timedelta64[s]"
+            time_dtype = "timedelta64[ms]"
             sim_time_np = np.timedelta64(sim_time, "ms")
             time_unit = "milliseconds"
         else:

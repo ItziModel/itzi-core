@@ -13,7 +13,7 @@ GNU Lesser General Public License for more details.
 """
 
 import tempfile
-from typing import Dict, Mapping
+from collections.abc import Mapping
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -26,12 +26,11 @@ pytest.importorskip("xarray")
 pytest.importorskip("pyproj")
 
 import icechunk
-import xarray as xr
 import pyproj
+import xarray as xr
 
-from itzi_core.providers.icechunk_output import IcechunkRasterOutputProvider
 from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
-
+from itzi_core.providers.icechunk_output import IcechunkRasterOutputProvider
 
 # Mark all tests in this module as cloud tests
 pytestmark = pytest.mark.cloud
@@ -54,7 +53,7 @@ def maps_dict():
 
 
 @pytest.fixture(scope="module")
-def coordinates(maps_dict: Dict):
+def coordinates(maps_dict: dict):
     """Generate x and y coordinates for the test arrays"""
     arr_shape = next(iter(maps_dict.values())).shape
     y_coords = np.linspace(start=1234, stop=1234 + arr_shape[0], num=arr_shape[0])
@@ -69,14 +68,14 @@ def crs():
 
 
 @pytest.fixture(scope="module")
-def out_map_names(maps_dict: Dict):
+def out_map_names(maps_dict: dict):
     """Output map names mapping for the test arrays"""
     return {key: f"test_{key}" for key in maps_dict.keys()}
 
 
 @pytest.fixture
 def icechunk_provider(
-    temp_dir: tempfile.TemporaryDirectory, coordinates: Dict, crs: pyproj.CRS, out_map_names: list
+    temp_dir: tempfile.TemporaryDirectory, coordinates: dict, crs: pyproj.CRS, out_map_names: list
 ):
     storage = icechunk.local_filesystem_storage(temp_dir.name)
     provider_config = {
@@ -90,6 +89,68 @@ def icechunk_provider(
     return icechunk_p
 
 
+def test_missing_zarr_group_is_treated_as_empty(
+    icechunk_provider: IcechunkRasterOutputProvider,
+):
+    assert not icechunk_provider.has_existing_data()
+    assert icechunk_provider.get_latest_timestamp() is None
+    with pytest.raises(ValueError, match="not a valid zarr store"):
+        icechunk_provider.check_repo_match()
+
+
+def test_missing_crs_metadata_is_rejected(
+    icechunk_provider: IcechunkRasterOutputProvider,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(xr, "open_zarr", lambda store: xr.Dataset(attrs={}))
+
+    with pytest.raises(KeyError, match="Existing repository has no 'crs_wkt' attribute"):
+        icechunk_provider.check_repo_match()
+
+
+def test_invalid_crs_metadata_is_rejected(
+    icechunk_provider: IcechunkRasterOutputProvider,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(xr, "open_zarr", lambda store: xr.Dataset(attrs={"crs_wkt": "invalid"}))
+
+    with pytest.raises(
+        ValueError, match="Existing repository 'crs_wkt' attribute is not valid WKT"
+    ):
+        icechunk_provider.check_repo_match()
+
+
+@pytest.mark.parametrize(
+    "method_name", ["has_existing_data", "get_latest_timestamp", "check_repo_match"]
+)
+def test_unexpected_zarr_errors_propagate(
+    icechunk_provider: IcechunkRasterOutputProvider,
+    monkeypatch: pytest.MonkeyPatch,
+    method_name: str,
+):
+    def raise_unexpected_error(*args, **kwargs):
+        raise RuntimeError("unexpected error")
+
+    monkeypatch.setattr(xr, "open_zarr", raise_unexpected_error)
+
+    with pytest.raises(RuntimeError, match="unexpected error"):
+        getattr(icechunk_provider, method_name)()
+
+
+def test_unexpected_crs_errors_propagate(
+    icechunk_provider: IcechunkRasterOutputProvider,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    def raise_unexpected_error(*args, **kwargs):
+        raise RuntimeError("unexpected error")
+
+    monkeypatch.setattr(xr, "open_zarr", lambda store: xr.Dataset(attrs={"crs_wkt": "valid"}))
+    monkeypatch.setattr(pyproj.CRS, "from_wkt", raise_unexpected_error)
+
+    with pytest.raises(RuntimeError, match="unexpected error"):
+        icechunk_provider.check_repo_match()
+
+
 @pytest.mark.parametrize("start_year", [1, 1978, 3456])
 @pytest.mark.parametrize("time_step_s", [1, 60, 300])
 def test_write_arrays_absolute(
@@ -97,7 +158,7 @@ def test_write_arrays_absolute(
     temp_dir: tempfile.TemporaryDirectory,
     start_year: int,
     time_step_s: int,
-    maps_dict: Dict,
+    maps_dict: dict,
 ):
     # Write timesteps
     time_steps_num = 3
@@ -144,7 +205,7 @@ def test_write_arrays_relative(
     temp_dir: tempfile.TemporaryDirectory,
     start_seconds: int,
     time_step_s: int,
-    maps_dict: Dict,
+    maps_dict: dict,
 ):
     """Test writing arrays with relative time (timedelta)"""
     # Write timesteps, with 1 minute in between
@@ -183,7 +244,7 @@ def test_data_consistency(
     icechunk_provider: IcechunkRasterOutputProvider,
     temp_dir: tempfile.TemporaryDirectory,
     maps_dict: Mapping[str, np.ndarray],
-    coordinates: Dict,
+    coordinates: dict,
     crs: pyproj.CRS,
     out_map_names: Mapping[str, str],
 ):
@@ -273,8 +334,8 @@ def test_data_consistency(
 
 def test_non_matching_shape(
     temp_dir: tempfile.TemporaryDirectory,
-    maps_dict: Dict,
-    coordinates: Dict,
+    maps_dict: dict,
+    coordinates: dict,
     crs: pyproj.CRS,
     out_map_names: Mapping[str, str],
 ):
@@ -319,8 +380,8 @@ def test_non_matching_shape(
 
 def test_non_matching_variable_names(
     temp_dir: tempfile.TemporaryDirectory,
-    maps_dict: Dict,
-    coordinates: Dict,
+    maps_dict: dict,
+    coordinates: dict,
     crs: pyproj.CRS,
     out_map_names: Mapping[str, str],
 ):
@@ -359,8 +420,8 @@ def test_non_matching_variable_names(
 
 def test_non_matching_number_of_variables(
     temp_dir: tempfile.TemporaryDirectory,
-    maps_dict: Dict,
-    coordinates: Dict,
+    maps_dict: dict,
+    coordinates: dict,
     crs: pyproj.CRS,
     out_map_names: Mapping[str, str],
 ):
@@ -400,8 +461,8 @@ def test_non_matching_number_of_variables(
 
 def test_non_matching_coordinates_same_dimensions(
     temp_dir: tempfile.TemporaryDirectory,
-    maps_dict: Dict,
-    coordinates: Dict,
+    maps_dict: dict,
+    coordinates: dict,
     crs: pyproj.CRS,
     out_map_names: Mapping[str, str],
 ):
@@ -443,8 +504,8 @@ def test_non_matching_coordinates_same_dimensions(
 
 def test_non_matching_crs(
     temp_dir: tempfile.TemporaryDirectory,
-    maps_dict: Dict,
-    coordinates: Dict,
+    maps_dict: dict,
+    coordinates: dict,
     crs: pyproj.CRS,
     out_map_names: Mapping[str, str],
 ):
@@ -483,8 +544,8 @@ def test_non_matching_crs(
 
 def test_multi_session_data_persistence(
     temp_dir: tempfile.TemporaryDirectory,
-    maps_dict: Dict,
-    coordinates: Dict,
+    maps_dict: dict,
+    coordinates: dict,
     crs: pyproj.CRS,
     out_map_names: Mapping[str, str],
 ):
@@ -607,7 +668,7 @@ def test_multi_session_data_persistence(
 
 def test_maxima_use_configured_names_without_base_arrays(
     temp_dir: tempfile.TemporaryDirectory,
-    coordinates: Dict,
+    coordinates: dict,
     crs: pyproj.CRS,
 ):
     storage = icechunk.local_filesystem_storage(temp_dir.name)
@@ -637,7 +698,7 @@ def test_maxima_use_configured_names_without_base_arrays(
 
 def test_legacy_static_maximum_schema_is_rejected(
     temp_dir: tempfile.TemporaryDirectory,
-    coordinates: Dict,
+    coordinates: dict,
     crs: pyproj.CRS,
 ):
     storage = icechunk.local_filesystem_storage(temp_dir.name)
