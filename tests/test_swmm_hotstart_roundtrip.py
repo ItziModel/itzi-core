@@ -16,27 +16,54 @@ GNU Lesser General Public License for more details.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
-from pathlib import Path
 import os
 import shutil
 import tempfile
-from typing import Any
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, TypedDict
 
 import numpy as np
-import pytest
 import pyswmm
+import pytest
 from pyswmm.simulation import _sim_state_instance
 from pyswmm.toolkitapi import NodeResults, SimulationTime
 
 from itzi_core import SwmmInputParser
-
 
 SECONDS_PER_DAY = 24 * 3600
 SPLIT_TIME = timedelta(hours=1, minutes=40)
 SWMM_J1_TOTAL_INFLOW_MAX_DIFF = 0.25
 SWMM_C0_FLOW_MAX_DIFF = 0.25
 SWMM_J1_INTEGRATED_INFLOW_MAX_DIFF = 2.0
+
+
+class SnapshotAccumulator(TypedDict):
+    elapsed_seconds: list[float]
+    node_depths: list[list[float]]
+    node_heads: list[list[float]]
+    node_total_inflow: list[list[float]]
+    node_cumulative_inflow: list[list[float]]
+    node_volumes: list[list[float]]
+    node_overflow: list[list[float]]
+    link_flows: list[list[float]]
+    link_depths: list[list[float]]
+    link_volumes: list[list[float]]
+
+
+class SnapshotResult(TypedDict):
+    node_ids: tuple[str, ...]
+    link_ids: tuple[str, ...]
+    elapsed_seconds: np.ndarray
+    node_depths: np.ndarray
+    node_heads: np.ndarray
+    node_total_inflow: np.ndarray
+    node_cumulative_inflow: np.ndarray
+    node_volumes: np.ndarray
+    node_overflow: np.ndarray
+    link_flows: np.ndarray
+    link_depths: np.ndarray
+    link_volumes: np.ndarray
 
 
 @pytest.fixture
@@ -48,7 +75,7 @@ def ea8b_inp_path(test_data_path: str, tmp_path: Path) -> Path:
 
 
 def _record_snapshot(
-    snapshots: dict[str, list[float] | list[list[float]]],
+    snapshots: SnapshotAccumulator,
     node_objects: list,
     link_objects: list,
     swmm_model: Any,
@@ -69,7 +96,7 @@ def _record_snapshot(
     snapshots["link_volumes"].append([link.volume for link in link_objects])
 
 
-def _empty_snapshots() -> dict[str, list[float] | list[list[float]]]:
+def _empty_snapshots() -> SnapshotAccumulator:
     return {
         "elapsed_seconds": [],
         "node_depths": [],
@@ -85,10 +112,10 @@ def _empty_snapshots() -> dict[str, list[float] | list[list[float]]]:
 
 
 def _finalize_snapshots(
-    snapshots: dict[str, list[float] | list[list[float]]],
+    snapshots: SnapshotAccumulator,
     node_ids: tuple[str, ...],
     link_ids: tuple[str, ...],
-) -> dict[str, tuple[str, ...] | np.ndarray]:
+) -> SnapshotResult:
     return {
         "node_ids": node_ids,
         "link_ids": link_ids,
@@ -232,9 +259,7 @@ def _run_ab_ponding_diagnostic(
     return results
 
 
-def _run_uninterrupted(
-    inp_file: str, split_seconds: float
-) -> dict[str, tuple[str, ...] | np.ndarray]:
+def _run_uninterrupted(inp_file: str, split_seconds: float) -> SnapshotResult:
     swmm_sim = pyswmm.Simulation(inp_file)
     swmm_model = swmm_sim._model
     node_objects = list(pyswmm.Nodes(swmm_sim))
@@ -276,9 +301,7 @@ def _run_uninterrupted(
     return _finalize_snapshots(snapshots, node_ids, link_ids)
 
 
-def _run_with_hotstart(
-    inp_file: str, split_seconds: float
-) -> dict[str, tuple[str, ...] | np.ndarray]:
+def _run_with_hotstart(inp_file: str, split_seconds: float) -> SnapshotResult:
     parser = SwmmInputParser(inp_file)
     original_start = parser.get_start_datetime()
     assert original_start is not None, "Failed to parse SWMM START_DATE/START_TIME"

@@ -75,7 +75,13 @@ def _build_diagnostic_simulation(
     return simulation
 
 
-def _run_diagnostic_regression(domain_5by5, helpers, *, force_all: bool):
+def _run_diagnostic_regression(
+    domain_5by5,
+    helpers,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    force_all: bool,
+):
     simulation = _build_diagnostic_simulation(
         domain_5by5,
         helpers,
@@ -88,16 +94,18 @@ def _run_diagnostic_regression(domain_5by5, helpers, *, force_all: bool):
     if force_all:
         scheduled_step = simulation.surface_flow.step
 
-        def always_compute_step(*, compute_vdir: bool, compute_froude: bool):
+        def always_compute_step(*, compute_vdir: bool = True, compute_froude: bool = True):
             return scheduled_step(compute_vdir=True, compute_froude=True)
 
-        simulation.surface_flow.step = always_compute_step
+        monkeypatch.setattr(simulation.surface_flow, "step", always_compute_step)
 
     simulation.initialize()
     while simulation.sim_time < simulation.end_time:
         simulation.update()
 
-    output_maps = simulation.report.raster_provider.output_maps_dict
+    raster_provider = simulation.report.raster_provider
+    assert isinstance(raster_provider, MemoryRasterOutputProvider)
+    output_maps = raster_provider.output_maps_dict
     result = {
         "outputs": {
             key: [(time, array.copy()) for time, array in output_maps[key]]
@@ -187,6 +195,7 @@ def _run_center_pulse_simulation(
 def test_scheduler_computes_only_requested_report_diagnostics(
     domain_5by5,
     helpers,
+    monkeypatch: pytest.MonkeyPatch,
     diagnostic_keys: list[str],
     report_flags: tuple[bool, bool],
 ):
@@ -202,7 +211,7 @@ def test_scheduler_computes_only_requested_report_diagnostics(
     scheduled_step = simulation.surface_flow.step
     calls = []
 
-    def tracked_step(*, compute_vdir: bool, compute_froude: bool):
+    def tracked_step(*, compute_vdir: bool = True, compute_froude: bool = True):
         step_end = simulation.sim_time + simulation.dt
         vdir_before = simulation.get_array("vdir").copy()
         froude_before = simulation.get_array("froude").copy()
@@ -222,7 +231,7 @@ def test_scheduler_computes_only_requested_report_diagnostics(
         )
         return result
 
-    simulation.surface_flow.step = tracked_step
+    monkeypatch.setattr(simulation.surface_flow, "step", tracked_step)
     simulation.initialize()
     simulation.get_array("vdir").fill(-123.0)
     simulation.get_array("froude").fill(-456.0)
@@ -238,7 +247,9 @@ def test_scheduler_computes_only_requested_report_diagnostics(
         (timedelta(seconds=10), report_flags),
     ]
 
-    output_maps = simulation.report.raster_provider.output_maps_dict
+    raster_provider = simulation.report.raster_provider
+    assert isinstance(raster_provider, MemoryRasterOutputProvider)
+    output_maps = raster_provider.output_maps_dict
     expected_report_times = [
         timedelta(seconds=0),
         timedelta(seconds=4),
@@ -248,12 +259,16 @@ def test_scheduler_computes_only_requested_report_diagnostics(
     assert [time for time, _ in output_maps["water_depth"]] == expected_report_times
     for key in ("vdir", "froude"):
         expected_times = expected_report_times if key in diagnostic_keys else []
-        assert [time for time, _ in output_maps[key]] == expected_times
+        assert [time for time, _ in output_maps.get(key, [])] == expected_times
 
 
-def test_lazy_diagnostic_reports_match_always_compute_reference(domain_5by5, helpers):
-    optimized = _run_diagnostic_regression(domain_5by5, helpers, force_all=False)
-    reference = _run_diagnostic_regression(domain_5by5, helpers, force_all=True)
+def test_lazy_diagnostic_reports_match_always_compute_reference(
+    domain_5by5,
+    helpers,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    optimized = _run_diagnostic_regression(domain_5by5, helpers, monkeypatch, force_all=False)
+    reference = _run_diagnostic_regression(domain_5by5, helpers, monkeypatch, force_all=True)
 
     assert optimized["steps"] == reference["steps"]
     for key in ("water_depth", "v", "vmax"):

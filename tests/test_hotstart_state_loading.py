@@ -620,9 +620,7 @@ class TestSimulationBuilderHotstart:
             swmm_inp="fake.inp",  # Has drainage
         )
 
-        raster_output = MemoryRasterOutputProvider(
-            {"out_map_names": config_with_drainage.output_map_names}
-        )
+        raster_output = MemoryRasterOutputProvider(config_with_drainage.output_map_names)
 
         with pytest.raises(
             HotstartError, match="Hotstart has no drainage state but current configuration"

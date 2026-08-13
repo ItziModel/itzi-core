@@ -38,7 +38,7 @@ from itzi_core.providers.memory_output import (
     MemoryRasterOutputProvider,
     MemoryVectorOutputProvider,
 )
-from itzi_core.providers.xarray_input import XarrayRasterInputProvider
+from itzi_core.providers.xarray_input import XarrayRasterInputConfig, XarrayRasterInputProvider
 from itzi_core.simulation_builder import SimulationBuilder
 
 # Mark all tests in this module as cloud tests
@@ -84,11 +84,13 @@ def ea_test8a_xarray_data(test8a_file, test_data_path, test_data_temp_path):
 
     # Process DEM - import and aggregate from 50cm to 2m (matching GRASS r.resamp.stats)
     dem_path = os.path.join(unzip_path, "Test8DEM.asc")
-    dem_da = rioxarray.open_rasterio(dem_path, masked=True).isel(band=0)
+    dem_raster = rioxarray.open_rasterio(dem_path, masked=True)
+    assert isinstance(dem_raster, xr.DataArray)
+    dem_da = dem_raster.isel(band=0)
 
     # Aggregate using coarsen (4x4 blocks since 50cm to 2m is 4x factor)
     # This matches GRASS r.resamp.stats default (mean aggregation)
-    dem_da_coarse = dem_da.coarsen(x=4, y=4, boundary="pad").mean()
+    dem_da_coarse = dem_da.coarsen(x=4, y=4, boundary="pad").reduce(np.nanmean)
 
     # Interpolate to exact target coordinates
     dem_da_resampled = dem_da_coarse.interp(x=x_coords, y=y_coords, method="nearest")
@@ -104,7 +106,9 @@ def ea_test8a_xarray_data(test8a_file, test_data_path, test_data_temp_path):
 
     # Process road pavement for Manning coefficient
     road_path = os.path.join(unzip_path, "Test8RoadPavement.asc")
-    road_da = rioxarray.open_rasterio(road_path, mask_and_scale=True).isel(band=0)
+    road_raster = rioxarray.open_rasterio(road_path, mask_and_scale=True)
+    assert isinstance(road_raster, xr.DataArray)
+    road_da = road_raster.isel(band=0)
     road_da = road_da.interp(x=x_coords, y=y_coords, method="nearest")
     road_data = road_da.values
     # Create Manning coefficient: 0.02 where road exists, 0.05 elsewhere
@@ -270,7 +274,7 @@ def ea_test8a_sim(ea_test8a_xarray_data, test_data_path, test_data_temp_path):
     sim_end_time = sim_start_time + sim_duration
 
     # Create input provider
-    input_config = {
+    input_config: XarrayRasterInputConfig = {
         "dataset": ds,
         "input_map_names": {
             "dem": "dem",

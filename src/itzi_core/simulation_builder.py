@@ -611,7 +611,7 @@ class SimulationBuilder:
         g: float,
     ) -> list[DrainageNodeCouplingData]:
         """Check if the drainage nodes are inside the region and can be coupled.
-        Return a list of DrainageNodeCouplingData
+        A node without coordinates cannot be coupled.
         """
         nodes_list = []
         for pyswmm_node in pswmm_nodes:
@@ -625,8 +625,10 @@ class SimulationBuilder:
                 submerged_weir_coeff=submerged_weir_coeff,
                 g=g,
             )
-            # a node without coordinates cannot be coupled
-            if coors is None or not domain_data.is_in_domain(x=coors.x, y=coors.y):
+            pixel = (
+                None if coors is None else domain_data.coordinates_to_pixel(x=coors.x, y=coors.y)
+            )
+            if pixel is None:
                 x_coor = None
                 y_coor = None
                 row = None
@@ -636,8 +638,6 @@ class SimulationBuilder:
                 node.coupling_type = CouplingTypes.COUPLED_NO_FLOW
                 x_coor = coors.x
                 y_coor = coors.y
-                pixel = domain_data.coordinates_to_pixel(x=x_coor, y=y_coor)
-                assert pixel is not None
                 row, col = pixel
             # populate list
             drainage_node_data = DrainageNodeCouplingData(

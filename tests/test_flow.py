@@ -19,7 +19,6 @@ from math import atan2, copysign, pi, sqrt
 
 import numpy as np
 import pytest
-
 from itzi_core.compute.partial_inertia_h import solve_h
 from itzi_core.compute.partial_inertia_q import solve_q
 
@@ -262,16 +261,15 @@ def test_solve_h_optional_diagnostics(dtype, compute_vdir, compute_froude):
     expected_v = sqrt(10.0**2 + 6.0**2)
     expected_vdir = atan2(-6.0, 10.0) * 180.0 / pi % 360.0
     expected_froude = expected_v / sqrt(9.81 * 0.1)
-    tolerance = {"rtol": 1e-6, "atol": 1e-6}
 
-    np.testing.assert_allclose(arr_v[1:-1, 1:-1], expected_v, **tolerance)
-    np.testing.assert_allclose(arr_vmax[1:-1, 1:-1], expected_v, **tolerance)
+    np.testing.assert_allclose(arr_v[1:-1, 1:-1], expected_v, rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(arr_vmax[1:-1, 1:-1], expected_v, rtol=1e-6, atol=1e-6)
     if compute_vdir:
-        np.testing.assert_allclose(arr_vdir[1:-1, 1:-1], expected_vdir, **tolerance)
+        np.testing.assert_allclose(arr_vdir[1:-1, 1:-1], expected_vdir, rtol=1e-6, atol=1e-6)
     else:
         assert np.all(arr_vdir == dtype(-123.0))
     if compute_froude:
-        np.testing.assert_allclose(arr_fr[1:-1, 1:-1], expected_froude, **tolerance)
+        np.testing.assert_allclose(arr_fr[1:-1, 1:-1], expected_froude, rtol=1e-6, atol=1e-6)
     else:
         assert np.all(arr_fr == dtype(-456.0))
 
