@@ -190,6 +190,13 @@ class Simulation:
         except DtError as e:
             raise DtError(f"{step_start}: Time-step computation error detected in simulation: {e}")
         step_end = self.schedule.select_step_end(step_start + self.surface_flow.dt)
+        is_final_ts = step_end == self.end_time
+        is_record_due = step_end == self.schedule.deadline("record")
+        should_write_report = is_record_due or is_final_ts
+        is_vdir_requested = self.report.out_map_names.get("vdir") is not None
+        is_froude_requested = self.report.out_map_names.get("froude") is not None
+        compute_vdir = should_write_report and is_vdir_requested
+        compute_froude = should_write_report and is_froude_requested
 
         # surface flow #
         # update arrays of infiltration, rainfall etc.
@@ -202,9 +209,12 @@ class Simulation:
         # surface_flow.step() raise NullError in case of NaN/NULL cell
         # if this happen, stop simulation
         try:
-            self.surface_flow.step()
+            self.surface_flow.step(
+                compute_vdir=compute_vdir,
+                compute_froude=compute_froude,
+            )
         except NullError:
-            raise NullError(f"{step_start}: Null value detected in simulation, terminating")
+            raise NullError(f"{step_start}: Null value detected in simulation")
 
         # Align timed inputs to the interval end before closing and reporting it
         # under that time label. Due submodels will consume that label on the next update cycle.
@@ -222,9 +232,6 @@ class Simulation:
         steps_since_start = self.time_steps_counters["since_start"] + 1
         steps_since_report = self.time_steps_counters["since_last_report"] + 1
         is_first_ts = step_start == self.start_time
-        is_final_ts = step_end == self.end_time
-        is_record_due = step_end == self.schedule.deadline("record")
-        should_write_report = is_record_due or is_final_ts
         is_ts_over_threshold = steps_since_report % 200 == 0
         is_error_comp_due = is_first_ts or is_ts_over_threshold or should_write_report
         if is_error_comp_due:
@@ -361,7 +368,11 @@ class Simulation:
         return self
 
     def get_array(self, arr_id: str) -> np.ndarray:
-        """Here form BMI interface."""
+        """Return an array through the BMI interface.
+
+        Between reports, ``vdir`` and ``froude`` contain their values from the
+        most recent report step when those outputs are enabled.
+        """
         return self.raster_domain.get_array(arr_id)
 
     def get_continuity_data(self) -> ContinuityData:

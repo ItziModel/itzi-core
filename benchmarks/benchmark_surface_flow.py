@@ -12,8 +12,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
-import math
 import datetime
+import math
 
 import numpy as np
 import pytest
@@ -47,6 +47,11 @@ num_cells_params = [1_000_000, 10_000_000]
 num_cells_ids = ["1M", "10M"]
 cell_size_params = [1, 5, 10, 20]
 cell_size_ids = ["1m", "5m", "10m", "20m"]
+DIAGNOSTIC_STEPS: dict[str, tuple[tuple[bool, bool], ...]] = {
+    "all": ((True, True), (True, True)),
+    "record_every_2": ((False, False), (True, True)),
+    "none": ((False, False), (False, False)),
+}
 
 
 def setup_eggbox_simulation(num_cells=10_000, cell_size=5):
@@ -95,11 +100,14 @@ def setup_eggbox_simulation(num_cells=10_000, cell_size=5):
     return surface_flow
 
 
-def benchmark_surface_flow_n_steps(eggbox_simulation, n_steps=10):
-    for _ in range(n_steps):
+def benchmark_surface_flow_n_steps(eggbox_simulation, diagnostic_steps):
+    for compute_vdir, compute_froude in diagnostic_steps:
         eggbox_simulation.solve_dt()
-        eggbox_simulation.step()
-    return n_steps
+        eggbox_simulation.step(
+            compute_vdir=compute_vdir,
+            compute_froude=compute_froude,
+        )
+    return len(diagnostic_steps)
 
 
 def benchmark_surface_flow_n_seconds(eggbox_simulation, n_seconds=30):
@@ -117,11 +125,14 @@ def benchmark_surface_flow_n_seconds(eggbox_simulation, n_seconds=30):
 @pytest.mark.parametrize(
     "cell_size", [5], ids=["5m"]
 )  # Set as parameter to get it in the output json
-def test_benchmark_surface_flow_n_steps(benchmark, num_cells, cell_size, n_steps=10):
+@pytest.mark.parametrize("diagnostic_mode", DIAGNOSTIC_STEPS)
+def test_benchmark_surface_flow_n_steps(benchmark, num_cells, cell_size, diagnostic_mode):
     """Run the benchmark for a given number of cells and cell size"""
     eggbox_sim = setup_eggbox_simulation(num_cells=num_cells, cell_size=cell_size)
-    benchmark(benchmark_surface_flow_n_steps, eggbox_sim, n_steps)
-    benchmark.extra_info["lattice_updates"] = n_steps * num_cells
+    diagnostic_steps = DIAGNOSTIC_STEPS[diagnostic_mode]
+    benchmark(benchmark_surface_flow_n_steps, eggbox_sim, diagnostic_steps)
+    benchmark.extra_info["lattice_updates"] = len(diagnostic_steps) * num_cells
+    benchmark.extra_info["diagnostic_mode"] = diagnostic_mode
 
 
 @pytest.mark.parametrize("num_cells", num_cells_params, ids=num_cells_ids)

@@ -211,6 +211,71 @@ def test_vectorizable_velocity_calculation():
         assert v_optimized == pytest.approx(expected_v)
 
 
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+@pytest.mark.parametrize(
+    ("compute_vdir", "compute_froude"),
+    [(True, True), (False, False), (True, False), (False, True)],
+)
+def test_solve_h_optional_diagnostics(dtype, compute_vdir, compute_froude):
+    """Direction and Froude writes are independent of live velocity updates."""
+    shape = (5, 5)
+    arr_ext = np.zeros(shape, dtype=dtype)
+    arr_qe = np.full(shape, 0.5, dtype=dtype)
+    arr_qs = np.full(shape, 0.3, dtype=dtype)
+    arr_bct = np.zeros(shape, dtype=np.uint8)
+    arr_bcv = np.zeros(shape, dtype=dtype)
+    arr_h = np.full(shape, 0.1, dtype=dtype)
+    arr_hmax = arr_h.copy()
+    arr_hfix = np.zeros(shape, dtype=dtype)
+    arr_herr = np.zeros(shape, dtype=dtype)
+    arr_hfe = np.full(shape, 0.05, dtype=dtype)
+    arr_hfs = np.full(shape, 0.05, dtype=dtype)
+    arr_v = np.zeros(shape, dtype=dtype)
+    arr_vdir = np.full(shape, -123.0, dtype=dtype)
+    arr_vmax = np.ones(shape, dtype=dtype)
+    arr_fr = np.full(shape, -456.0, dtype=dtype)
+
+    solve_h(
+        arr_ext=arr_ext,
+        arr_qe=arr_qe,
+        arr_qs=arr_qs,
+        arr_bct=arr_bct,
+        arr_bcv=arr_bcv,
+        arr_h=arr_h,
+        arr_hmax=arr_hmax,
+        arr_hfix=arr_hfix,
+        arr_herr=arr_herr,
+        arr_hfe=arr_hfe,
+        arr_hfs=arr_hfs,
+        arr_v=arr_v,
+        arr_vdir=arr_vdir,
+        arr_vmax=arr_vmax,
+        arr_fr=arr_fr,
+        dx=1.0,
+        dy=1.0,
+        dt=0.1,
+        g=9.81,
+        compute_vdir=compute_vdir,
+        compute_froude=compute_froude,
+    )
+
+    expected_v = sqrt(10.0**2 + 6.0**2)
+    expected_vdir = atan2(-6.0, 10.0) * 180.0 / pi % 360.0
+    expected_froude = expected_v / sqrt(9.81 * 0.1)
+    tolerance = {"rtol": 1e-6, "atol": 1e-6}
+
+    np.testing.assert_allclose(arr_v[1:-1, 1:-1], expected_v, **tolerance)
+    np.testing.assert_allclose(arr_vmax[1:-1, 1:-1], expected_v, **tolerance)
+    if compute_vdir:
+        np.testing.assert_allclose(arr_vdir[1:-1, 1:-1], expected_vdir, **tolerance)
+    else:
+        assert np.all(arr_vdir == dtype(-123.0))
+    if compute_froude:
+        np.testing.assert_allclose(arr_fr[1:-1, 1:-1], expected_froude, **tolerance)
+    else:
+        assert np.all(arr_fr == dtype(-456.0))
+
+
 def test_solve_h_uses_dx_and_dy_separately_in_flow_divergence():
     """The water-depth update must use the x and y cell sizes independently."""
     shape = (5, 5)

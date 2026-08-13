@@ -64,6 +64,8 @@ cdef inline void solve_h_tile(
     DTYPE_t dy,
     DTYPE_t dt,
     DTYPE_t g,
+    bint compute_vdir,
+    bint compute_froude,
     int r_start,
     int r_end,
     int c_start,
@@ -121,17 +123,19 @@ cdef inline void solve_h_tile(
             vx = .5 * (ve + vw)
             vy = .5 * (vs + vn)
 
-            # velocity magnitude and direction
+            # velocity magnitude and maximum
             v = c_sqrt(vx*vx + vy*vy)  # sqrt faster than hypot
             arr_v[r, c] = v
             arr_vmax[r, c] = max(v, arr_vmax[r, c])
-            vdir = c_atan(-vy, vx) * 180. / PI
-            # Branchless. Add 360 only to negative numbers
-            vdir = vdir + 360. * (vdir < 0)
-            arr_vdir[r, c] = vdir
+            if compute_vdir:
+                vdir = c_atan(-vy, vx) * 180. / PI
+                # Branchless. Add 360 only to negative numbers
+                vdir = vdir + 360. * (vdir < 0)
+                arr_vdir[r, c] = vdir
 
             # Froude number - use epsilon to avoid division by zero
-            arr_fr[r, c] = v / c_sqrt(g * fmax(h_new, eps)) * (h_new > 0.)
+            if compute_froude:
+                arr_fr[r, c] = v / c_sqrt(g * fmax(h_new, eps)) * (h_new > 0.)
 
 
 @cython.wraparound(False)  # Disable negative index check
@@ -158,7 +162,10 @@ def solve_h(
     DTYPE_t dx,
     DTYPE_t dy,
     DTYPE_t dt,
-    DTYPE_t g
+    DTYPE_t g,
+    *,
+    bint compute_vdir=True,
+    bint compute_froude=True,
 ):
     """Update the water depth and max depth
     Adjust water depth according to in-domain 'boundary' condition
@@ -215,6 +222,8 @@ def solve_h(
             dy=dy,
             dt=dt,
             g=g,
+            compute_vdir=compute_vdir,
+            compute_froude=compute_froude,
             r_start=r_start,
             r_end=r_end,
             c_start=c_start,
