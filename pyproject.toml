@@ -1,6 +1,6 @@
 [project]
 name = "itzi-core"
-version = "0.4.0"
+version = "0.4.1"
 description = "A cloud-native dynamic flood model."
 authors = [
     {name = "Laurent Courty", email = "lrntct@gmail.com"},
@@ -11,8 +11,8 @@ dependencies = [
     "bmipy>=2.0.1",
     "pydantic>=2.13.4",
 ]
-# 3.12 for typing. pyswmm does not support python > 3.13
-requires-python = ">=3.12,<3.14"
+# 3.12 for typing.
+requires-python = ">=3.12"
 readme = "README.md"
 license = "LGPL-2.1-or-later"
 keywords = ["science", "engineering", "hydrology", "flood", "inundation"]

@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
-from itzi_core.data_containers import DrainageNetworkData, SimulationData
+from itzi_core.data_containers import DrainageNetworkData
 from itzi_core.providers.base import RasterOutputProvider, VectorOutputProvider
 
 
@@ -38,9 +38,6 @@ class MemoryRasterOutputProvider(RasterOutputProvider):
             if isinstance(arr, np.ndarray):
                 self.output_maps_dict[arr_key].append((deepcopy(sim_time), arr.copy()))
 
-    def finalize(self, final_data: SimulationData) -> None:
-        """Finalize outputs and cleanup."""
-
 
 class MemoryVectorOutputProvider(VectorOutputProvider):
     """Save drainage simulation outputs in memory."""
@@ -54,6 +51,3 @@ class MemoryVectorOutputProvider(VectorOutputProvider):
     ) -> None:
         """Save simulation data for current time step."""
         self.drainage_data.append((deepcopy(sim_time), deepcopy(drainage_data)))
-
-    def finalize(self, drainage_data: DrainageNetworkData) -> None:
-        """Finalize outputs and cleanup."""

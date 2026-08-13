@@ -167,7 +167,7 @@ def domain_5by5() -> Domain5by5Data:
 
     arr_mask = np.full(domain_data.shape, False, dtype=np.bool_)
 
-    arr_bctype = np.zeros(domain_data.shape, dtype=np.float32)
+    arr_bctype = np.zeros(domain_data.shape, dtype=np.uint8)
     arr_bctype[0, :] = 2
     arr_bctype[4, :] = 2
     arr_bctype[:, 0] = 2

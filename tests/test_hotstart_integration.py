@@ -170,7 +170,7 @@ def run_with_hotstart_checkpoints(
 
 
 def assert_final_state_matches(simulation: Simulation, reference: Simulation) -> None:
-    for key in ["water_depth", "qe", "qs"]:
+    for key in ["water_depth", "hmax", "vmax", "qe", "qs"]:
         arr_resumed = simulation.raster_domain.get_array(key)
         arr_reference = reference.raster_domain.get_array(key)
         np.testing.assert_allclose(arr_resumed, arr_reference, err_msg=f"Final {key} mismatch")
@@ -396,7 +396,7 @@ def test_resume_allows_output_map_name_change(
 
     resumed_output_map_names = helpers.make_output_map_names(
         "out_resume",
-        ["water_depth", "qx", "qy", "volume_error"],
+        ["water_depth", "hmax", "qx", "qy", "volume_error"],
     )
     sim_b_config = sim_a_config.model_copy(update={"output_map_names": resumed_output_map_names})
     resumed_output = MemoryRasterOutputProvider(resumed_output_map_names)
@@ -412,6 +412,10 @@ def test_resume_allows_output_map_name_change(
     assert sim_b.report.out_map_names == resumed_output_map_names
     assert resumed_output.out_map_names == resumed_output_map_names
     assert resumed_output.output_maps_dict["water_depth"]
+    assert resumed_output.output_maps_dict["hmax"]
+    np.testing.assert_allclose(
+        resumed_output.output_maps_dict["hmax"][-1][1], sim_b.get_array("hmax")
+    )
     assert sim_a_config.output_map_names["water_depth"] != resumed_output_map_names["water_depth"]
     assert_final_state_matches(sim_b, uninterrupted_simulation)
 

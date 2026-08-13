@@ -78,8 +78,6 @@ class Report:
         self.mass_balance_output_provider = mass_balance_output_provider
         # a dict containing lists of maps written to gis to be registered
         self.output_maplist = {k: [] for k in self.out_map_names}
-        # a dict of array written at a given step. Keys are the same as out_map_names
-        self.output_arrays = {}
         self.dt = dt
         self.last_step = copy.copy(start_time)
 
@@ -90,10 +88,8 @@ class Report:
             converted_sim_time = sim_time - self.start_time
         else:
             converted_sim_time = sim_time
-        self.get_output_arrays(simulation_data)
-        self.raster_provider.write_arrays(
-            array_dict=self.output_arrays, sim_time=converted_sim_time
-        )
+        output_arrays = self.get_output_arrays(simulation_data)
+        self.raster_provider.write_arrays(array_dict=output_arrays, sim_time=converted_sim_time)
         if self.mass_balance_output_provider is not None:
             self.write_mass_balance(simulation_data, converted_sim_time)
         drainage_data = simulation_data.drainage_network_data
@@ -103,17 +99,17 @@ class Report:
         self.last_step = copy.copy(sim_time)
         return self
 
-    def end(self, final_data: SimulationData):
+    def end(self):
         """Finalize output providers after the last report has been written."""
-        self.raster_provider.finalize(final_data)
-        if final_data.drainage_network_data is not None:
-            self.vector_provider.finalize(final_data.drainage_network_data)
+        self.raster_provider.finalize()
+        self.vector_provider.finalize()
         if self.mass_balance_output_provider is not None:
             self.mass_balance_output_provider.finalize()
         return self
 
-    def get_output_arrays(self, data: SimulationData):
+    def get_output_arrays(self, data: SimulationData) -> dict[str, np.ndarray]:
         """Returns a dict of arrays to be written to the disk"""
+        output_arrays = {}
         raw = data.raw_arrays
         accum_arrays = data.accumulation_arrays
         interval_s = (data.sim_time - self.last_step).total_seconds()
@@ -129,20 +125,20 @@ class Report:
             # --- Direct raw arrays ---
             if arr_key in ["water_depth", "v", "vdir", "froude", "hmax", "vmax"]:
                 if arr_key in raw:
-                    self.output_arrays[arr_key] = raw[arr_key]
+                    output_arrays[arr_key] = raw[arr_key]
                 continue  # go to next key
 
             # --- Calculated arrays ---
             if arr_key == "water_surface_elevation":
-                self.output_arrays[arr_key] = rastermetrics.calculate_wse(
+                output_arrays[arr_key] = rastermetrics.calculate_wse(
                     raw["water_depth"], raw["dem"]
                 )
             elif arr_key == "qx":
-                self.output_arrays[arr_key] = rastermetrics.calculate_flux(raw["qe_new"], cell_dy)
+                output_arrays[arr_key] = rastermetrics.calculate_flux(raw["qe_new"], cell_dy)
             elif arr_key == "qy":
-                self.output_arrays[arr_key] = rastermetrics.calculate_flux(raw["qs_new"], cell_dx)
+                output_arrays[arr_key] = rastermetrics.calculate_flux(raw["qs_new"], cell_dx)
             elif arr_key == "volume_error":  # Volume error
-                self.output_arrays[arr_key] = accum_arrays["error_depth_accum"] * cell_area
+                output_arrays[arr_key] = accum_arrays["error_depth_accum"] * cell_area
 
         # --- Averaged accumulation arrays ---
         if interval_s <= 0:
@@ -159,10 +155,10 @@ class Report:
                     conversion_factor = 1000 * 3600  # m/s to mm/h
                 else:
                     conversion_factor = 1.0
-                self.output_arrays[output_name] = rastermetrics.calculate_average_rate_from_total(
+                output_arrays[output_name] = rastermetrics.calculate_average_rate_from_total(
                     accum_arrays[accum_key], interval_s, conversion_factor
                 )
-        return self
+        return output_arrays
 
     def write_mass_balance(self, data: SimulationData, converted_sim_time: datetime | timedelta):
         """Calculate mass balance and log it."""

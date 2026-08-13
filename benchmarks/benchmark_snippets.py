@@ -22,6 +22,11 @@ from itzi_core.compute import snippets
 num_cells_params = [10_000_000]
 num_cells_ids = ["10M"]
 
+maximum_shapes = {
+    "1M": (1_000, 1_000),
+    "10M": (2_000, 5_000),
+}
+
 
 def make_array_shape(num_cells: int) -> tuple[int, int]:
     side_length = int(math.sqrt(num_cells))
@@ -42,6 +47,59 @@ def annotate_math_benchmark(benchmark, *, num_cells: int, formula: str, math_pat
     benchmark.extra_info["lattice_updates"] = num_cells
     benchmark.extra_info["formula"] = formula
     benchmark.extra_info["math_path"] = math_path
+
+
+def maximum_numpy(arr_maximum: np.ndarray, arr_values: np.ndarray) -> None:
+    np.maximum(arr_maximum, arr_values, out=arr_maximum)
+
+
+def setup_maximum_args(
+    shape: tuple[int, int], padded_domain: bool
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    rng = np.random.default_rng(72)
+    if padded_domain:
+        storage_shape = (shape[0] + 2, shape[1] + 2)
+        initial = rng.random(size=storage_shape, dtype=np.float32)
+        values = rng.random(size=storage_shape, dtype=np.float32)
+        arr_maximum = np.empty(storage_shape, dtype=np.float32)
+    else:
+        initial = rng.random(size=shape, dtype=np.float32)
+        values = rng.random(size=shape, dtype=np.float32)
+        arr_maximum = np.empty(shape, dtype=np.float32)
+    return initial, values, arr_maximum
+
+
+def run_maximum_benchmark(
+    benchmark,
+    implementation,
+    shape: tuple[int, int],
+    padded_domain: bool,
+    use_interior_view: bool,
+) -> None:
+    initial, values, arr_maximum = setup_maximum_args(shape, padded_domain)
+    if padded_domain and use_interior_view:
+        initial = initial[1:-1, 1:-1]
+        values = values[1:-1, 1:-1]
+        arr_maximum = arr_maximum[1:-1, 1:-1]
+    expected = np.maximum(initial, values)
+
+    np.copyto(arr_maximum, initial)
+    implementation(arr_maximum, values)
+    np.testing.assert_array_equal(arr_maximum, expected)
+
+    def setup():
+        np.copyto(arr_maximum, initial)
+        return (arr_maximum, values), {}
+
+    benchmark.pedantic(implementation, setup=setup, rounds=7, iterations=1)
+    benchmark.extra_info["lattice_updates"] = shape[0] * shape[1]
+    benchmark.extra_info["domain_layout"] = "padded" if padded_domain else "packed"
+    if not padded_domain:
+        benchmark.extra_info["call_layout"] = "packed"
+    elif use_interior_view:
+        benchmark.extra_info["call_layout"] = "interior_view"
+    else:
+        benchmark.extra_info["call_layout"] = "padded_storage"
 
 
 def setup_almeida_args(num_cells: int) -> tuple[object, ...]:
@@ -83,6 +141,39 @@ def setup_velocity_diagnostics_args(num_cells: int) -> tuple[object, ...]:
     arr_fr = np.empty_like(arr_h)
     g = np.float32(9.81)
     return arr_qx, arr_qy, arr_h, arr_v, arr_vdir, arr_fr, g
+
+
+## element-wise maximum ##
+
+
+@pytest.mark.parametrize("shape", maximum_shapes.values(), ids=maximum_shapes.keys())
+@pytest.mark.parametrize("padded_domain", [False, True], ids=["packed", "padded_domain"])
+def test_benchmark_maximum_numpy(benchmark, shape, padded_domain):
+    run_maximum_benchmark(benchmark, maximum_numpy, shape, padded_domain, use_interior_view=True)
+
+
+@pytest.mark.parametrize("shape", maximum_shapes.values(), ids=maximum_shapes.keys())
+@pytest.mark.parametrize("padded_domain", [False, True], ids=["packed", "padded_domain"])
+def test_benchmark_maximum_cython_serial(benchmark, shape, padded_domain):
+    run_maximum_benchmark(
+        benchmark,
+        snippets.arr_maximum_serial,
+        shape,
+        padded_domain,
+        use_interior_view=False,
+    )
+
+
+@pytest.mark.parametrize("shape", maximum_shapes.values(), ids=maximum_shapes.keys())
+@pytest.mark.parametrize("padded_domain", [False, True], ids=["packed", "padded_domain"])
+def test_benchmark_maximum_cython_parallel(benchmark, shape, padded_domain):
+    run_maximum_benchmark(
+        benchmark,
+        snippets.arr_maximum_parallel,
+        shape,
+        padded_domain,
+        use_interior_view=False,
+    )
 
 
 ## velocity ##

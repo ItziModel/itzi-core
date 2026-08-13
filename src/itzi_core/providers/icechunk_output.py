@@ -15,7 +15,7 @@ GNU Lesser General Public License for more details.
 from collections.abc import Mapping
 from datetime import datetime, timedelta
 from importlib.metadata import version
-from typing import TYPE_CHECKING, TypedDict
+from typing import TypedDict
 
 import numpy as np
 
@@ -25,6 +25,8 @@ try:
     import pyproj
     import xarray as xr
     import zarr
+    from pyproj.exceptions import CRSError
+    from zarr.errors import BaseZarrError, GroupNotFoundError
 except ImportError:
     raise ImportError(
         "To use the Icechunk backend, install itzi with: "
@@ -34,9 +36,6 @@ except ImportError:
 
 from itzi_core.array_definitions import ARRAY_DEFINITIONS
 from itzi_core.providers.base import RasterOutputProvider
-
-if TYPE_CHECKING:
-    from itzi_core.data_containers import SimulationData
 
 
 class IcechunkRasterOutputConfig(TypedDict):
@@ -68,6 +67,7 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
                 raise
         self.spatial_coordinates = self._get_spatial_coordinates()
         self.append_mode = False
+        self.time_is_datetime: bool | None = None
         # Make sure new data matches existing one
         if self.has_existing_data():
             self.check_repo_match()
@@ -100,106 +100,102 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
 
     def has_existing_data(self) -> bool:
         """Check if the repository already contains data."""
+        session = self.repo.readonly_session("main")
         try:
-            session = self.repo.readonly_session("main")
             existing_ds = xr.open_zarr(session.store)
-            # Check if there are any data variables and if time dimension has records
-            has_vars = len(existing_ds.data_vars) > 0
-            has_time_records = "time" in existing_ds.coords and len(existing_ds.coords["time"]) > 0
-            return has_vars and has_time_records
-        except Exception:
+        except GroupNotFoundError:
             return False
+        return len(existing_ds.data_vars) > 0
 
     def get_latest_timestamp(self) -> datetime | timedelta | None:
         """Get the latest timestamp from existing data, or None if no data exists."""
         session = self.repo.readonly_session("main")
         try:
             existing_ds = xr.open_zarr(session.store)
-            if "time" in existing_ds.coords and len(existing_ds.coords["time"]) > 0:
-                latest_time = existing_ds.coords["time"][-1]
-                # Convert numpy datetime64/timedelta64 back to Python types
-                if np.issubdtype(latest_time.dtype, np.datetime64):
-                    return latest_time.values.astype("datetime64[ms]").astype(datetime)
-                elif np.issubdtype(latest_time.dtype, np.timedelta64):
-                    return timedelta(
-                        seconds=int(latest_time.values.astype("timedelta64[s]").astype(int))
-                    )
-                else:
-                    return None
-            else:
-                return None
-        except Exception:
+        except GroupNotFoundError:
             return None
+        if "time" in existing_ds.coords and len(existing_ds.coords["time"]) > 0:
+            latest_time = existing_ds.coords["time"][-1]
+            # Convert numpy datetime64/timedelta64 back to Python types
+            if np.issubdtype(latest_time.dtype, np.datetime64):
+                return latest_time.values.astype("datetime64[ms]").astype(datetime)
+            elif np.issubdtype(latest_time.dtype, np.timedelta64):
+                return timedelta(
+                    milliseconds=int(latest_time.values.astype("timedelta64[ms]").astype(int))
+                )
+        return None
 
-    def check_repo_match(self):
+    def check_repo_match(self) -> None:
         """Raises ValueError if entry data does not match the existing repo."""
-        crs_match = False
-        vars_match = False
-        repo_match = False
-
-        # Get crs, variables, dims and coordinates from existing repo
         session = self.repo.readonly_session("main")
         try:
             existing_ds = xr.open_zarr(session.store)
-        except Exception as e:
+        except BaseZarrError as e:
             raise ValueError(f"Existing {session.store} is not a valid zarr store: {e}")
 
         try:
-            existing_crs = pyproj.CRS.from_wkt(existing_ds.attrs["crs_wkt"])
-        except Exception:
-            crs_match = False
-
-        existing_vars = existing_ds.data_vars
-        existing_num_vars = len(existing_vars)
-        # Check if existing variables coordinates match the new ones
-        # This implies coherence in variables names and dims
-        if existing_crs == self.crs:
-            crs_match = True
-        new_num_vars = len(self.out_map_names)
-        vars_match_dict = {}
-        for existing_var_name in existing_vars:
-            existing_var = existing_ds[existing_var_name]
-            try:
-                # incompatible dimension names will fail here
-                existing_var_x_coords = existing_var.coords["x"].values
-                existing_var_y_coords = existing_var.coords["y"].values
-            except Exception:
-                vars_match_dict[existing_var_name] = False
-                continue
-            try:  # allclose raises ValueError if not same len
-                var_x_coords_match = np.allclose(existing_var_x_coords, self.x_coords)
-                var_y_coords_match = np.allclose(existing_var_y_coords, self.y_coords)
-                if var_x_coords_match and var_y_coords_match:
-                    vars_match_dict[existing_var_name] = True
-                else:
-                    vars_match_dict[existing_var_name] = False
-            except ValueError:
-                vars_match_dict[existing_var_name] = False
-            if existing_var_name not in self.out_map_names.values():
-                vars_match_dict[existing_var_name] = False
-
-        if all(list(vars_match_dict.values())) and existing_num_vars == new_num_vars:
-            vars_match = True
-        # Raise if not full match
-        repo_match = crs_match and vars_match
-        if not repo_match:
+            existing_crs_wkt = existing_ds.attrs["crs_wkt"]
+        except KeyError as e:
+            raise KeyError("Existing repository has no 'crs_wkt' attribute") from e
+        try:
+            existing_crs = pyproj.CRS.from_wkt(existing_crs_wkt)
+        except CRSError as e:
+            raise ValueError("Existing repository 'crs_wkt' attribute is not valid WKT") from e
+        if existing_crs != self.crs:
             raise ValueError(
-                f"Provided data does not match existing icechunk repository {self.repo}: "
-                f"CRS match: {crs_match}, "
-                f"Variables match: {vars_match}, "
-                f"Existing CRS: {existing_crs.to_epsg()}, "
-                f"New CRS: {self.crs.to_epsg()}, "
-                f"Existing numbers of variables in the store: {existing_num_vars}, "
-                f"Numbers of variables to be written: {new_num_vars}, "
-                f"Matching variables coordinates: {vars_match_dict}, "
-                f"Existing vars: {[v for v in existing_vars]}, "
-                f"New vars: {list(self.out_map_names.values())}."
+                "Provided CRS does not match existing icechunk repository: "
+                f"existing={existing_crs.to_epsg()}, configured={self.crs.to_epsg()}"
             )
+
+        existing_names = set(existing_ds.data_vars)
+        expected_names = set(self.out_map_names.values())
+        if existing_names != expected_names:
+            raise ValueError(
+                "Configured output names do not match existing icechunk repository: "
+                f"existing={sorted(existing_names)}, configured={sorted(expected_names)}"
+            )
+
+        expected_dims = ("time", "y", "x")
+        for name, variable in existing_ds.data_vars.items():
+            if variable.dims != expected_dims:
+                raise ValueError(
+                    f"Existing variable {name!r} has dimensions {variable.dims}; expected "
+                    f"{expected_dims}. Create a new repository or explicitly migrate the "
+                    "legacy repository before appending."
+                )
+            try:
+                x_matches = np.allclose(variable.coords["x"].values, self.x_coords)
+                y_matches = np.allclose(variable.coords["y"].values, self.y_coords)
+            except (KeyError, ValueError):
+                x_matches = y_matches = False
+            if not x_matches or not y_matches:
+                raise ValueError(
+                    f"Coordinates for existing variable {name!r} do not match the configured grid"
+                )
+
+        if "time" not in existing_ds.coords:
+            raise ValueError("Existing repository has no compatible temporal time coordinate")
+        time_dtype = existing_ds["time"].dtype
+        if np.issubdtype(time_dtype, np.datetime64):
+            self.time_is_datetime = True
+        elif np.issubdtype(time_dtype, np.timedelta64):
+            self.time_is_datetime = False
+        else:
+            raise ValueError("Existing repository has no compatible temporal time coordinate")
 
     def write_arrays(
         self, array_dict: Mapping[str, np.ndarray], sim_time: datetime | timedelta
     ) -> None:
         """Write results to an icechunk repository"""
+        incoming_time_is_datetime = isinstance(sim_time, datetime)
+        if (
+            self.time_is_datetime is not None
+            and self.time_is_datetime != incoming_time_is_datetime
+        ):
+            raise ValueError(
+                "Incoming time coordinate type does not match the existing icechunk repository"
+            )
+        self.time_is_datetime = incoming_time_is_datetime
         vars_to_write = list(array_dict.keys())
         expected_map_keys = set(self.out_map_names.keys())
         if not expected_map_keys == set(vars_to_write):
@@ -209,7 +205,7 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
                 f"Received: {vars_to_write}"
             )
         # prepare the data
-        dataset = self.get_dataset_from_dict(array_dict, sim_time)
+        dataset = self._build_dataset(array_dict, sim_time)
         first_var_name = next(iter(self.out_map_names.values()))
         time_encoding = dataset[first_var_name].encoding["time"]
         # Commit to the repo
@@ -225,53 +221,31 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
             self._zarr_append(icechunk_session.store, dataset)
         icechunk_session.commit(commit_message)
 
-    def write_maxs(self, array_dict):
-        # Validate that all provided variables are valid max variables
-        valid_max_vars = ["hmax", "vmax"]
-        vars_to_write = list(array_dict.keys())
-        invalid_vars = [var for var in vars_to_write if var not in valid_max_vars]
-        if invalid_vars:
-            raise ValueError(
-                f"Invalid max variables: {invalid_vars}. Valid options: {valid_max_vars}"
-            )
-        dataset = self.get_dataset_from_dict(array_dict)
-        # Commit to the repo
-        icechunk_session = self.repo.writable_session("main")
-        icechunk.xarray.to_icechunk(dataset, icechunk_session, mode="a")
-        icechunk_session.commit("Maximum values of itzi simulation")
-
-    def get_dataset_from_dict(self, array_dict, sim_time=None):
+    def _build_dataset(
+        self, array_dict: Mapping[str, np.ndarray], sim_time: datetime | timedelta
+    ) -> xr.Dataset:
         """From a dict of arrays, return an xarray dataset."""
         data_vars = {}
-        if sim_time is not None:
-            if isinstance(sim_time, datetime):
-                time_dtype = "datetime64[ms]"
-                sim_time_np = np.datetime64(sim_time, "ms")
-                time_unit = "milliseconds since 1970-01-01T00:00:00"
-            elif isinstance(sim_time, timedelta):
-                time_dtype = "timedelta64[s]"
-                sim_time_np = np.timedelta64(sim_time, "s")
-                time_unit = "seconds"
-            else:
-                raise ValueError(f"Unknown temporal type: {type(sim_time)}")
-
-            time_coordinate = np.array([sim_time_np], dtype=time_dtype)
-            # Don't put any encoding-related attrs since they conflict with encoding
-            time_attrs = {}
-            time_encoding = {
-                "units": time_unit,
-                "dtype": time_dtype,
-            }
-            coordinates = [("time", time_coordinate, time_attrs)] + self.spatial_coordinates
+        if isinstance(sim_time, datetime):
+            time_dtype = "datetime64[ms]"
+            sim_time_np = np.datetime64(sim_time, "ms")
+            time_unit = "milliseconds since 1970-01-01T00:00:00"
+        elif isinstance(sim_time, timedelta):
+            time_dtype = "timedelta64[ms]"
+            sim_time_np = np.timedelta64(sim_time, "ms")
+            time_unit = "milliseconds"
         else:
-            coordinates = self.spatial_coordinates
+            raise ValueError(f"Unknown temporal type: {type(sim_time)}")
+
+        time_coordinate = np.array([sim_time_np], dtype=time_dtype)
+        time_encoding = {
+            "units": time_unit,
+            "dtype": time_dtype,
+        }
+        coordinates = [("time", time_coordinate, {})] + self.spatial_coordinates
 
         for key, arr in array_dict.items():
-            if key in ["hmax", "vmax"]:
-                max_mapping = {"hmax": "water_depth", "vmax": "v"}
-                var_name = f"{self.out_map_names[max_mapping[key]]}_max"
-            else:
-                var_name = self.out_map_names[key]
+            var_name = self.out_map_names[key]
             coords_shape = (len(self.y_coords), len(self.x_coords))
             if arr.shape != coords_shape:
                 raise ValueError(
@@ -283,8 +257,7 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
                 "standard_name": self.cf_names[key],
                 "long_name": self.descriptions[key],
             }
-            if sim_time is not None:
-                arr = np.expand_dims(arr, axis=0)
+            arr = np.expand_dims(arr, axis=0)
 
             data_array = xr.DataArray(
                 data=arr,
@@ -292,9 +265,8 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
                 name=var_name,  # Write the requested name
                 attrs=var_attributes,
             )
-            if sim_time is not None:
-                assert data_array["time"].dtype == time_dtype
-                data_array.encoding["time"] = time_encoding
+            assert data_array["time"].dtype == time_dtype
+            data_array.encoding["time"] = time_encoding
             data_vars[var_name] = data_array
         dataset_attributes = {
             "crs_wkt": self.crs.to_wkt(),
@@ -302,9 +274,7 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
         }
         dataset = xr.Dataset(data_vars, attrs=dataset_attributes)
 
-        # Set encoding on the time coordinate of the dataset itself
-        if sim_time is not None:
-            dataset["time"].encoding.update(time_encoding)
+        dataset["time"].encoding.update(time_encoding)
 
         return dataset
 
@@ -328,15 +298,3 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
             z_group[var_name].resize(new_shape)
             # Use direct assignment
             z_group[var_name][current_shape[0]] = data_array.values[0]
-
-    def finalize(self, final_data: "SimulationData") -> None:
-        """Write max values."""
-        arr_dict = {}
-        # Only process arrays that are actually configured for output
-        if self.out_map_names.get("water_depth"):
-            arr_dict["hmax"] = final_data.raw_arrays["hmax"]
-        if self.out_map_names.get("v"):
-            arr_dict["vmax"] = final_data.raw_arrays["vmax"]
-        # Only write max values if there are arrays to write
-        if arr_dict:
-            self.write_maxs(arr_dict)

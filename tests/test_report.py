@@ -1,0 +1,102 @@
+"""
+Copyright (C) 2026 Laurent G. Courty
+
+This library is free software; you can redistribute it and/or
+modify it under the terms of the GNU Lesser General Public License
+as published by the Free Software Foundation; either version 2.1
+of the License, or (at your option) any later version.
+
+This library is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Lesser General Public License for more details.
+"""
+
+from datetime import UTC, datetime, timedelta
+
+import numpy as np
+
+from itzi_core.const import TemporalType
+from itzi_core.data_containers import SimulationData
+from itzi_core.providers.memory_output import (
+    MemoryRasterOutputProvider,
+    MemoryVectorOutputProvider,
+)
+from itzi_core.report import Report
+
+
+def test_get_output_arrays_returns_a_fresh_selection() -> None:
+    start_time = datetime(2000, 1, 1, tzinfo=UTC)
+    out_map_names = {"water_depth": "depth", "hmax": "depth_max"}
+    raster_provider = MemoryRasterOutputProvider(out_map_names)
+    report = Report(
+        start_time=start_time,
+        temporal_type=TemporalType.ABSOLUTE,
+        raster_output_provider=raster_provider,
+        vector_output_provider=MemoryVectorOutputProvider(),
+        mass_balance_output_provider=None,
+        out_map_names=out_map_names,
+        dt=timedelta(seconds=1),
+    )
+    data = SimulationData(
+        sim_time=start_time,
+        time_step=1.0,
+        time_steps_counter=0,
+        continuity_data=None,
+        raw_arrays={
+            "water_depth": np.array([[1.0]], dtype=np.float32),
+            "hmax": np.array([[2.0]], dtype=np.float32),
+        },
+        accumulation_arrays={},
+        cell_dx=1.0,
+        cell_dy=1.0,
+        drainage_network_data=None,
+    )
+
+    report.step(data)
+    del out_map_names["water_depth"]
+    report.step(data)
+
+    assert len(raster_provider.output_maps_dict["water_depth"]) == 1
+    assert len(raster_provider.output_maps_dict["hmax"]) == 2
+
+
+def test_maxima_are_selected_independently_of_base_arrays() -> None:
+    start_time = datetime(2000, 1, 1, tzinfo=UTC)
+    out_map_names = {"hmax": "depth_max", "vmax": "speed_max"}
+    raster_provider = MemoryRasterOutputProvider(out_map_names)
+    report = Report(
+        start_time=start_time,
+        temporal_type=TemporalType.ABSOLUTE,
+        raster_output_provider=raster_provider,
+        vector_output_provider=MemoryVectorOutputProvider(),
+        mass_balance_output_provider=None,
+        out_map_names=out_map_names,
+        dt=timedelta(seconds=1),
+    )
+    data = SimulationData(
+        sim_time=start_time,
+        time_step=1.0,
+        time_steps_counter=0,
+        continuity_data=None,
+        raw_arrays={
+            "water_depth": np.array([[1.0]], dtype=np.float32),
+            "hmax": np.array([[2.0]], dtype=np.float32),
+            "v": np.array([[3.0]], dtype=np.float32),
+            "vmax": np.array([[4.0]], dtype=np.float32),
+        },
+        accumulation_arrays={},
+        cell_dx=1.0,
+        cell_dy=1.0,
+        drainage_network_data=None,
+    )
+
+    report.step(data)
+
+    assert set(raster_provider.output_maps_dict) == {"hmax", "vmax"}
+    np.testing.assert_array_equal(
+        raster_provider.output_maps_dict["hmax"][0][1], data.raw_arrays["hmax"]
+    )
+    np.testing.assert_array_equal(
+        raster_provider.output_maps_dict["vmax"][0][1], data.raw_arrays["vmax"]
+    )

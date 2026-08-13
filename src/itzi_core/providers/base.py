@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
     import numpy as np
 
-    from itzi_core.data_containers import DrainageNetworkData, MassBalanceData, SimulationData
+    from itzi_core.data_containers import DrainageNetworkData, MassBalanceData
     from itzi_core.providers.domain_data import DomainData
 
 
@@ -61,9 +61,8 @@ class RasterOutputProvider(ABC):
     ) -> None:
         """Write all arrays for the current time step."""
 
-    @abstractmethod
-    def finalize(self, final_data: SimulationData) -> None:
-        """Finalize outputs and cleanup."""
+    def finalize(self) -> None:
+        """Flush and close provider resources."""
 
 
 class VectorOutputProvider(ABC):
@@ -75,9 +74,8 @@ class VectorOutputProvider(ABC):
     ) -> None:
         """Write simulation data for current time step."""
 
-    @abstractmethod
-    def finalize(self, drainage_data: DrainageNetworkData) -> None:
-        """Finalize outputs and cleanup."""
+    def finalize(self) -> None:
+        """Flush and close provider resources."""
 
 
 class MassBalanceOutputProvider(ABC):
