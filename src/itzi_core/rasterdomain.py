@@ -126,6 +126,11 @@ class RasterDomain:
             if ArrayCategory.ACCUMULATION in arr_def.category
         ]
         self.k_all = set(self.k_input + self.k_internal + self.k_accum)
+        self.dtypes = {
+            arr_def.key: np.dtype(self.dtype if arr_def.dtype is None else arr_def.dtype)
+            for arr_def in ARRAY_DEFINITIONS
+            if arr_def.key in self.k_all
+        }
         # Instantiate arrays and padded arrays filled with zeros
         self.arr = dict.fromkeys(self.k_all)
         self.arrp = dict.fromkeys(self.k_all)
@@ -144,7 +149,7 @@ class RasterDomain:
         the unpadded arrays are a slice of the padded ones
         """
         for k in self.arr.keys():
-            arr = np.full(fill_value=self.fill_values[k], shape=self.shape, dtype=self.dtype)
+            arr = np.full(fill_value=self.fill_values[k], shape=self.shape, dtype=self.dtypes[k])
             self.arr[k], self.arrp[k] = self.pad_array(arr)
         return self
 
@@ -164,6 +169,8 @@ class RasterDomain:
     def unmask_array(self, arr: np.ndarray) -> np.ndarray:
         """Replace values in the input array by NULL values from mask"""
         unmasked_array = np.copy(arr)
+        if np.issubdtype(unmasked_array.dtype, np.integer):
+            unmasked_array = unmasked_array.astype(self.dtype)
         unmasked_array[self.mask] = np.nan
         return unmasked_array
 
@@ -195,9 +202,24 @@ class RasterDomain:
             # Calculate actual depth and update the internal depth array
             arr = rastermetrics.calculate_h_from_wse(arr_wse=arr, arr_dem=self.get_array("dem"))
             arr_key = "water_depth"
+        elif arr_key == "bctype":
+            arr = self._prepare_bctype(arr)
         self.mask_array(arr, self.fill_values[arr_key])
         self.arr[arr_key][:], self.arrp[arr_key][:] = self.pad_array(arr)
         return self
+
+    def _prepare_bctype(self, arr: np.ndarray) -> np.ndarray:
+        """Mask and validate boundary codes before assigning them to uint8 storage."""
+        if not (np.issubdtype(arr.dtype, np.integer) or np.issubdtype(arr.dtype, np.floating)):
+            raise ValueError("Invalid values for 'bctype': expected an integer or floating array.")
+
+        candidate = np.array(arr, copy=True)
+        self.mask_array(candidate, self.fill_values["bctype"])
+        valid = np.isin(candidate, (0, 1, 2, 3, 4))
+        if not np.all(valid):
+            invalid_values = candidate[~valid].reshape(-1)[:5].tolist()
+            raise ValueError(f"Invalid values for 'bctype': {invalid_values}")
+        return candidate
 
     def get_array(self, k: str) -> np.ndarray:
         """return the unpadded, masked array of key 'k'"""
@@ -297,19 +319,44 @@ class RasterDomain:
                     f"domain expects padded shape {padded_shape}"
                 )
 
-        # Verify dtype compatibility (allow safe casting)
+        # Verify dtype compatibility (allow safe casting), while accepting valid
+        # floating-point bctype arrays from legacy state archives.
+        converted_arrays: dict[str, np.ndarray] = {}
         for key in expected_keys:
             stored_arr = npz[key]
-            if not np.can_cast(stored_arr.dtype, self.dtype, casting="safe"):
+            target_dtype = self.dtypes[key]
+            if key == "bctype":
+                if stored_arr.dtype != target_dtype and not np.issubdtype(
+                    stored_arr.dtype, np.floating
+                ):
+                    raise HotstartError(
+                        f"Array '{key}' dtype mismatch: archive has {stored_arr.dtype}, "
+                        f"domain expects {target_dtype} (or a safely castable type)"
+                    )
+                candidate = np.array(stored_arr, copy=True)
+                padded_mask = np.pad(self.mask, 1, mode="edge")
+                masked = padded_mask
+                if np.issubdtype(stored_arr.dtype, np.floating):
+                    masked = np.logical_or(np.isnan(candidate), masked)
+                candidate[masked] = self.fill_values["bctype"]
+                valid = np.isin(candidate, (0, 1, 2, 3, 4))
+                if not np.all(valid):
+                    invalid_values = candidate[~valid].reshape(-1)[:5].tolist()
+                    raise HotstartError(
+                        f"Invalid values for 'bctype' in raster state: {invalid_values}"
+                    )
+                converted_arrays[key] = candidate.astype(target_dtype)
+            elif not np.can_cast(stored_arr.dtype, target_dtype, casting="safe"):
                 raise HotstartError(
                     f"Array '{key}' dtype mismatch: archive has {stored_arr.dtype}, "
-                    f"domain expects {self.dtype} (or a safely castable type)"
+                    f"domain expects {target_dtype} (or a safely castable type)"
                 )
+            else:
+                converted_arrays[key] = stored_arr.astype(target_dtype)
 
         # All validations passed - restore the arrays
         for key in expected_keys:
-            # Get the stored padded array and convert to domain dtype
-            arrp = npz[key].astype(self.dtype)
+            arrp = converted_arrays[key]
             # Store the padded array directly
             self.arrp[key][:] = arrp
             # Extract the interior (unpadded) slice for self.arr using simple_pad

@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 import numpy as np
+from numpy.typing import DTypeLike
 
 
 class ArrayCategory(Enum):
@@ -41,8 +42,9 @@ class ArrayDefinition:
     unit: str  # Physical units of the array
     cf_unit: str  # The unit expected by the CF convention
     var_loc: str  # Location of the value. Either "face" or "edge"
-    fill_value: float = 0.0  # Fill value (replace NaN)
+    fill_value: float | int = 0.0  # Fill value (replace NaN)
     computes_from: str | None = None  # For accumulation arrays
+    dtype: DTypeLike | None = None  # Optional storage dtype override
 
 
 # Centralized array definitions - Single source of truth
@@ -190,7 +192,8 @@ _INPUT_ARRAY_DEFINITIONS = [
         unit="1",
         cf_unit="",
         var_loc="face",
-        fill_value=0.0,
+        fill_value=0,
+        dtype=np.uint8,
     ),
 ]
 # ===== INTERNAL ARRAYS =====

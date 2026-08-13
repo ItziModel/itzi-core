@@ -51,7 +51,7 @@ def _solve_q_at_face(
     arr_qs = np.zeros(shape, dtype=dtype)
     arr_hfe = np.zeros(shape, dtype=dtype)
     arr_hfs = np.zeros(shape, dtype=dtype)
-    arr_bctype = np.zeros(shape, dtype=dtype)
+    arr_bctype = np.zeros(shape, dtype=np.uint8)
     arr_qe_new = np.zeros(shape, dtype=dtype)
     arr_qs_new = np.zeros(shape, dtype=dtype)
 
@@ -219,7 +219,7 @@ def test_solve_h_uses_dx_and_dy_separately_in_flow_divergence():
     arr_ext = np.zeros(shape, dtype=dtype)
     arr_qe = np.zeros(shape, dtype=dtype)
     arr_qs = np.zeros(shape, dtype=dtype)
-    arr_bct = np.zeros(shape, dtype=dtype)
+    arr_bct = np.zeros(shape, dtype=np.uint8)
     arr_bcv = np.zeros(shape, dtype=dtype)
     arr_h = np.zeros(shape, dtype=dtype)
     arr_hmax = np.zeros(shape, dtype=dtype)
@@ -292,7 +292,7 @@ class TestWaterDepthFunction:
         self.arr_ext = np.zeros(self.shape, dtype=self.dtype)
         self.arr_qe = np.ones(self.shape, dtype=self.dtype) * 0.5
         self.arr_qs = np.ones(self.shape, dtype=self.dtype) * 0.3
-        self.arr_bct = np.zeros(self.shape, dtype=self.dtype)
+        self.arr_bct = np.zeros(self.shape, dtype=np.uint8)
         self.arr_bcv = np.zeros(self.shape, dtype=self.dtype)
         self.arr_h = np.ones(self.shape, dtype=self.dtype) * 0.1
         self.arr_hmax = np.ones(self.shape, dtype=self.dtype) * 0.1
@@ -421,7 +421,7 @@ class TestFixedWaterLevel:
             [0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0],
         ]
-        self.arr_bct = np.array(bct_values, dtype=self.dtype)
+        self.arr_bct = np.array(bct_values, dtype=np.uint8)
         assert self.shape == self.arr_bct.shape
 
     def test_adding_water(self):
