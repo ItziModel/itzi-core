@@ -14,13 +14,14 @@ GNU Lesser General Public License for more details.
 
 from __future__ import annotations
 
-from typing import Iterable, Mapping, TypedDict, NotRequired, TYPE_CHECKING
+from collections.abc import Iterable, Mapping
+from typing import TYPE_CHECKING, NotRequired, TypedDict
 
 import numpy as np
 
 try:
-    import xarray as xr
     import pandas as pd
+    import xarray as xr
 except ImportError:
     raise ImportError(
         "To use the xarray input backend, install itzi with: "
@@ -28,9 +29,9 @@ except ImportError:
         "or 'pip install itzi[cloud]'"
     )
 
+from itzi_core.const import TemporalType
 from itzi_core.providers.base import RasterInputProvider
 from itzi_core.providers.domain_data import DomainData
-from itzi_core.const import TemporalType
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -148,9 +149,10 @@ class XarrayRasterInputProvider(RasterInputProvider):
         """Validate that:
         - the specified spatial dimensions exist in the dataset.
         - The dimensions are one-dimensional."""
-        for var_name in self.dataset.data_vars.keys():
+        for raw_var_name in self.dataset.data_vars.keys():
+            var_name = str(raw_var_name)
             da_var: xr.DataArray = self.dataset[var_name]
-            var_dims: set[str] = set(da_var.dims)
+            var_dims = {str(dim) for dim in da_var.dims}
             for dim_type in ["x", "y"]:
                 dim_name: str = self.dataset_dims[var_name][dim_type]
                 if dim_name not in var_dims:
@@ -169,7 +171,7 @@ class XarrayRasterInputProvider(RasterInputProvider):
         """Validate that all variables are either 2D[y, x] or 3D[time, y, x]."""
         for var_name in self.input_map_names.values():
             da_var: xr.DataArray = self.dataset[var_name]
-            var_dims: set[str] = set(da_var.dims)
+            var_dims = {str(dim) for dim in da_var.dims}
             num_dims = len(da_var.dims)
             x_dim: str = self.dataset_dims[var_name]["x"]
             y_dim: str = self.dataset_dims[var_name]["y"]
@@ -213,7 +215,7 @@ class XarrayRasterInputProvider(RasterInputProvider):
                 diffs = np.diff(coord.values if hasattr(coord, "values") else coord)
                 # no coordinates present
                 if len(diffs) == 0:
-                    pass
+                    continue
                 if not np.allclose(diffs, diffs[0]):
                     raise ValueError(
                         f"Dimension {dim_name} of variable {var_name} not equally spaced."
@@ -231,7 +233,7 @@ class XarrayRasterInputProvider(RasterInputProvider):
             if len(dim_names) == 0:
                 continue
             da_list: list[xr.DataArray] = [self.dataset[dim_name] for dim_name in dim_names]
-            ref_da: np.ndarray = da_list[0]
+            ref_da: xr.DataArray = da_list[0]
             for da in da_list:
                 if not np.allclose(ref_da.values, da.values):
                     raise ValueError(

@@ -42,9 +42,10 @@ if TYPE_CHECKING:
     from itzi_core.drainage import DrainageSimulation
     from itzi_core.hydrology import Hydrology
     from itzi_core.providers.domain_data import DomainData
-    from itzi_core.rasterdomain import RasterDomain, TimedArray
+    from itzi_core.rasterdomain import RasterDomain
     from itzi_core.report import Report
     from itzi_core.surfaceflow import SurfaceFlowSimulation
+    from itzi_core.timed_array import TimedArraySource
 
 
 logger = logging.getLogger(__name__)
@@ -64,7 +65,7 @@ class Simulation:
         hydrology_model: Hydrology,
         surface_flow: SurfaceFlowSimulation,
         drainage_model: DrainageSimulation | None,
-        drainage_nodes_list: list[DrainageNodeCouplingData] | None,
+        drainage_nodes_list: list[DrainageNodeCouplingData],
         report: Report,
     ):
         self.sim_config = sim_config
@@ -92,12 +93,13 @@ class Simulation:
             for arr_def in ARRAY_DEFINITIONS
             if arr_def.computes_from is not None and ArrayCategory.ACCUMULATION in arr_def.category
         }
-        self.accum_update_time: dict[str, datetime | None] = {
-            accum: None for source, accum in self.accum_mapping.items()
+        self.accum_update_time: dict[str, datetime] = {
+            accum: self.sim_time for accum in self.accum_mapping.values()
         }
+        self._initialized = False
+        self.node_id_to_loc: dict[str, tuple[int, int]] = {}
         if self.drainage_model:
-            assert self.drainage_nodes_list is not None
-            self.node_id_to_loc: dict[str, tuple[int, int]] = {
+            self.node_id_to_loc = {
                 n.node_id: (n.row, n.col)
                 for n in self.drainage_nodes_list
                 if n.node_object.is_coupled() and n.row is not None and n.col is not None
@@ -141,7 +143,7 @@ class Simulation:
         return self.schedule.end_time
 
     @property
-    def timed_arrays(self) -> dict[str, TimedArray] | None:
+    def timed_arrays(self) -> dict[str, TimedArraySource] | None:
         if self.timed_input_manager is None:
             return None
         return self.timed_input_manager.timed_arrays
@@ -167,6 +169,7 @@ class Simulation:
         self.raster_domain.reset_accumulations()
         for key in self.accum_update_time:
             self.accum_update_time[key] = self.sim_time
+        self._initialized = True
         return self
 
     def update(self) -> Self:
@@ -422,9 +425,6 @@ class Simulation:
         """
         ak = self.accum_mapping[k]
         last_update = self.accum_update_time[ak]
-        if last_update is None:
-            self.accum_update_time[ak] = sim_time
-            return
         time_diff = (sim_time - last_update).total_seconds()
         if time_diff > 0:
             rate_array = self.raster_domain.get_padded(k)
@@ -444,17 +444,11 @@ class Simulation:
         Raises:
             RuntimeError: If called before initialize() has established valid state.
         """
-        # Guard: Check that initialize() has been called
-        # accum_update_time values are set to None in __init__ and only
-        # become valid datetime objects after initialize() is called
-        if any(v is None for v in self.accum_update_time.values()):
+        if not self._initialized:
             raise RuntimeError(
                 "Cannot create hotstart: simulation has not been initialized. "
                 "Call initialize() before creating a hotstart."
             )
-        accum_update_time = {
-            key: value for key, value in self.accum_update_time.items() if value is not None
-        }
 
         # Get SWMM hotstart bytes if drainage is enabled
         swmm_hotstart_bytes: bytes | None = None
@@ -473,7 +467,7 @@ class Simulation:
             dt=self.dt.total_seconds(),
             next_ts=self.schedule.snapshot_deadlines(),
             time_steps_counters=self.time_steps_counters,
-            accum_update_time=accum_update_time,
+            accum_update_time=dict(self.accum_update_time),
             old_domain_volume=self.old_domain_volume,
             swmm_elapsed_time=swmm_elapsed_time,
         )
@@ -550,6 +544,7 @@ class Simulation:
 
         # Restore accumulation update timestamps
         self.accum_update_time = dict(simulation_state.accum_update_time)
+        self._initialized = True
 
         # Restore old domain volume for continuity tracking
         self.old_domain_volume = simulation_state.old_domain_volume

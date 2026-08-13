@@ -30,7 +30,10 @@ import pyproj
 import xarray as xr
 
 from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
-from itzi_core.providers.icechunk_output import IcechunkRasterOutputProvider
+from itzi_core.providers.icechunk_output import (
+    IcechunkRasterOutputConfig,
+    IcechunkRasterOutputProvider,
+)
 
 # Mark all tests in this module as cloud tests
 pytestmark = pytest.mark.cloud
@@ -75,10 +78,13 @@ def out_map_names(maps_dict: dict):
 
 @pytest.fixture
 def icechunk_provider(
-    temp_dir: tempfile.TemporaryDirectory, coordinates: dict, crs: pyproj.CRS, out_map_names: list
+    temp_dir: tempfile.TemporaryDirectory,
+    coordinates: dict,
+    crs: pyproj.CRS,
+    out_map_names: Mapping[str, str],
 ):
     storage = icechunk.local_filesystem_storage(temp_dir.name)
-    provider_config = {
+    provider_config: IcechunkRasterOutputConfig = {
         "out_map_names": out_map_names,
         "crs": crs,
         "x_coords": coordinates["x_coords"],
@@ -344,7 +350,7 @@ def test_non_matching_shape(
 
     # Create and write original arrays (6x9 from fixture)
     storage = icechunk.local_filesystem_storage(temp_dir.name)
-    provider_config_1 = {
+    provider_config_1: IcechunkRasterOutputConfig = {
         "out_map_names": out_map_names,
         "crs": crs,
         "x_coords": coordinates["x_coords"],
@@ -366,7 +372,7 @@ def test_non_matching_shape(
     new_coordinates = {"x_coords": new_x_coords, "y_coords": new_y_coords}
 
     # Create new provider with different dimensions but same storage
-    provider_config_2 = {
+    provider_config_2: IcechunkRasterOutputConfig = {
         "out_map_names": out_map_names,
         "crs": crs,
         "x_coords": new_coordinates["x_coords"],
@@ -390,7 +396,7 @@ def test_non_matching_variable_names(
 
     # Create and write original arrays
     storage = icechunk.local_filesystem_storage(temp_dir.name)
-    provider_config_1 = {
+    provider_config_1: IcechunkRasterOutputConfig = {
         "out_map_names": out_map_names,
         "crs": crs,
         "x_coords": coordinates["x_coords"],
@@ -405,7 +411,7 @@ def test_non_matching_variable_names(
 
     # Create provider with different variable names
     different_map_names = {key: value + "_different" for key, value in out_map_names.items()}
-    provider_config_2 = {
+    provider_config_2: IcechunkRasterOutputConfig = {
         "out_map_names": different_map_names,
         "crs": crs,
         "x_coords": coordinates["x_coords"],
@@ -430,7 +436,7 @@ def test_non_matching_number_of_variables(
 
     # Create and write original arrays
     storage = icechunk.local_filesystem_storage(temp_dir.name)
-    provider_config_1 = {
+    provider_config_1: IcechunkRasterOutputConfig = {
         "out_map_names": out_map_names,
         "crs": crs,
         "x_coords": coordinates["x_coords"],
@@ -446,7 +452,7 @@ def test_non_matching_number_of_variables(
     # Create provider with fewer variables
     fewer_map_names = dict(out_map_names.items())
     del fewer_map_names["water_depth"]
-    provider_config_2 = {
+    provider_config_2: IcechunkRasterOutputConfig = {
         "out_map_names": fewer_map_names,
         "crs": crs,
         "x_coords": coordinates["x_coords"],
@@ -471,7 +477,7 @@ def test_non_matching_coordinates_same_dimensions(
 
     # Create and write original arrays
     storage = icechunk.local_filesystem_storage(temp_dir.name)
-    provider_config_1 = {
+    provider_config_1: IcechunkRasterOutputConfig = {
         "out_map_names": out_map_names,
         "crs": crs,
         "x_coords": coordinates["x_coords"],
@@ -489,7 +495,7 @@ def test_non_matching_coordinates_same_dimensions(
     different_y_coords = np.linspace(start=9999, stop=9999 + arr_shape[0], num=arr_shape[0])
     different_x_coords = np.linspace(start=9999, stop=9999 + arr_shape[1], num=arr_shape[1])
 
-    provider_config_2 = {
+    provider_config_2: IcechunkRasterOutputConfig = {
         "out_map_names": out_map_names,
         "crs": crs,
         "x_coords": different_x_coords,  # Same shape, different values
@@ -514,7 +520,7 @@ def test_non_matching_crs(
 
     # Create and write original arrays
     storage = icechunk.local_filesystem_storage(temp_dir.name)
-    provider_config_1 = {
+    provider_config_1: IcechunkRasterOutputConfig = {
         "out_map_names": out_map_names,
         "crs": crs,
         "x_coords": coordinates["x_coords"],
@@ -529,7 +535,7 @@ def test_non_matching_crs(
 
     # Create provider with different CRS
     different_crs = pyproj.CRS.from_epsg(4326)  # WGS84, different from Mexico LCC
-    provider_config_2 = {
+    provider_config_2: IcechunkRasterOutputConfig = {
         "out_map_names": out_map_names,
         "crs": different_crs,  # Different CRS
         "x_coords": coordinates["x_coords"],
@@ -563,7 +569,7 @@ def test_multi_session_data_persistence(
 
     # Session 1: Create first provider and write initial data
     storage = icechunk.local_filesystem_storage(temp_dir.name)
-    provider_config_1 = {
+    provider_config_1: IcechunkRasterOutputConfig = {
         "out_map_names": out_map_names,
         "crs": crs,
         "x_coords": coordinates["x_coords"],
@@ -579,7 +585,7 @@ def test_multi_session_data_persistence(
     icechunk_p1.write_arrays(maps_dict_session1, sim_time_2)  # Write same data twice
 
     # Session 2: Create new provider instance with same storage and compatible config
-    provider_config_2 = {
+    provider_config_2: IcechunkRasterOutputConfig = {
         "out_map_names": out_map_names,
         "crs": crs,
         "x_coords": coordinates["x_coords"],

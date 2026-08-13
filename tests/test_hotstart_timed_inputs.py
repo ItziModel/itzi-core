@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 import numpy as np
 import pytest
@@ -46,13 +46,19 @@ RAIN_MM_PER_HOUR = {
 }
 
 
+class HotstartCheckpoint(TypedDict):
+    sim_time: datetime
+    rain: np.ndarray
+    water_depth: np.ndarray
+
+
 class MapAwareRasterInputProvider(RasterInputProvider):
     """Resolve canonical inputs through the current configured source names."""
 
     def __init__(
         self,
         domain_data,
-        input_map_names: Mapping[str, str | None],
+        input_map_names: Mapping[str, str],
         source_slices: Mapping[str, Sequence[TimedRasterSlice]],
         start_time: datetime,
         end_time: datetime,
@@ -242,13 +248,13 @@ def _build_provider_simulation(
 def _make_map_config(
     start_time: datetime,
     end_time: datetime,
-    input_map_names: dict[str, str | None],
+    input_map_names: Mapping[str, str],
 ) -> SimulationConfig:
     return _make_simulation_config(
         start_time,
         end_time,
         temporal_type=TemporalType.RELATIVE,
-    ).model_copy(update={"input_map_names": input_map_names})
+    ).model_copy(update={"input_map_names": dict(input_map_names)})
 
 
 def _source_slice(
@@ -291,7 +297,7 @@ def _run_reference_with_hotstart_checkpoint(
     static_arrays: dict[str, np.ndarray],
     timed_arrays: dict[str, list[TimedRasterSlice]],
     split_target_time: datetime,
-) -> tuple[dict[str, datetime | np.ndarray], bytes, "Simulation"]:
+) -> tuple[HotstartCheckpoint, bytes, "Simulation"]:
     simulation = _build_provider_simulation(
         sim_config,
         domain_5by5,
@@ -303,7 +309,7 @@ def _run_reference_with_hotstart_checkpoint(
     while simulation.sim_time < split_target_time:
         simulation.update()
 
-    checkpoint = {
+    checkpoint: HotstartCheckpoint = {
         "sim_time": simulation.sim_time,
         "rain": simulation.raster_domain.get_array("rain").copy(),
         "water_depth": simulation.raster_domain.get_array("water_depth").copy(),
@@ -892,10 +898,9 @@ def test_non_cadence_aligned_end_writes_one_final_report(domain_5by5) -> None:
     simulation.update_until(end_time - start_time)
     simulation.finalize()
 
-    output_times = [
-        sim_time
-        for sim_time, _ in simulation.report.raster_provider.output_maps_dict["water_depth"]
-    ]
+    raster_provider = simulation.report.raster_provider
+    assert isinstance(raster_provider, MemoryRasterOutputProvider)
+    output_times = [sim_time for sim_time, _ in raster_provider.output_maps_dict["water_depth"]]
     assert output_times == [
         timedelta(seconds=0),
         timedelta(seconds=10),

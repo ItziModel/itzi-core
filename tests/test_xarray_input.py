@@ -12,8 +12,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
-from typing import Dict
 from datetime import datetime, timedelta
+from typing import Dict
 
 import numpy as np
 import pandas as pd
@@ -23,12 +23,11 @@ import pytest
 pytest.importorskip("xarray")
 pytest.importorskip("pyproj")
 
-import xarray as xr
 import pyproj
+import xarray as xr
 
-from itzi_core.providers.xarray_input import XarrayRasterInputProvider, XarrayRasterInputConfig
 from itzi_core.const import TemporalType
-
+from itzi_core.providers.xarray_input import XarrayRasterInputConfig, XarrayRasterInputProvider
 
 # Mark all tests in this module as cloud tests
 pytestmark = pytest.mark.cloud
@@ -333,6 +332,7 @@ def test_xarray_input_provider_uses_half_open_windows_at_exact_boundary(
 
     current_time = datetime(2023, 1, 1, 2, 0, 0)
     array, start_time, end_time = provider.get_array("rainfall", current_time)
+    assert array is not None
 
     expected_time_index = 2
     base_data = xarray_input_data["input_maps_dict"]["rainfall"]
@@ -358,6 +358,7 @@ def test_xarray_input_provider_extends_last_slice_to_simulation_end(
 
     current_time = datetime(2023, 1, 1, 4, 30, 0)
     array, start_time, end_time = provider.get_array("rainfall", current_time)
+    assert array is not None
 
     expected_time_index = 4
     base_data = xarray_input_data["input_maps_dict"]["rainfall"]
@@ -859,7 +860,9 @@ def mixed_dimensions_data(input_maps_dict: Dict, coordinates: Dict, crs: pyproj.
     time_step_hours: int = 1
 
     # Relative time coordinates (timedelta)
-    relative_times: list[int] = [timedelta(hours=i * time_step_hours) for i in range(time_steps)]
+    relative_times: list[timedelta] = [
+        timedelta(hours=i * time_step_hours) for i in range(time_steps)
+    ]
 
     # Absolute time coordinates (datetime)
     start_time = datetime(2023, 1, 1, 0, 0, 0)
@@ -871,18 +874,18 @@ def mixed_dimensions_data(input_maps_dict: Dict, coordinates: Dict, crs: pyproj.
     data_vars = {}
 
     # 1. 2D static array with (lat, lon) dimensions
-    dem_data: str = input_maps_dict["dem"]
+    dem_data: np.ndarray = input_maps_dict["dem"]
     data_vars["elevation"] = (["lat", "lon"], dem_data)
 
     # 2. 3D array with relative time (rel_time, northing, easting)
-    rainfall_data: str = input_maps_dict["rainfall"]
+    rainfall_data: np.ndarray = input_maps_dict["rainfall"]
     rainfall_time_data: np.ndarray = np.stack(
         [rainfall_data * (1 + 0.1 * t) for t in range(time_steps)]
     )
     data_vars["precip"] = (["rel_time", "northing", "easting"], rainfall_time_data)
 
     # 3. 3D array with absolute time (abs_time, rows, cols)
-    bc_data: str = input_maps_dict["boundary_conditions"]
+    bc_data: np.ndarray = input_maps_dict["boundary_conditions"]
     bc_time_data: np.ndarray = np.stack([bc_data * (1 + 0.2 * t) for t in range(time_steps)])
     data_vars["boundary"] = (["abs_time", "rows", "cols"], bc_time_data)
 

@@ -12,18 +12,17 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
+import icechunk
 import numpy as np
+import obstore
 import pandas as pd
 import pyproj
-import icechunk
-import obstore
 
 from itzi_core.data_containers import SimulationConfig
-from itzi_core.simulation_builder import SimulationBuilder
-from itzi_core.providers.csv_output import CSVVectorOutputProvider
+from itzi_core.providers.csv_output import CSVVectorOutputConfig, CSVVectorOutputProvider
 from itzi_core.providers.icechunk_output import IcechunkRasterOutputProvider
 from itzi_core.providers.xarray_input import XarrayRasterInputProvider
-
+from itzi_core.simulation_builder import SimulationBuilder
 
 EA8B_REFERENCE_MIN_NSE = 0.99
 EA8B_REFERENCE_MAX_RSR = 0.01
@@ -104,15 +103,16 @@ def build_resumed_simulation(
     )
 
     obj_store = obstore.store.MemoryStore()
-    vector_output_provider = CSVVectorOutputProvider(
-        {
-            "crs": crs,
-            "store": obj_store,
-            "results_prefix": "",
-            "drainage_results_name": sim_config.drainage_output,
-            "overwrite": True,
-        }
-    )
+    drainage_results_name = sim_config.drainage_output
+    assert drainage_results_name is not None
+    vector_config: CSVVectorOutputConfig = {
+        "crs": crs,
+        "store": obj_store,
+        "results_prefix": "",
+        "drainage_results_name": drainage_results_name,
+        "overwrite": True,
+    }
+    vector_output_provider = CSVVectorOutputProvider(vector_config)
 
     simulation = (
         SimulationBuilder(sim_config, arr_mask)

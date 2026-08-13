@@ -14,27 +14,29 @@ GNU Lesser General Public License for more details.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 import math
+import tempfile
 from datetime import timedelta
 from enum import StrEnum
 from io import BytesIO
-import tempfile
+from typing import TYPE_CHECKING
 
-import pyswmm
 import numpy as np
+import pyswmm
+from pyswmm.toolkitapi import NodeResults, SimulationParameters, SimulationTime
 
 from itzi_core import DefaultValues
 from itzi_core.data_containers import (
-    DrainageNodeData,
+    DrainageLinkAttributes,
     DrainageLinkData,
     DrainageNetworkData,
-    DrainageLinkAttributes,
     DrainageNodeAttributes,
+    DrainageNodeData,
 )
 
 if TYPE_CHECKING:
     from datetime import datetime
+
     from pyswmm.swmm5 import PySWMM
 
 
@@ -83,7 +85,7 @@ class DrainageSimulation:
             self.swmm_model.swmm_use_hotstart(hotstart_filename)
         if hotstart_start_datetime is not None:
             self.swmm_model.setSimulationDateTime(
-                pyswmm.toolkitapi.SimulationTime.StartDateTime, hotstart_start_datetime
+                SimulationTime.StartDateTime, hotstart_start_datetime
             )
         self.swmm_model.swmm_start()
         # allow ponding
@@ -200,9 +202,7 @@ class DrainageNode(object):
         self.free_weir_coeff = free_weir_coeff
         self.submerged_weir_coeff = submerged_weir_coeff
         self.node_type = self.get_node_type()
-        self.surface_area = self._model.getSimAnalysisSetting(
-            pyswmm.toolkitapi.SimulationParameters.MinSurfArea
-        )
+        self.surface_area = self._model.getSimAnalysisSetting(SimulationParameters.MinSurfArea)
         # weir width is the circumference (node considered circular)
         self.weir_width = 2 * math.sqrt(self.surface_area * math.pi)
         # Set default values
@@ -229,7 +229,7 @@ class DrainageNode(object):
         return self.surface_area * self.pyswmm_node.full_depth
 
     def get_overflow(self):
-        return self._model.getNodeResult(self.node_id, pyswmm.toolkitapi.NodeResults.overflow)
+        return self._model.getNodeResult(self.node_id, NodeResults.overflow)
 
     def get_crest_elev(self):
         """Return the crest elevation of the node."""

@@ -37,7 +37,7 @@ pyproj = pytest.importorskip("pyproj")
 from itzi_core.const import TemporalType
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
 from itzi_core.providers.csv_mass_balance_output import CSVMassBalanceOutputProvider
-from itzi_core.providers.csv_output import CSVVectorOutputProvider
+from itzi_core.providers.csv_output import CSVVectorOutputConfig, CSVVectorOutputProvider
 from itzi_core.providers.icechunk_output import IcechunkRasterOutputProvider
 from itzi_core.providers.xarray_input import XarrayRasterInputProvider
 from itzi_core.simulation_builder import SimulationBuilder
@@ -191,15 +191,16 @@ def ea8b_simulation(ea8b_data, test_data_path, ea8b_temp_path):
     )
 
     obj_store = obstore.store.MemoryStore()
-    vector_output_provider = CSVVectorOutputProvider(
-        {
-            "crs": crs,
-            "store": obj_store,
-            "results_prefix": "",
-            "drainage_results_name": sim_config.drainage_output,
-            "overwrite": True,
-        }
-    )
+    drainage_results_name = sim_config.drainage_output
+    assert drainage_results_name is not None
+    vector_config: CSVVectorOutputConfig = {
+        "crs": crs,
+        "store": obj_store,
+        "results_prefix": "",
+        "drainage_results_name": drainage_results_name,
+        "overwrite": True,
+    }
+    vector_output_provider = CSVVectorOutputProvider(vector_config)
 
     simulation = (
         SimulationBuilder(sim_config, arr_mask)
@@ -233,7 +234,8 @@ def ea8b_simulation(ea8b_data, test_data_path, ea8b_temp_path):
     final_state = {}
     for key in simulation.raster_domain.k_all:
         final_state[f"raster_{key}"] = simulation.raster_domain.get_array(key)
-    np.savez(final_state_path, **final_state)
+    # Keys are generated with a raster_ prefix, so none can alias NumPy's allow_pickle keyword.
+    np.savez(final_state_path, **final_state)  # ty: ignore[invalid-argument-type]
 
     return {
         "obj_store": obj_store,

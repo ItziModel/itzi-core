@@ -13,8 +13,8 @@ GNU Lesser General Public License for more details.
 """
 
 from datetime import datetime, timedelta
-from pathlib import Path
 from io import StringIO
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -23,22 +23,24 @@ import pytest
 pytest.importorskip("pyproj")
 pytest.importorskip("obstore")
 
-import pyproj
 import obstore
 import pandas as pd
+import pyproj
 
 from itzi_core.data_containers import (
-    DrainageNodeAttributes,
     DrainageLinkAttributes,
-    DrainageNodeData,
     DrainageLinkData,
     DrainageNetworkData,
+    DrainageNodeAttributes,
+    DrainageNodeData,
 )
-from itzi_core.providers.csv_output import CSVVectorOutputConfig, CSVVectorOutputProvider
 from itzi_core.drainage import CouplingTypes
-
-from tests.fixtures_vector_output import create_dummy_drainage_network
-from tests.fixtures_vector_output import expected_node_coords, expected_vertices
+from itzi_core.providers.csv_output import CSVVectorOutputConfig, CSVVectorOutputProvider
+from tests.fixtures_vector_output import (
+    create_dummy_drainage_network,
+    expected_node_coords,
+    expected_vertices,
+)
 
 
 @pytest.fixture
@@ -94,7 +96,7 @@ class TestCSVVector:
         drainage_network = create_dummy_drainage_network(with_coords=False)
         obj_store = obstore.store.MemoryStore()
         file_prefix = "test_drainage_no_geom"
-        provider_config = {
+        provider_config: CSVVectorOutputConfig = {
             "crs": None,
             "store": obj_store,
             "results_prefix": results_prefix,
@@ -306,7 +308,7 @@ class TestCSVVectorAppend:
         sim_time_3 = timedelta(seconds=120)
         obj_store = obstore.store.MemoryStore()
         file_prefix = "test_append_success"
-        provider_config = {
+        provider_config: CSVVectorOutputConfig = {
             "crs": pyproj.CRS.from_epsg(6372),
             "store": obj_store,
             "results_prefix": results_prefix,
@@ -349,7 +351,7 @@ class TestCSVVectorAppend:
         file_prefix = "test_column_mismatch"
         results_prefix = "data"
         # First, write links data
-        provider_config = {
+        provider_config: CSVVectorOutputConfig = {
             "crs": pyproj.CRS.from_epsg(6372),
             "store": obj_store,
             "results_prefix": results_prefix,
@@ -372,11 +374,11 @@ class TestCSVVectorAppend:
             csv_provider_append.write_vector(drainage_network, timedelta(seconds=60))
 
     def test_append_time_type_mismatch_timedelta_to_datetime(self, results_prefix):
-        """Verify ValueError when appending datetime to file with timedelta."""
+        """Verify TypeError when appending datetime to file with timedelta."""
         drainage_network = create_dummy_drainage_network()
 
         # Write with timedelta
-        provider_config = {
+        provider_config: CSVVectorOutputConfig = {
             "crs": pyproj.CRS.from_epsg(6372),
             "store": obstore.store.MemoryStore(),
             "results_prefix": results_prefix,
@@ -390,17 +392,17 @@ class TestCSVVectorAppend:
         provider_config["overwrite"] = False
         csv_provider_append = CSVVectorOutputProvider(provider_config)
 
-        with pytest.raises(ValueError, match="time.*type|type.*mismatch"):
+        with pytest.raises(TypeError, match="time.*type|type.*mismatch"):
             csv_provider_append.write_vector(
                 drainage_network, datetime(year=2020, month=3, day=23, hour=10)
             )
 
     def test_append_time_type_mismatch_datetime_to_timedelta(self, results_prefix):
-        """Verify ValueError when appending timedelta to file with datetime."""
+        """Verify TypeError when appending timedelta to file with datetime."""
         drainage_network = create_dummy_drainage_network()
 
         # Write with datetime
-        provider_config = {
+        provider_config: CSVVectorOutputConfig = {
             "crs": pyproj.CRS.from_epsg(6372),
             "store": obstore.store.MemoryStore(),
             "results_prefix": results_prefix,
@@ -414,7 +416,7 @@ class TestCSVVectorAppend:
         provider_config["overwrite"] = False
         csv_provider_append = CSVVectorOutputProvider(provider_config)
 
-        with pytest.raises(ValueError, match="time.*type|type.*mismatch"):
+        with pytest.raises(TypeError, match="time.*type|type.*mismatch"):
             csv_provider_append.write_vector(drainage_network, timedelta(seconds=60))
 
     def test_append_node_ids_mismatch(self, results_prefix):
@@ -423,7 +425,7 @@ class TestCSVVectorAppend:
         sim_time = timedelta(seconds=0)
 
         # Write initial data
-        provider_config = {
+        provider_config: CSVVectorOutputConfig = {
             "crs": pyproj.CRS.from_epsg(6372),
             "store": obstore.store.MemoryStore(),
             "results_prefix": results_prefix,
@@ -476,7 +478,7 @@ class TestCSVVectorAppend:
         sim_time = timedelta(seconds=0)
 
         # Write initial data
-        provider_config = {
+        provider_config: CSVVectorOutputConfig = {
             "crs": pyproj.CRS.from_epsg(6372),
             "store": obstore.store.MemoryStore(),
             "results_prefix": results_prefix,
@@ -520,7 +522,7 @@ class TestCSVVectorAppend:
         drainage_network = create_dummy_drainage_network()
 
         # Write initial data with two time steps
-        provider_config = {
+        provider_config: CSVVectorOutputConfig = {
             "crs": pyproj.CRS.from_epsg(6372),
             "store": obstore.store.MemoryStore(),
             "results_prefix": results_prefix,
@@ -543,7 +545,7 @@ class TestCSVVectorAppend:
         drainage_network = create_dummy_drainage_network()
 
         # Write initial data
-        provider_config = {
+        provider_config: CSVVectorOutputConfig = {
             "crs": pyproj.CRS.from_epsg(6372),
             "store": obstore.store.MemoryStore(),
             "results_prefix": results_prefix,

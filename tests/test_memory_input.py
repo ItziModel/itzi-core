@@ -15,12 +15,17 @@ GNU Lesser General Public License for more details.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from typing import Any, cast
 
 import numpy as np
 import pytest
 
 from itzi_core.providers.domain_data import DomainData
-from itzi_core.providers.memory_input import MemoryRasterInputProvider, TimedRasterSlice
+from itzi_core.providers.memory_input import (
+    MemoryRasterInputConfig,
+    MemoryRasterInputProvider,
+    TimedRasterSlice,
+)
 
 
 @pytest.fixture
@@ -46,15 +51,15 @@ def simulation_times() -> dict[str, datetime]:
 def make_config(
     domain_data: DomainData,
     simulation_times: dict[str, datetime],
-    **overrides,
-) -> dict:
-    config = {
+    **overrides: Any,
+) -> MemoryRasterInputConfig:
+    config: dict[str, Any] = {
         "domain_data": domain_data,
         "simulation_start_time": simulation_times["start_time"],
         "simulation_end_time": simulation_times["end_time"],
     }
     config.update(overrides)
-    return config
+    return cast(MemoryRasterInputConfig, config)
 
 
 def test_provider_creation_with_empty_arrays(

@@ -15,12 +15,16 @@ GNU Lesser General Public License for more details.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from itzi_core.itzi_error import NullError
-from itzi_core.rasterdomain import TimedArray
+
+if TYPE_CHECKING:
+    from itzi_core.timed_array import TimedArraySource
 
 logger = logging.getLogger(__name__)
 
@@ -33,12 +37,12 @@ class TimedInputManager:
 
     def __init__(
         self,
-        timed_arrays: dict[str, TimedArray],
+        timed_arrays: Mapping[str, TimedArraySource],
         input_wse: bool,
         end_time: datetime,
         mask: np.ndarray,
     ) -> None:
-        self.timed_arrays = timed_arrays
+        self.timed_arrays = dict(timed_arrays)
         self.input_wse = input_wse
         self.end_time = end_time
         self.mask = mask

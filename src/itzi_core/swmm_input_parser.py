@@ -15,13 +15,14 @@ GNU Lesser General Public License for more details.
 import os
 from collections import namedtuple
 from datetime import datetime
+from typing import ClassVar
 
 
-class SwmmInputParser(object):
+class SwmmInputParser:
     """A parser for swmm input text file"""
 
     # list of sections keywords
-    sections_kwd = [
+    sections_kwd: ClassVar[tuple[str, ...]] = (
         "title",  # project title
         "option",  # analysis options
         "junction",  # junction node information
@@ -36,10 +37,10 @@ class SwmmInputParser(object):
         "xsection",  # conduit, orifice, and weir cross-section geometry
         "coordinate",  # coordinates of drainage system nodes
         "vertice",  # coordinates of interior vertex points of links
-    ]
-    link_types = ["conduit", "pump", "orifice", "weir", "outlet"]
+    )
+    link_types: ClassVar[tuple[str, ...]] = ("conduit", "pump", "orifice", "weir", "outlet")
     # define object containers
-    junction_values = ["x", "y", "elev", "ymax", "y0", "ysur", "apond"]
+    junction_values: ClassVar[tuple[str, ...]] = ("x", "y", "elev", "ymax", "y0", "ysur", "apond")
     Junction = namedtuple("Junction", junction_values)
     Link = namedtuple("Link", ["in_node", "out_node", "vertices"])
     # coordinates container
@@ -48,7 +49,7 @@ class SwmmInputParser(object):
     def __init__(self, input_file):
         # read and parse the input file
         assert os.path.isfile(input_file)
-        self.inp = dict.fromkeys(self.sections_kwd)
+        self.inp: dict[str, list[list[str]]] = {section: [] for section in self.sections_kwd}
         self.read_inp(input_file)
 
     def section_kwd(self, sect_name):
@@ -77,8 +78,6 @@ class SwmmInputParser(object):
                 elif current_section is None:
                     continue
                 else:
-                    if self.inp[current_section] is None:
-                        self.inp[current_section] = []
                     self.inp[current_section].append(line.strip().split())
 
     def get_juntions_ids(self):
@@ -130,22 +129,20 @@ class SwmmInputParser(object):
         # loop through all types of links
         for k in self.link_types:
             links = self.inp[k]
-            if links is not None:
-                for ln in links:
-                    ID = ln[0]
-                    vertices = self.get_vertices(ID)
-                    # names of link, inlet and outlet nodes
-                    links_dict[ID] = self.Link(in_node=ln[1], out_node=ln[2], vertices=vertices)
+            for ln in links:
+                ID = ln[0]
+                vertices = self.get_vertices(ID)
+                # names of link, inlet and outlet nodes
+                links_dict[ID] = self.Link(in_node=ln[1], out_node=ln[2], vertices=vertices)
         return links_dict
 
     def get_vertices(self, link_name):
         """For a given link name, return a list of Coordinates objects"""
         vertices = []
-        if isinstance(self.inp["vertice"], list):
-            for vertex in self.inp["vertice"]:
-                if link_name == vertex[0]:
-                    vertex_c = self.Coordinates(float(vertex[1]), float(vertex[2]))
-                    vertices.append(vertex_c)
+        for vertex in self.inp["vertice"]:
+            if link_name == vertex[0]:
+                vertex_c = self.Coordinates(float(vertex[1]), float(vertex[2]))
+                vertices.append(vertex_c)
         return vertices
 
     def get_start_datetime(self) -> datetime | None:

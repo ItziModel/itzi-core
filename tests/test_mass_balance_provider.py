@@ -122,15 +122,17 @@ def test_simulation_config_rejects_removed_stats_file() -> None:
     start_time = datetime(2000, 1, 1, tzinfo=UTC)
 
     with pytest.raises(ValidationError, match="stats_file"):
-        SimulationConfig(
-            start_time=start_time,
-            end_time=start_time + timedelta(seconds=1),
-            record_step=timedelta(seconds=1),
-            temporal_type=TemporalType.RELATIVE,
-            input_map_names={},
-            output_map_names={},
-            surface_flow_parameters=SurfaceFlowParameters(),
-            stats_file="removed.csv",
+        SimulationConfig.model_validate(
+            {
+                "start_time": start_time,
+                "end_time": start_time + timedelta(seconds=1),
+                "record_step": timedelta(seconds=1),
+                "temporal_type": TemporalType.RELATIVE,
+                "input_map_names": {},
+                "output_map_names": {},
+                "surface_flow_parameters": SurfaceFlowParameters(),
+                "stats_file": "removed.csv",
+            }
         )
 
 

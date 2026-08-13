@@ -18,8 +18,9 @@ GNU Lesser General Public License for more details.
 """
 
 import os
-from pathlib import Path
+from collections.abc import Iterator
 from contextlib import contextmanager
+from pathlib import Path
 
 # Attempt to import pyinstrument
 try:
@@ -32,7 +33,7 @@ except ImportError:
 
 
 @contextmanager
-def profile_context(file_path: Path = None):
+def profile_context(file_path: Path | None = None) -> Iterator[None]:
     """
     A context manager for profiling code blocks.
 
@@ -49,7 +50,9 @@ def profile_context(file_path: Path = None):
             # Code to be profiled (or not)
             run_simulation()
     """
-    profiler_active = os.environ.get("ITZI_PROFILE") == "1" and PYINSTRUMENT_AVAILABLE
+    profiler_active = (
+        os.environ.get("ITZI_PROFILE") == "1" and PYINSTRUMENT_AVAILABLE and Profiler is not None
+    )
 
     if profiler_active:
         profiler = Profiler()
