@@ -46,8 +46,6 @@ class TimedArray:
         raster_provider: RasterInputProvider,
         default_array_func: Callable[[], np.ndarray],
     ) -> None:
-        assert isinstance(mkey, str), "not a string!"
-        assert hasattr(default_array_func, "__call__"), "not a function!"
         self.mkey = mkey  # An array identifier
         self.raster_provider = raster_provider
         # A function to generate a default array
@@ -58,17 +56,14 @@ class TimedArray:
         self.arr_end = datetime(1, 1, 1)
         # Necessary for BMI implementation
         self.origin = raster_provider.get_origin()
-        # The array is loaded lazily on first access.
-        self.arr: np.ndarray | None = None
+        self.arr: np.ndarray = self.default_array_func()
 
     def get(self, sim_time: datetime) -> np.ndarray:
         """Return a numpy array valid for the given time
         If the array stored is not valid, update the values of the object
         """
-        assert isinstance(sim_time, datetime), "not a datetime object!"
         if not self.is_valid(sim_time):
-            self.update_values(sim_time)
-        assert self.arr is not None
+            self._update_values(sim_time)
         return self.arr
 
     def is_valid(self, sim_time: datetime) -> bool:
@@ -79,19 +74,15 @@ class TimedArray:
         """
         return bool(self.arr_start <= sim_time < self.arr_end)
 
-    def update_values(self, sim_time: datetime) -> Self:
+    def _update_values(self, sim_time: datetime) -> Self:
         """Update array, start_time and end_time from provider
         if the provider returns None, set array to default value
         """
         # Retrieve values
         arr, arr_start, arr_end = self.raster_provider.get_array(self.mkey, sim_time)
         # set to default if no array retrieved
-        if not isinstance(arr, np.ndarray):
+        if arr is None:
             arr = self.default_array_func()
-        # check retrieved values
-        assert isinstance(arr_start, datetime), "not a datetime object!"
-        assert isinstance(arr_end, datetime), "not a datetime object!"
-        assert arr_start <= sim_time < arr_end, "wrong time retrieved!"
         # update object values
         self.arr_start = arr_start
         self.arr_end = arr_end
