@@ -18,6 +18,7 @@ from libc.math cimport atan2 as c_atan
 from libc.math cimport fmax
 
 ctypedef cython.floating DTYPE_t
+ctypedef unsigned char BCTYPE_t
 cdef float PI = 3.1415926535898
 cdef int solve_h_tile_rows = 64
 cdef int solve_h_tile_cols = 128
@@ -47,7 +48,7 @@ cdef inline void solve_h_tile(
     DTYPE_t[:, ::1] arr_ext,
     DTYPE_t[:, ::1] arr_qe,
     DTYPE_t[:, ::1] arr_qs,
-    DTYPE_t[:, ::1] arr_bct,
+    BCTYPE_t[:, ::1] arr_bct,
     DTYPE_t[:, ::1] arr_bcv,
     DTYPE_t[:, ::1] arr_h,
     DTYPE_t[:, ::1] arr_hmax,
@@ -70,7 +71,8 @@ cdef inline void solve_h_tile(
 ) noexcept nogil:
     """Update depth, velocity, and Froude values for one tile."""
     cdef int r, c
-    cdef DTYPE_t qext, qe, qw, qn, qs, h, q_sum, h_new, hmax, bct, bcv
+    cdef DTYPE_t qext, qe, qw, qn, qs, h, q_sum, h_new, hmax, bcv
+    cdef BCTYPE_t bct
     cdef DTYPE_t hfe, hfs, hfw, hfn, ve, vw, vn, vs, vx, vy, v, vdir
     cdef DTYPE_t eps = 1e-12  # Small epsilon to avoid division by zero
 
@@ -141,7 +143,7 @@ def solve_h(
     DTYPE_t[:, ::1] arr_ext,
     DTYPE_t[:, ::1] arr_qe,
     DTYPE_t[:, ::1] arr_qs,
-    DTYPE_t[:, ::1] arr_bct,
+    BCTYPE_t[:, ::1] arr_bct,
     DTYPE_t[:, ::1] arr_bcv,
     DTYPE_t[:, ::1] arr_h,
     DTYPE_t[:, ::1] arr_hmax,

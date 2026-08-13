@@ -18,6 +18,7 @@ from libc.math cimport sqrt as c_sqrt
 from libc.math cimport fmin, copysign
 
 ctypedef cython.floating DTYPE_t
+ctypedef unsigned char BCTYPE_t
 cdef int solve_q_tile_rows = 64
 cdef int solve_q_tile_cols = 128
 
@@ -122,7 +123,7 @@ cdef inline void solve_qe_west_boundary_at(
     DTYPE_t[:, ::1] arr_h,
     DTYPE_t[:, ::1] arr_qe,
     DTYPE_t[:, ::1] arr_hfe,
-    DTYPE_t[:, ::1] arr_bctype,
+    BCTYPE_t[:, ::1] arr_bctype,
     DTYPE_t[:, ::1] arr_qe_new,
     int r,
 ) noexcept nogil:
@@ -164,7 +165,7 @@ cdef inline void solve_qe_east_boundary_at(
     DTYPE_t[:, ::1] arr_h,
     DTYPE_t[:, ::1] arr_qe,
     DTYPE_t[:, ::1] arr_hfe,
-    DTYPE_t[:, ::1] arr_bctype,
+    BCTYPE_t[:, ::1] arr_bctype,
     DTYPE_t[:, ::1] arr_qe_new,
     int col_east_boundary,
     int r,
@@ -308,7 +309,7 @@ cdef inline void solve_qs_north_boundary_at(
     DTYPE_t[:, ::1] arr_h,
     DTYPE_t[:, ::1] arr_qs,
     DTYPE_t[:, ::1] arr_hfs,
-    DTYPE_t[:, ::1] arr_bctype,
+    BCTYPE_t[:, ::1] arr_bctype,
     DTYPE_t[:, ::1] arr_qs_new,
     int c,
 ) noexcept nogil:
@@ -350,7 +351,7 @@ cdef inline void solve_qs_south_boundary_at(
     DTYPE_t[:, ::1] arr_h,
     DTYPE_t[:, ::1] arr_qs,
     DTYPE_t[:, ::1] arr_hfs,
-    DTYPE_t[:, ::1] arr_bctype,
+    BCTYPE_t[:, ::1] arr_bctype,
     DTYPE_t[:, ::1] arr_qs_new,
     int row_south_boundary,
     int c,
@@ -511,7 +512,7 @@ def solve_q(
     DTYPE_t[:, ::1] arr_qs,
     DTYPE_t[:, ::1] arr_hfe,
     DTYPE_t[:, ::1] arr_hfs,
-    DTYPE_t[:, ::1] arr_bctype,
+    BCTYPE_t[:, ::1] arr_bctype,
     DTYPE_t[:, ::1] arr_qe_new,
     DTYPE_t[:, ::1] arr_qs_new,
     DTYPE_t dt,
@@ -805,7 +806,7 @@ cdef DTYPE_t flow_GMS(
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
 cdef DTYPE_t boundary_flow(
-    DTYPE_t bctype,
+    BCTYPE_t bctype,
     DTYPE_t q_domain,
     DTYPE_t flow_depth_domain,
     DTYPE_t flow_depth_boundary,

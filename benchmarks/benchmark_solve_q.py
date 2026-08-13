@@ -69,7 +69,7 @@ def setup_solve_q_args(num_cells: int) -> tuple:
     arr_qs = zero_padded_array(shape)
     arr_hfe = zero_padded_array(shape)
     arr_hfs = zero_padded_array(shape)
-    arr_bctype = zero_padded_array(shape)
+    arr_bctype = np.zeros((shape[0] + 2, shape[1] + 2), dtype=np.uint8)
     arr_qe_new = zero_padded_array(shape)
     arr_qs_new = zero_padded_array(shape)
 

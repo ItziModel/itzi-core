@@ -65,7 +65,7 @@ def setup_update_h_args(num_cells: int) -> tuple:
     arr_ext = zero_padded_array(shape)
     arr_qe = full_padded_array(shape, np.float32(0.01))
     arr_qs = full_padded_array(shape, np.float32(0.01))
-    arr_bct = zero_padded_array(shape)
+    arr_bct = np.zeros((shape[0] + 2, shape[1] + 2), dtype=np.uint8)
     arr_bcv = zero_padded_array(shape)
     arr_hfe = full_padded_array(shape, starting_depth)
     arr_hfs = full_padded_array(shape, starting_depth)
