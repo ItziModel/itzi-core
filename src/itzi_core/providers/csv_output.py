@@ -177,6 +177,8 @@ class CSVVectorOutputProvider(VectorOutputProvider):
             existing_time = self.existing_max_time[geom_type]
             if self.number_of_writes[geom_type] > 0 or existing_time is None:
                 continue
+            # ty finds an error when only one if is used
+            # ruff: noqa: SIM114
             if isinstance(sim_time, datetime) and isinstance(existing_time, datetime):
                 time_is_increasing = sim_time > existing_time
             elif isinstance(sim_time, timedelta) and isinstance(existing_time, timedelta):

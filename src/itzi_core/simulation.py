@@ -35,7 +35,7 @@ from itzi_core.data_containers import (
 from itzi_core.hotstart import HotstartWriter
 from itzi_core.itzi_error import DtError, MassBalanceError, NullError
 from itzi_core.simulation_schedule import SimulationSchedule
-from itzi_core.timed_inputs import TimedArraySource, TimedInputManager
+from itzi_core.timed_inputs import TimedInputManager
 
 if TYPE_CHECKING:
     from itzi_core.data_containers import DrainageNodeCouplingData, SimulationConfig
@@ -45,6 +45,7 @@ if TYPE_CHECKING:
     from itzi_core.rasterdomain import RasterDomain
     from itzi_core.report import Report
     from itzi_core.surfaceflow import SurfaceFlowSimulation
+    from itzi_core.timed_array import TimedArraySource
 
 
 logger = logging.getLogger(__name__)

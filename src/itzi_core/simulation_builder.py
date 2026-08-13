@@ -25,7 +25,7 @@ import numpy as np
 import pyswmm
 from numpy.typing import ArrayLike, DTypeLike
 
-from itzi_core import infiltration, rasterdomain
+from itzi_core import infiltration
 from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi_core.const import InfiltrationModelType
 from itzi_core.data_containers import DrainageNodeCouplingData
@@ -33,11 +33,13 @@ from itzi_core.drainage import CouplingTypes, DrainageLink, DrainageNode, Draina
 from itzi_core.hotstart import HotstartLoader
 from itzi_core.hydrology import Hydrology
 from itzi_core.itzi_error import HotstartError
+from itzi_core.rasterdomain import RasterDomain
 from itzi_core.report import Report
 from itzi_core.simulation import Simulation
 from itzi_core.simulation_schedule import SimulationSchedule
 from itzi_core.surfaceflow import SurfaceFlowSimulation
 from itzi_core.swmm_input_parser import SwmmInputParser
+from itzi_core.timed_array import TimedArray
 from itzi_core.timed_inputs import TimedInputManager
 
 if TYPE_CHECKING:
@@ -476,7 +478,7 @@ class SimulationBuilder:
         self,
         input_provider: RasterInputProvider,
         domain_data: DomainData,
-    ) -> dict[str, rasterdomain.TimedArray]:
+    ) -> dict[str, TimedArray]:
         """Create configured time-varying raster inputs."""
         timed_arrays = {}
         input_keys = [
@@ -488,15 +490,13 @@ class SimulationBuilder:
             return np.zeros(shape=raster_shape, dtype=self.dtype)
 
         for arr_key in input_keys:
-            timed_arrays[arr_key] = rasterdomain.TimedArray(
-                arr_key, input_provider, zeros_array_func
-            )
+            timed_arrays[arr_key] = TimedArray(arr_key, input_provider, zeros_array_func)
         return timed_arrays
 
-    def _create_raster_domain(self, cell_shape) -> rasterdomain.RasterDomain:
+    def _create_raster_domain(self, cell_shape) -> RasterDomain:
         """Create a raster domain."""
         try:
-            raster_domain = rasterdomain.RasterDomain(
+            raster_domain = RasterDomain(
                 dtype=self.dtype,
                 arr_mask=self.arr_mask,
                 cell_shape=cell_shape,
@@ -507,7 +507,7 @@ class SimulationBuilder:
 
     def _create_infiltration_model(
         self,
-        raster_domain: rasterdomain.RasterDomain,
+        raster_domain: RasterDomain,
     ) -> infiltration.InfiltrationModel:
         """Create an infiltration model based on configuration."""
         inf_model = self.sim_config.infiltration_model
