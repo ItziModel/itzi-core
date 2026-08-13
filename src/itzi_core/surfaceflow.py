@@ -13,15 +13,16 @@ GNU Lesser General Public License for more details.
 """
 
 from __future__ import annotations
+
 import math
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
 import numpy as np
 
-from itzi_core.compute.partial_inertia_q import solve_q, accumulate_boundary_fluxes
 from itzi_core.compute.partial_inertia_h import solve_h
-from itzi_core.itzi_error import NullError, DtError
+from itzi_core.compute.partial_inertia_q import accumulate_boundary_fluxes, solve_q
+from itzi_core.itzi_error import DtError, NullError
 
 if TYPE_CHECKING:
     from itzi_core.data_containers import SurfaceFlowParameters
@@ -52,10 +53,9 @@ class SurfaceFlowSimulation:
         self.dx = domain.dx
         self.dy = domain.dy
         self.cell_surf = self.dx * self.dy
-
-        self._dt = None
         # 1e-6 second
         self._dt_fudge = timedelta.resolution.total_seconds()
+        self._dt: float = self._dt_fudge
 
     def update_flow_dir(self):
         """Deprecated."""
