@@ -12,15 +12,17 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
-from datetime import datetime
-from typing import Self, Callable, TYPE_CHECKING
 import io
+from collections.abc import Callable
+from datetime import datetime
+from typing import TYPE_CHECKING, Self
 
 import numpy as np
 
 from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
-from .compute import rastermetrics
 from itzi_core.itzi_error import HotstartError
+
+from .compute import rastermetrics
 
 if TYPE_CHECKING:
     from itzi_core.providers.base import RasterInputProvider
@@ -50,8 +52,8 @@ class TimedArray:
         self.arr_end = datetime(1, 1, 1)
         # Necessary for BMI implementation
         self.origin = raster_provider.get_origin()
-        # Placeholder for the numpy array
-        self.arr = None
+        # The array is loaded lazily on first access.
+        self.arr: np.ndarray | None = None
 
     def get(self, sim_time: datetime) -> np.ndarray:
         """Return a numpy array valid for the given time
@@ -60,6 +62,7 @@ class TimedArray:
         assert isinstance(sim_time, datetime), "not a datetime object!"
         if not self.is_valid(sim_time):
             self.update_values(sim_time)
+        assert self.arr is not None
         return self.arr
 
     def is_valid(self, sim_time: datetime) -> bool:
@@ -132,8 +135,8 @@ class RasterDomain:
             if arr_def.key in self.k_all
         }
         # Instantiate arrays and padded arrays filled with zeros
-        self.arr = dict.fromkeys(self.k_all)
-        self.arrp = dict.fromkeys(self.k_all)
+        self.arr: dict[str, np.ndarray] = {}
+        self.arrp: dict[str, np.ndarray] = {}
         self._create_arrays()
 
     def pad_array(self, arr) -> tuple[np.ndarray, np.ndarray]:
@@ -148,7 +151,7 @@ class RasterDomain:
         """Instantiate masked arrays and padded arrays
         the unpadded arrays are a slice of the padded ones
         """
-        for k in self.arr.keys():
+        for k in self.k_all:
             arr = np.full(fill_value=self.fill_values[k], shape=self.shape, dtype=self.dtypes[k])
             self.arr[k], self.arrp[k] = self.pad_array(arr)
         return self

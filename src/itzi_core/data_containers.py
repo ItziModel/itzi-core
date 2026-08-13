@@ -19,7 +19,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, NonNegativeFloat, NonNegativeInt, PositiveFloat
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    NonNegativeFloat,
+    NonNegativeInt,
+    PositiveFloat,
+    field_validator,
+)
 
 from itzi_core.const import DefaultValues, InfiltrationModelType, TemporalType
 from itzi_core.providers.domain_data import DomainData
@@ -146,7 +154,7 @@ class SimulationData(BaseModel):
     sim_time: datetime
     time_step: float  # time step duration
     time_steps_counter: int  # number of time steps since last update
-    continuity_data: ContinuityData | None  # Made optional for use in tests
+    continuity_data: ContinuityData
     raw_arrays: dict[str, np.ndarray]
     accumulation_arrays: dict[str, np.ndarray]
     cell_dx: PositiveFloat  # cell size in east-west direction
@@ -211,8 +219,8 @@ class SimulationConfig(BaseModel):
     # Hotstart config
     hotstart_config: HotstartRunConfig | None = None
     # Input and output raster maps
-    input_map_names: dict[str, str | None]
-    output_map_names: dict[str, str | None]
+    input_map_names: dict[str, str]
+    output_map_names: dict[str, str]
     # Surface flow parameters
     surface_flow_parameters: SurfaceFlowParameters
     # Hydrology parameters
@@ -224,6 +232,14 @@ class SimulationConfig(BaseModel):
     orifice_coeff: NonNegativeFloat = Field(DefaultValues.ORIFICE_COEFF, ge=0, le=1)
     free_weir_coeff: NonNegativeFloat = Field(DefaultValues.FREE_WEIR_COEFF, ge=0, le=1)
     submerged_weir_coeff: NonNegativeFloat = Field(DefaultValues.SUBMERGED_WEIR_COEFF, ge=0, le=1)
+
+    @field_validator("input_map_names", "output_map_names", mode="before")
+    @classmethod
+    def remove_inactive_map_names(cls, value: object) -> object:
+        """Normalize legacy null-valued map entries to omitted inactive entries."""
+        if isinstance(value, dict):
+            return {key: map_name for key, map_name in value.items() if map_name is not None}
+        return value
 
     def as_str_dict(self) -> dict:
         """Convert the configuration to a dictionary with string representations."""

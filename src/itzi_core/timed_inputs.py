@@ -15,12 +15,13 @@ GNU Lesser General Public License for more details.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from datetime import datetime
+from typing import Protocol
 
 import numpy as np
 
 from itzi_core.itzi_error import NullError
-from itzi_core.rasterdomain import TimedArray
 
 logger = logging.getLogger(__name__)
 
@@ -28,17 +29,27 @@ _RATE_INPUTS = frozenset({"rain", "hydraulic_conductivity", "infiltration", "los
 _LENGTH_INPUTS = frozenset({"capillary_pressure"})
 
 
+class TimedArraySource(Protocol):
+    arr_start: datetime
+    arr_end: datetime
+    arr: np.ndarray | None
+
+    def is_valid(self, sim_time: datetime) -> bool: ...
+
+    def get(self, sim_time: datetime) -> np.ndarray: ...
+
+
 class TimedInputManager:
     """Fetch, validate, convert, and cache timed input arrays without applying them."""
 
     def __init__(
         self,
-        timed_arrays: dict[str, TimedArray],
+        timed_arrays: Mapping[str, TimedArraySource],
         input_wse: bool,
         end_time: datetime,
         mask: np.ndarray,
     ) -> None:
-        self.timed_arrays = timed_arrays
+        self.timed_arrays = dict(timed_arrays)
         self.input_wse = input_wse
         self.end_time = end_time
         self.mask = mask

@@ -12,6 +12,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
+from collections import defaultdict
 from collections.abc import Mapping
 from copy import deepcopy
 from datetime import datetime, timedelta
@@ -29,7 +30,10 @@ class MemoryRasterOutputProvider(RasterOutputProvider):
         """Initialize output provider with simulation configuration."""
         # user-selected map names.
         self.out_map_names = out_map_names
-        self.output_maps_dict: dict[str, list] = {k: [] for k in self.out_map_names}
+        self.output_maps_dict: defaultdict[str, list] = defaultdict(
+            list,
+            {key: [] for key in self.out_map_names},
+        )
 
     def write_arrays(
         self, array_dict: Mapping[str, np.ndarray], sim_time: datetime | timedelta

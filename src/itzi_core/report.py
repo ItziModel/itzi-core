@@ -200,7 +200,7 @@ class Report:
         closure_residual, relative_closure_error = calculate_closure(
             continuity_data.volume_change,
             signed_volume_terms,
-            active_cells * cell_area,
+            float(active_cells * cell_area),
         )
 
         # 3. Assemble data and log

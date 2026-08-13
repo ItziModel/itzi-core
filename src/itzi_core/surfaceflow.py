@@ -109,9 +109,7 @@ class SurfaceFlowSimulation:
     def dt(self, newdt: timedelta):
         """return an error if new dt is higher than current one or negative"""
         newdt_s = newdt.total_seconds()
-        if self._dt is None:
-            self._dt = newdt_s
-        elif newdt_s <= 0:
+        if newdt_s <= 0:
             raise DtError(f"dt must be positive, not {newdt_s}s")
         elif newdt_s > self._dt + self._dt_fudge:
             raise DtError(

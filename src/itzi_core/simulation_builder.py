@@ -16,9 +16,10 @@ from __future__ import annotations
 
 import io
 import tempfile
+from collections.abc import Iterable
 from datetime import timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
 import pyswmm
@@ -83,9 +84,9 @@ class SimulationBuilder:
         sim_config: SimulationConfig,
         arr_mask: ArrayLike,
         dtype: DTypeLike = np.float32,
-    ):
+    ) -> None:
         self.sim_config = sim_config
-        self.arr_mask = arr_mask
+        self.arr_mask = np.asarray(arr_mask)
         self.dtype = dtype
 
         # Optional components (set via builder methods)
@@ -152,7 +153,7 @@ class SimulationBuilder:
         self.mass_balance_output_provider = provider
         return self
 
-    def _validate_hotstart_congruence(self) -> None:
+    def _validate_hotstart_congruence(self, hotstart_loader: HotstartLoader) -> None:
         """Validate hotstart data against builder configuration.
 
         This method performs congruence checks between the hotstart metadata
@@ -163,9 +164,9 @@ class SimulationBuilder:
             HotstartError: If any congruence check fails.
         """
 
-        hotstart_domain = self.hotstart_loader.get_domain_data()
-        hotstart_config = self.hotstart_loader.get_simulation_config()
-        hotstart_state = self.hotstart_loader.get_simulation_state()
+        hotstart_domain = hotstart_loader.get_domain_data()
+        hotstart_config = hotstart_loader.get_simulation_config()
+        hotstart_state = hotstart_loader.get_simulation_state()
 
         # Validate domain metadata
         self._validate_domain_congruence(hotstart_domain)
@@ -174,7 +175,7 @@ class SimulationBuilder:
         self._validate_mask_congruence(hotstart_domain)
 
         # Validate drainage expectations
-        self._validate_drainage_congruence(hotstart_config)
+        self._validate_drainage_congruence(hotstart_config, hotstart_loader)
 
         # Validate resume-time configuration compatibility
         self._validate_resume_config_congruence(hotstart_config, hotstart_state)
@@ -322,7 +323,11 @@ class SimulationBuilder:
                 f"hotstart expects {expected_shape}"
             )
 
-    def _validate_drainage_congruence(self, hotstart_config: SimulationConfig) -> None:
+    def _validate_drainage_congruence(
+        self,
+        hotstart_config: SimulationConfig,
+        hotstart_loader: HotstartLoader,
+    ) -> None:
         """Validate drainage expectations match between hotstart and current config."""
         hotstart_has_drainage = hotstart_config.swmm_inp is not None
         builder_has_drainage = self.sim_config.swmm_inp is not None
@@ -338,30 +343,35 @@ class SimulationBuilder:
             )
 
         # If both have drainage, check that SWMM hotstart bytes are present
-        if hotstart_has_drainage and not self.hotstart_loader.has_swmm_hotstart():
+        if hotstart_has_drainage and not hotstart_loader.has_swmm_hotstart():
             raise HotstartError(
                 "Hotstart metadata indicates drainage but SWMM hotstart file is missing from archive"
             )
 
     def build(self) -> Simulation:
         """Build a simulation and explicitly load or prime provider-backed inputs."""
-        # Validate required components
-        if self.domain_data is None:
+        domain_data = self.domain_data
+        raster_output_provider = self.raster_output_provider
+        vector_output_provider = self.vector_output_provider
+        input_provider = self.raster_input_provider
+        hotstart_loader = self.hotstart_loader
+
+        if domain_data is None:
             raise ValueError("Domain data must be set via input provider or directly")
-        if self.raster_output_provider is None or self.vector_output_provider is None:
+        if raster_output_provider is None or vector_output_provider is None:
             raise ValueError("Output providers are mandatory")
 
         # Validate hotstart congruence before building
-        if self.hotstart_loader:
-            self._validate_hotstart_congruence()
+        if hotstart_loader is not None:
+            self._validate_hotstart_congruence(hotstart_loader)
 
         # Create timed arrays if input provider exists
         timed_arrays = None
-        if self.raster_input_provider:
-            timed_arrays = self._create_timed_arrays()
+        if input_provider is not None:
+            timed_arrays = self._create_timed_arrays(input_provider, domain_data)
 
         # Create raster domain
-        raster_domain = self._create_raster_domain(self.domain_data.cell_shape)
+        raster_domain = self._create_raster_domain(domain_data.cell_shape)
 
         # Create models
         infiltration_model = self._create_infiltration_model(raster_domain)
@@ -371,7 +381,7 @@ class SimulationBuilder:
         )
 
         # Create drainage with optional SWMM hotstart injection
-        nodes_list, drainage_sim = self._create_drainage_simulation()
+        nodes_list, drainage_sim = self._create_drainage_simulation(domain_data)
         schedule = SimulationSchedule(
             self.sim_config.start_time,
             self.sim_config.end_time,
@@ -391,8 +401,8 @@ class SimulationBuilder:
         report = Report(
             start_time=self.sim_config.start_time,
             temporal_type=self.sim_config.temporal_type,
-            raster_output_provider=self.raster_output_provider,
-            vector_output_provider=self.vector_output_provider,
+            raster_output_provider=raster_output_provider,
+            vector_output_provider=vector_output_provider,
             mass_balance_output_provider=self.mass_balance_output_provider,
             out_map_names=self.sim_config.output_map_names,
             dt=self.sim_config.record_step,
@@ -401,7 +411,7 @@ class SimulationBuilder:
         # Create simulation
         simulation = Simulation(
             self.sim_config,
-            self.domain_data,
+            domain_data,
             raster_domain,
             schedule,
             timed_input_manager,
@@ -413,13 +423,13 @@ class SimulationBuilder:
         )
 
         # Apply hotstart restore if hotstart data is present
-        if self.hotstart_loader:
-            raster_state_buffer = self.hotstart_loader.get_raster_state_buffer()
+        if hotstart_loader is not None:
+            raster_state_buffer = hotstart_loader.get_raster_state_buffer()
             raster_domain.load_state(raster_state_buffer)
 
-            simulation_state = self.hotstart_loader.get_simulation_state()
+            simulation_state = hotstart_loader.get_simulation_state()
             simulation.restore_state(simulation_state)
-            hotstart_config = self.hotstart_loader.get_simulation_config()
+            hotstart_config = hotstart_loader.get_simulation_config()
             changed_input_keys = self._changed_input_keys(hotstart_config)
             restored_input_deadline = simulation.schedule.deadline("input")
             restored_end_deadline = simulation.schedule.deadline("end")
@@ -462,20 +472,24 @@ class SimulationBuilder:
 
         return simulation
 
-    def _create_timed_arrays(self) -> dict[str, rasterdomain.TimedArray]:
+    def _create_timed_arrays(
+        self,
+        input_provider: RasterInputProvider,
+        domain_data: DomainData,
+    ) -> dict[str, rasterdomain.TimedArray]:
         """Create configured time-varying raster inputs."""
         timed_arrays = {}
         input_keys = [
             arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.INPUT in arr_def.category
         ]
-        raster_shape = (self.domain_data.rows, self.domain_data.cols)
+        raster_shape = (domain_data.rows, domain_data.cols)
 
         def zeros_array_func() -> np.ndarray:
             return np.zeros(shape=raster_shape, dtype=self.dtype)
 
         for arr_key in input_keys:
             timed_arrays[arr_key] = rasterdomain.TimedArray(
-                arr_key, self.raster_input_provider, zeros_array_func
+                arr_key, input_provider, zeros_array_func
             )
         return timed_arrays
 
@@ -512,7 +526,8 @@ class SimulationBuilder:
 
     def _create_drainage_simulation(
         self,
-    ) -> tuple[list[DrainageNodeCouplingData] | None, DrainageSimulation | None]:
+        domain_data: DomainData,
+    ) -> tuple[list[DrainageNodeCouplingData], DrainageSimulation | None]:
         """Create drainage simulation components if SWMM input is provided.
 
         If hotstart data includes SWMM state, writes the SWMM hotstart bytes
@@ -525,7 +540,7 @@ class SimulationBuilder:
         in their timeseries rather than restarting from T=0.
         """
         if not self.sim_config.swmm_inp:
-            return None, None
+            return [], None
 
         swmm_input_path = str(self.sim_config.swmm_inp)
 
@@ -550,6 +565,7 @@ class SimulationBuilder:
         nodes_list: list[DrainageNodeCouplingData] = self._get_nodes_list(
             all_nodes,
             nodes_coors_dict,
+            domain_data=domain_data,
             orifice_coeff=self.sim_config.orifice_coeff,
             free_weir_coeff=self.sim_config.free_weir_coeff,
             submerged_weir_coeff=self.sim_config.submerged_weir_coeff,
@@ -562,8 +578,10 @@ class SimulationBuilder:
         node_objects_only = [i.node_object for i in nodes_list]
 
         # Handle SWMM hotstart injection if present
-        if self.hotstart_loader and self.hotstart_loader.has_swmm_hotstart():
+        if self.hotstart_loader is not None and self.hotstart_loader.has_swmm_hotstart():
             swmm_bytes = self.hotstart_loader.get_swmm_hotstart_bytes()
+            if swmm_bytes is None:
+                raise HotstartError("SWMM hotstart data is missing from the archive")
             # Create a temporary file for SWMM to read.
             # delete_on_close=False keeps the file after closing so SWMM can open it.
             with tempfile.NamedTemporaryFile(suffix=".hsf", delete_on_close=False) as tmp:
@@ -584,8 +602,9 @@ class SimulationBuilder:
 
     def _get_nodes_list(
         self,
-        pswmm_nodes: list,
-        nodes_coor_dict: dict,
+        pswmm_nodes: Iterable[Any],
+        nodes_coor_dict: dict[str, Any],
+        domain_data: DomainData,
         orifice_coeff: float,
         free_weir_coeff: float,
         submerged_weir_coeff: float,
@@ -607,7 +626,7 @@ class SimulationBuilder:
                 g=g,
             )
             # a node without coordinates cannot be coupled
-            if coors is None or not self.domain_data.is_in_domain(x=coors.x, y=coors.y):
+            if coors is None or not domain_data.is_in_domain(x=coors.x, y=coors.y):
                 x_coor = None
                 y_coor = None
                 row = None
@@ -617,7 +636,9 @@ class SimulationBuilder:
                 node.coupling_type = CouplingTypes.COUPLED_NO_FLOW
                 x_coor = coors.x
                 y_coor = coors.y
-                row, col = self.domain_data.coordinates_to_pixel(x=x_coor, y=y_coor)
+                pixel = domain_data.coordinates_to_pixel(x=x_coor, y=y_coor)
+                assert pixel is not None
+                row, col = pixel
             # populate list
             drainage_node_data = DrainageNodeCouplingData(
                 node_id=pyswmm_node.nodeid, node_object=node, x=x_coor, y=y_coor, row=row, col=col

@@ -372,7 +372,7 @@ class TestCSVVectorAppend:
             csv_provider_append.write_vector(drainage_network, timedelta(seconds=60))
 
     def test_append_time_type_mismatch_timedelta_to_datetime(self, results_prefix):
-        """Verify ValueError when appending datetime to file with timedelta."""
+        """Verify TypeError when appending datetime to file with timedelta."""
         drainage_network = create_dummy_drainage_network()
 
         # Write with timedelta
@@ -390,13 +390,13 @@ class TestCSVVectorAppend:
         provider_config["overwrite"] = False
         csv_provider_append = CSVVectorOutputProvider(provider_config)
 
-        with pytest.raises(ValueError, match="time.*type|type.*mismatch"):
+        with pytest.raises(TypeError, match="time.*type|type.*mismatch"):
             csv_provider_append.write_vector(
                 drainage_network, datetime(year=2020, month=3, day=23, hour=10)
             )
 
     def test_append_time_type_mismatch_datetime_to_timedelta(self, results_prefix):
-        """Verify ValueError when appending timedelta to file with datetime."""
+        """Verify TypeError when appending timedelta to file with datetime."""
         drainage_network = create_dummy_drainage_network()
 
         # Write with datetime
@@ -414,7 +414,7 @@ class TestCSVVectorAppend:
         provider_config["overwrite"] = False
         csv_provider_append = CSVVectorOutputProvider(provider_config)
 
-        with pytest.raises(ValueError, match="time.*type|type.*mismatch"):
+        with pytest.raises(TypeError, match="time.*type|type.*mismatch"):
             csv_provider_append.write_vector(drainage_network, timedelta(seconds=60))
 
     def test_append_node_ids_mismatch(self, results_prefix):

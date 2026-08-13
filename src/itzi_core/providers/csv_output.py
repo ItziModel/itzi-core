@@ -18,7 +18,7 @@ import csv
 from datetime import datetime, timedelta
 from io import StringIO
 from pathlib import PurePosixPath, PureWindowsPath
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 
 import pandas as pd
 
@@ -61,10 +61,8 @@ class CSVVectorOutputProvider(VectorOutputProvider):
 
     def __init__(self, config: CSVVectorOutputConfig) -> None:
         """Initialize output provider with provider configuration."""
-        try:
-            self.srid = config["crs"].to_epsg()
-        except AttributeError:
-            self.srid = 0
+        crs = config["crs"]
+        self.srid = 0 if crs is None else crs.to_epsg() or 0
         self.store = config["store"]
         prefix_str = config["results_prefix"]
         prefix_path = PurePosixPath(prefix_str.replace("\\", "/"))
@@ -76,11 +74,14 @@ class CSVVectorOutputProvider(VectorOutputProvider):
             raise ValueError("results_prefix must be a relative path without parent traversal")
         results_prefix = prefix_path.as_posix() if prefix_path.parts else ""
 
-        self.existing_ids = {"link": None, "node": None}  # Objects ids already in the file
-        self.existing_max_time = {"link": None, "node": None}  # Max of sim_time in existing_file
+        self.existing_ids: dict[str, set[Any] | None] = {"link": None, "node": None}
+        self.existing_max_time: dict[str, datetime | timedelta | None] = {
+            "link": None,
+            "node": None,
+        }
         self.number_of_writes = {"link": 0, "node": 0}
-        self.file_paths = {"link": None, "node": None}
-        self.headers = {"link": None, "node": None}
+        self.file_paths: dict[str, str] = {}
+        self.headers: dict[str, list[str]] = {}
         self.append_mode = {"link": True, "node": True}
         if config["overwrite"]:
             self.append_mode = {"link": False, "node": False}
@@ -97,8 +98,6 @@ class CSVVectorOutputProvider(VectorOutputProvider):
             # create the CSV files
             if not self.append_mode[geom_type]:
                 self._write_headers(geom_type)
-        print(self.existing_ids)
-        print(self.existing_max_time)
 
     def write_vector(
         self, drainage_data: DrainageNetworkData, sim_time: datetime | timedelta
@@ -130,7 +129,6 @@ class CSVVectorOutputProvider(VectorOutputProvider):
             - new object ID ≠ existing ones
         could not be checked without drainage network data
         """
-        existing_csv = None
         try:
             existing_csv = StringIO(
                 bytes(obstore.get(self.store, self.file_paths[geom_type]).bytes()).decode("utf-8")
@@ -143,7 +141,6 @@ class CSVVectorOutputProvider(VectorOutputProvider):
         expected_headers = self.headers[geom_type]
         if not existing_headers == expected_headers:
             raise ValueError(f"Headers mismatch in existing file {self.file_paths[geom_type]}.")
-            self.append_mode[geom_type] = False
         id_col = f"{geom_type}_id"
 
         # Store values existing ids
@@ -162,7 +159,6 @@ class CSVVectorOutputProvider(VectorOutputProvider):
                 raise ValueError(
                     f"Unknown sim_time column in existing file {self.file_paths[geom_type]}."
                 )
-        print(df_csv)
 
     def _write_headers(self, geom_type: str):
         """Create an in-memory CSV file with headers and save it in the store."""
@@ -178,29 +174,31 @@ class CSVVectorOutputProvider(VectorOutputProvider):
 
         for geom_type in ["node", "link"]:
             # Only validate on first write
-            if self.number_of_writes[geom_type] > 0 or self.existing_max_time[geom_type] is None:
+            existing_time = self.existing_max_time[geom_type]
+            if self.number_of_writes[geom_type] > 0 or existing_time is None:
                 continue
-            # Type must match
-            if type(self.existing_max_time[geom_type]) is not type(sim_time):
+            if isinstance(sim_time, datetime) and isinstance(existing_time, datetime):
+                time_is_increasing = sim_time > existing_time
+            elif isinstance(sim_time, timedelta) and isinstance(existing_time, timedelta):
+                time_is_increasing = sim_time > existing_time
+            else:
                 time_type_name = (
                     "relative (timedelta)"
                     if isinstance(sim_time, timedelta)
                     else "absolute (datetime)"
                 )
                 existing_type_name = (
-                    "relative"
-                    if isinstance(self.existing_max_time[geom_type], timedelta)
-                    else "absolute"
+                    "relative" if isinstance(existing_time, timedelta) else "absolute"
                 )
-                raise ValueError(
+                raise TypeError(
                     f"Time type mismatch for {geom_type}: "
                     f"attempting to write {time_type_name} but existing file has {existing_type_name}"
                 )
             # Time must increase
-            if not sim_time > self.existing_max_time[geom_type]:
+            if not time_is_increasing:
                 raise ValueError(
                     f"Time not increasing for {geom_type}: attempting to write {sim_time} but "
-                    f"existing file has a max sim_time value of {self.existing_max_time[geom_type]}"
+                    f"existing file has a max sim_time value of {existing_time}"
                 )
 
     def _update_csv(
@@ -235,7 +233,7 @@ class CSVVectorOutputProvider(VectorOutputProvider):
         updated_csv = existing_csv + new_rows
         obstore.put(self.store, self.file_paths[geom_type], file=updated_csv.encode("utf-8"))
 
-    def _attrs_line(self, drainage_element: DrainageNodeData | DrainageLinkData) -> list[str, ...]:
+    def _attrs_line(self, drainage_element: DrainageNodeData | DrainageLinkData) -> list[str]:
         """Return a list of attributes"""
         # Convert attributes to list
         attributes = [str(a) for a in drainage_element.attributes.model_dump().values()]
