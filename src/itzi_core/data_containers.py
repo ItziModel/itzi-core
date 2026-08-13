@@ -129,8 +129,8 @@ class ContinuityData(BaseModel):
 
     new_domain_vol: float
     volume_change: float
-    volume_error: float
-    continuity_error: float
+    created_volume: float
+    created_volume_ratio: float
 
 
 class SimulationData(BaseModel):
@@ -170,8 +170,10 @@ class MassBalanceData(BaseModel):
     drainage_network_volume: float
     domain_volume: float
     volume_change: float
-    volume_error: float
-    percent_error: float
+    created_volume: float
+    created_volume_ratio: float
+    closure_residual: float
+    relative_closure_error: float
 
 
 class SurfaceFlowParameters(BaseModel):

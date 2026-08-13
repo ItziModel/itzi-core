@@ -14,16 +14,22 @@ GNU Lesser General Public License for more details.
 
 import math
 from collections import namedtuple
-import pytest
+
 import numpy as np
+import pytest
 
 # Skip entire module if optional dependencies are missing
 pytest.importorskip("scipy")
 
+from itzi_core.compute.hydrology import (
+    apply_hydrology,
+    commit_infiltration,
+    infiltration_ga,
+)
 from scipy.special import lambertw
 
-from itzi_core import InfGreenAmpt
-from itzi_core import RasterDomain
+from itzi_core import InfGreenAmpt, RasterDomain
+from itzi_core.hydrology import Hydrology
 
 
 def ga_serrano2001(inf_params):
@@ -112,9 +118,10 @@ def infiltration_sim(infiltration_parameters):
     raster_domain.update_array("hydraulic_conductivity", arr_cond)
     raster_domain.update_array("soil_water_content", arr_water_content)
     inf_sim = InfGreenAmpt(raster_domain=raster_domain, dt_inf=dt)
+    hydrology = Hydrology(raster_domain=raster_domain, dt=dt, infiltration=inf_sim)
     elapsed_time = 0
     while elapsed_time < inf_params.time:
-        inf_sim.step()
+        hydrology.step()
         elapsed_time += inf_sim._dt
     return raster_domain.get_array("total_infiltration").max()
 
@@ -124,3 +131,78 @@ def test_infiltration(reference_infiltration, infiltration_sim):
     percent_error = inf_err / reference_infiltration
     # Accept less than 1% error
     assert percent_error < 0.01
+
+
+@pytest.mark.parametrize(
+    ("water_depth", "expected_applied", "expected_total"),
+    [(0.0, 0.0, 0.1), (0.5, 0.25, 0.35)],
+)
+def test_green_ampt_commits_only_applied_infiltration(
+    water_depth, expected_applied, expected_total
+):
+    dtype = np.float64
+    depth = np.full((1, 1), water_depth, dtype=dtype)
+    total_infiltration = np.full((1, 1), 0.1, dtype=dtype)
+    infiltration = np.zeros((1, 1), dtype=dtype)
+    losses = np.ones((1, 1), dtype=dtype)
+    effective_precipitation = np.zeros((1, 1), dtype=dtype)
+
+    infiltration_ga(
+        depth,
+        np.full((1, 1), 0.4, dtype=dtype),
+        np.full((1, 1), 0.5, dtype=dtype),
+        np.full((1, 1), 0.5, dtype=dtype),
+        total_infiltration,
+        np.full((1, 1), 0.3, dtype=dtype),
+        infiltration,
+        1.0,
+    )
+    candidate_infiltration = float(infiltration[0, 0])
+    apply_hydrology(
+        np.zeros((1, 1), dtype=dtype),
+        infiltration,
+        losses,
+        depth,
+        effective_precipitation,
+        1.0,
+    )
+    commit_infiltration(total_infiltration, infiltration, 1.0)
+
+    assert candidate_infiltration > expected_applied
+    assert infiltration[0, 0] == pytest.approx(expected_applied)
+    assert total_infiltration[0, 0] == pytest.approx(expected_total)
+    assert effective_precipitation[0, 0] == pytest.approx(-water_depth)
+
+
+def test_green_ampt_zero_cumulative_infiltration_applies_finite_available_water():
+    dtype = np.float64
+    depth = np.full((1, 1), 0.5, dtype=dtype)
+    total_infiltration = np.zeros((1, 1), dtype=dtype)
+    infiltration = np.zeros((1, 1), dtype=dtype)
+    losses = np.ones((1, 1), dtype=dtype)
+    effective_precipitation = np.zeros((1, 1), dtype=dtype)
+
+    infiltration_ga(
+        depth,
+        np.full((1, 1), 0.4, dtype=dtype),
+        np.full((1, 1), 0.5, dtype=dtype),
+        np.full((1, 1), 0.5, dtype=dtype),
+        total_infiltration,
+        np.full((1, 1), 0.3, dtype=dtype),
+        infiltration,
+        1.0,
+    )
+    apply_hydrology(
+        np.zeros((1, 1), dtype=dtype),
+        infiltration,
+        losses,
+        depth,
+        effective_precipitation,
+        1.0,
+    )
+    commit_infiltration(total_infiltration, infiltration, 1.0)
+
+    assert infiltration[0, 0] == pytest.approx(0.5)
+    assert losses[0, 0] == 0.0
+    assert total_infiltration[0, 0] == pytest.approx(0.5)
+    assert effective_precipitation[0, 0] == pytest.approx(-0.5)

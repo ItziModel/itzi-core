@@ -13,6 +13,7 @@ GNU Lesser General Public License for more details.
 """
 
 import numpy as np
+import pytest
 
 from itzi_core.compute import rastermetrics
 
@@ -30,6 +31,54 @@ def test_calculate_total_volume():
     # Call the function and assert result
     result = rastermetrics.calculate_total_volume(depth_array, cell_surface_area)
     assert np.isclose(result, expected_volume)
+
+
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+@pytest.mark.parametrize(
+    ("interior_shape", "padded"),
+    [
+        ((999, 1001), False),
+        ((1000, 1000), False),
+        ((1001, 1000), False),
+        ((999, 1001), True),
+        ((1001, 1000), True),
+    ],
+)
+def test_calculate_total_volume_uses_float64_reduction(dtype, interior_shape, padded):
+    """Reductions should stay accurate around the serial/parallel threshold."""
+    if padded:
+        shape = (interior_shape[0] + 2, interior_shape[1] + 2)
+        depths = np.full(shape, 10_000.0, dtype=dtype)
+        reduced_depths = depths[1:-1, 1:-1]
+        reduced_depths.fill(0.01)
+    else:
+        depths = np.full(interior_shape, 0.01, dtype=dtype)
+        reduced_depths = depths
+
+    reduced_depths[0, 0] = 0.123456
+    reduced_depths[interior_shape[0] // 2, interior_shape[1] // 2] = 0.987654
+    reduced_depths[-1, -1] = np.nan
+    cell_surface_area = 1.23456789012345
+    expected = float(np.nansum(reduced_depths, dtype=np.float64)) * cell_surface_area
+
+    result = rastermetrics.calculate_total_volume(depths, cell_surface_area, padded=padded)
+
+    assert result == pytest.approx(expected, rel=1e-10)
+
+
+def test_calculate_total_volume_preserves_cell_area_precision():
+    cell_surface_area = 1.23456789012345
+    depths = np.ones((1, 1), dtype=np.float32)
+
+    result = rastermetrics.calculate_total_volume(depths, cell_surface_area)
+
+    assert result == cell_surface_area
+
+
+def test_calculate_total_volume_all_nan_returns_zero():
+    depths = np.full((3, 4), np.nan, dtype=np.float32)
+
+    assert rastermetrics.calculate_total_volume(depths, 2.0) == 0.0
 
 
 def test_calculate_wse():

@@ -28,14 +28,43 @@ from itzi_core.providers.memory_output import (
     MemoryRasterOutputProvider,
     MemoryVectorOutputProvider,
 )
+from itzi_core.report import calculate_closure
 from itzi_core.simulation_builder import SimulationBuilder
+
+
+def test_calculate_closure_exact_balance():
+    residual, error = calculate_closure(4.0, (10.0, -6.0), 100.0)
+
+    assert residual == 0.0
+    assert error == 0.0
+
+
+def test_calculate_closure_uses_throughput_for_cancelling_terms():
+    volume_terms = (1e9, -1e9 + 1.0)
+    residual, error = calculate_closure(2.0, volume_terms, 100.0)
+
+    assert residual == 1.0
+    assert error == pytest.approx(1.0 / (2e9 - 1.0))
+
+
+def test_calculate_closure_uses_absolute_tolerance_for_negligible_flow():
+    residual, error = calculate_closure(2e-8, (-2e-8,), 100.0)
+    failed_residual, failed_error = calculate_closure(6e-8, (-6e-8,), 100.0)
+    zero_residual, zero_error = calculate_closure(0.0, (), 100.0)
+
+    assert residual == pytest.approx(4e-8)
+    assert error == 0.0
+    assert failed_residual == pytest.approx(1.2e-7)
+    assert np.isnan(failed_error)
+    assert zero_residual == 0.0
+    assert zero_error == 0.0
 
 
 @pytest.fixture(scope="module")
 def sim_5by5_stats(domain_5by5, helpers, tmp_path_factory):
     """Run a 5x5 simulation for 5s with 1s record step.
 
-    Outputs: water_depth, mean_infiltration, mean_rainfall, mean_inflow, mean_losses, volume_error
+    Outputs: water_depth, mean_infiltration, mean_rainfall, mean_inflow, mean_losses, created_volume
     Uses CONSTANT infiltration model with rain, infiltration, losses, and inflow.
     """
     # Create temp directory for stats file
@@ -66,7 +95,7 @@ def sim_5by5_stats(domain_5by5, helpers, tmp_path_factory):
                 "mean_rainfall",
                 "mean_inflow",
                 "mean_losses",
-                "volume_error",
+                "created_volume",
             ],
         ),
         # Use default, same as 5by5_stats.ini
@@ -122,6 +151,7 @@ class TestStatsFile:
 
         expected_cols = list(MassBalanceData.model_fields.keys())
         assert df.columns.to_list() == expected_cols
+        assert expected_cols[-2:] == ["closure_residual", "relative_closure_error"]
 
     def test_stats_volume_values(self, sim_5by5_stats):
         """Volume values should match expected rates x area."""
@@ -166,9 +196,14 @@ class TestStatsFile:
             + df["inflow_volume"]
             + df["losses_volume"]
             + df["drainage_network_volume"]
-            + df["volume_error"]
+            + df["created_volume"]
         )
         assert np.allclose(df["vol_change_ref"], df["volume_change"], atol=1, rtol=0.01)
+        assert np.allclose(
+            df["closure_residual"],
+            df["volume_change"] - df["vol_change_ref"],
+            equal_nan=True,
+        )
 
 
 def _make_timed_forcing_slices(
@@ -348,7 +383,7 @@ def test_timed_input_stats_first_report_row_stays_interval_coherent(
         + first_report_row["inflow_volume"]
         + first_report_row["losses_volume"]
         + first_report_row["drainage_network_volume"]
-        + first_report_row["volume_error"]
+        + first_report_row["created_volume"]
     )
 
     assert np.isclose(first_report_row[volume_column], expected_volume, atol=1e-6, rtol=1e-6)

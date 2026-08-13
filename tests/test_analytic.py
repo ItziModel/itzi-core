@@ -208,18 +208,14 @@ class TestMcdo_norain:
                 assert identify_temporal_string(row["simulation_time"]) == "timedelta"
 
         df_stats = pd.read_csv(stat_file_path, sep=",")
-        # convert percent string to float
-        df_stats["percent_error"] = (
-            df_stats["percent_error"].str.rstrip("%").astype("float") / 100.0
-        )
         # Compute the reference error, preventing NaN
         df_stats["err_ref"] = np.where(
             df_stats["volume_change"] == 0,
             0.0,
-            df_stats["volume_error"] / df_stats["volume_change"],
+            df_stats["created_volume"] / df_stats["volume_change"],
         )
-        # Check if the error percentage computation is correct
-        assert np.allclose(df_stats["percent_error"], df_stats["err_ref"], atol=0.0001)
+        # Check if the created-volume ratio computation is correct
+        assert np.allclose(df_stats["created_volume_ratio"], df_stats["err_ref"], atol=0.0001)
 
         # Check if the volume change is coherent with the rest of the volumes
         df_stats["vol_change_ref"] = (
@@ -229,7 +225,7 @@ class TestMcdo_norain:
             + df_stats["inflow_volume"]
             + df_stats["losses_volume"]
             + df_stats["drainage_network_volume"]
-            + df_stats["volume_error"]
+            + df_stats["created_volume"]
         )
         print(df_stats.to_string())
         assert np.allclose(

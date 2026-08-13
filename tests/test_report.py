@@ -17,12 +17,20 @@ from datetime import UTC, datetime, timedelta
 import numpy as np
 
 from itzi_core.const import TemporalType
-from itzi_core.data_containers import SimulationData
+from itzi_core.data_containers import ContinuityData, SimulationData
 from itzi_core.providers.memory_output import (
     MemoryRasterOutputProvider,
     MemoryVectorOutputProvider,
 )
 from itzi_core.report import Report
+
+
+CONTINUITY_DATA = ContinuityData(
+    new_domain_vol=0.0,
+    volume_change=0.0,
+    created_volume=0.0,
+    created_volume_ratio=0.0,
+)
 
 
 def test_get_output_arrays_returns_a_fresh_selection() -> None:
@@ -42,7 +50,7 @@ def test_get_output_arrays_returns_a_fresh_selection() -> None:
         sim_time=start_time,
         time_step=1.0,
         time_steps_counter=0,
-        continuity_data=None,
+        continuity_data=CONTINUITY_DATA,
         raw_arrays={
             "water_depth": np.array([[1.0]], dtype=np.float32),
             "hmax": np.array([[2.0]], dtype=np.float32),
@@ -78,7 +86,7 @@ def test_maxima_are_selected_independently_of_base_arrays() -> None:
         sim_time=start_time,
         time_step=1.0,
         time_steps_counter=0,
-        continuity_data=None,
+        continuity_data=CONTINUITY_DATA,
         raw_arrays={
             "water_depth": np.array([[1.0]], dtype=np.float32),
             "hmax": np.array([[2.0]], dtype=np.float32),

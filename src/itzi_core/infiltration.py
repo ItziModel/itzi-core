@@ -14,13 +14,21 @@ GNU Lesser General Public License for more details.
 
 from datetime import timedelta
 
-from itzi_core.compute.hydrology import infiltration_user, infiltration_ga
+from itzi_core.compute.hydrology import (
+    commit_infiltration,
+    infiltration_ga,
+    infiltration_user,
+)
 from itzi_core.itzi_error import DtError
 
 
 class InfiltrationModel:
-    """Base class for Infiltration
-    infiltration is calculated in m/s
+    """Base lifecycle for infiltration models.
+
+    ``step()`` writes a candidate rate to ``computed_infiltration``. Hydrology
+    then caps infiltration together with user losses and overwrites that array
+    with the applied rate. ``commit()`` may update model state from the applied
+    rate; stateless models use this default no-op implementation.
     """
 
     def __init__(self, raster_domain, dt_inf):
@@ -31,6 +39,10 @@ class InfiltrationModel:
     def solve_dt(self):
         """time-step is by default equal to the default time-step"""
         self._dt = self.def_dt
+        return self
+
+    def commit(self):
+        """Commit state derived from the applied rate, if the model has any."""
         return self
 
     @property
@@ -50,12 +62,14 @@ class InfiltrationModel:
 
 
 class InfConstantRate(InfiltrationModel):
-    """Calculate infiltration using a constant user-defined infiltration
-    rate given by a raster map or serie of maps.
+    """Use a user-defined raster as the candidate infiltration rate.
+
+    Availability is intentionally not checked here because infiltration and
+    user losses must be capped together without giving either removal priority.
     """
 
     def step(self):
-        """Update infiltration rate map in m/s"""
+        """Copy the user-defined rate into the candidate array."""
         infiltration_user(
             arr_h=self.dom.get_array("water_depth"),
             arr_inf_in=self.dom.get_array("infiltration"),
@@ -66,10 +80,15 @@ class InfConstantRate(InfiltrationModel):
 
 
 class InfGreenAmpt(InfiltrationModel):
-    """Calculate infiltration using Green-Ampt formula"""
+    """Calculate candidate infiltration using the Green-Ampt formula.
+
+    Candidate calculation reads cumulative applied infiltration but does not
+    modify it. Hydrology first applies the combined water-removal cap, then
+    ``commit()`` advances cumulative infiltration using only the accepted rate.
+    """
 
     def step(self):
-        """update infiltration rate map in m/s."""
+        """Calculate the Green-Ampt candidate without advancing model state."""
         infiltration_ga(
             arr_h=self.dom.get_array("water_depth"),
             arr_eff_por=self.dom.get_array("effective_porosity"),
@@ -82,10 +101,19 @@ class InfGreenAmpt(InfiltrationModel):
         )
         return self
 
+    def commit(self):
+        """Integrate the applied rate into cumulative infiltration."""
+        commit_infiltration(
+            arr_inf_amount=self.dom.get_array("total_infiltration"),
+            arr_applied_inf=self.dom.get_array("computed_infiltration"),
+            dt=self._dt,
+        )
+        return self
+
 
 class InfNull(InfiltrationModel):
-    """Dummy class for cases where no infiltration is calculated"""
+    """No-op model used when infiltration is disabled."""
 
     def step(self):
-        """dummy time-step"""
+        """Leave the zero infiltration-rate array unchanged."""
         return self

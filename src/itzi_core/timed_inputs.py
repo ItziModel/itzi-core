@@ -1,15 +1,26 @@
-"""Provider-backed timed input preparation."""
+"""
+Copyright (C) 2026 Laurent G. Courty
+
+This library is free software; you can redistribute it and/or
+modify it under the terms of the GNU Lesser General Public License
+as published by the Free Software Foundation; either version 2.1
+of the License, or (at your option) any later version.
+
+This library is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Lesser General Public License for more details.
+"""
 
 from __future__ import annotations
 
-from datetime import datetime
 import logging
+from datetime import datetime
 
 import numpy as np
 
 from itzi_core.itzi_error import NullError
 from itzi_core.rasterdomain import TimedArray
-
 
 logger = logging.getLogger(__name__)
 
