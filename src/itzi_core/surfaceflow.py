@@ -61,10 +61,18 @@ class SurfaceFlowSimulation:
         """Deprecated."""
         return self
 
-    def step(self):
+    def step(
+        self,
+        *,
+        compute_vdir: bool = True,
+        compute_froude: bool = True,
+    ):
         """Run a full simulation time-step"""
         self.solve_q()
-        self.update_h()
+        self.update_h(
+            compute_vdir=compute_vdir,
+            compute_froude=compute_froude,
+        )
         # in case of NaN/NULL cells, raise a NullError
         self.arr_err = np.isnan(self.dom.get_array("water_depth"))
         if np.any(self.arr_err):
@@ -112,7 +120,12 @@ class SurfaceFlowSimulation:
         else:
             self._dt = newdt_s
 
-    def update_h(self):
+    def update_h(
+        self,
+        *,
+        compute_vdir: bool = True,
+        compute_froude: bool = True,
+    ):
         """Calculate new water depth, average velocity and Froude number"""
         solve_h(
             arr_ext=self.dom.get_padded("ext"),
@@ -134,6 +147,8 @@ class SurfaceFlowSimulation:
             dy=self.dy,
             dt=self._dt,
             g=self.g,
+            compute_vdir=compute_vdir,
+            compute_froude=compute_froude,
         )
         assert not np.any(self.dom.get_array("water_depth") < 0)
         return self

@@ -33,6 +33,85 @@ if TYPE_CHECKING:
     from itzi_core.simulation import Simulation
 
 
+def _build_diagnostic_simulation(
+    domain_5by5,
+    helpers,
+    output_keys: list[str],
+    *,
+    end_seconds: float,
+    record_seconds: float,
+    dtmax: float,
+    initial_depth: np.ndarray | None = None,
+) -> Simulation:
+    start_time = datetime(2000, 1, 1)
+    sim_config = SimulationConfig(
+        start_time=start_time,
+        end_time=start_time + timedelta(seconds=end_seconds),
+        record_step=timedelta(seconds=record_seconds),
+        temporal_type=TemporalType.RELATIVE,
+        input_map_names=helpers.make_input_map_names(
+            dem="z",
+            friction="n",
+            water_depth="start_h",
+        ),
+        output_map_names=helpers.make_output_map_names("diagnostics", output_keys),
+        surface_flow_parameters=SurfaceFlowParameters(hmin=0.0001, dtmax=dtmax, cfl=0.2),
+        infiltration_model=InfiltrationModelType.NULL,
+    )
+    raster_output = MemoryRasterOutputProvider(sim_config.output_map_names)
+    simulation = (
+        SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
+        .with_domain_data(domain_5by5.domain_data)
+        .with_raster_output_provider(raster_output)
+        .with_vector_output_provider(MemoryVectorOutputProvider())
+        .build()
+    )
+    simulation.set_array("dem", domain_5by5.arr_dem_flat.copy())
+    simulation.set_array("friction", domain_5by5.arr_n.copy())
+    simulation.set_array(
+        "water_depth",
+        np.zeros_like(domain_5by5.arr_start_h) if initial_depth is None else initial_depth.copy(),
+    )
+    return simulation
+
+
+def _run_diagnostic_regression(domain_5by5, helpers, *, force_all: bool):
+    simulation = _build_diagnostic_simulation(
+        domain_5by5,
+        helpers,
+        ["water_depth", "v", "vmax", "vdir", "froude"],
+        end_seconds=1.0,
+        record_seconds=0.4,
+        dtmax=0.3,
+        initial_depth=domain_5by5.arr_start_h,
+    )
+    if force_all:
+        scheduled_step = simulation.surface_flow.step
+
+        def always_compute_step(*, compute_vdir: bool, compute_froude: bool):
+            return scheduled_step(compute_vdir=True, compute_froude=True)
+
+        simulation.surface_flow.step = always_compute_step
+
+    simulation.initialize()
+    while simulation.sim_time < simulation.end_time:
+        simulation.update()
+
+    output_maps = simulation.report.raster_provider.output_maps_dict
+    result = {
+        "outputs": {
+            key: [(time, array.copy()) for time, array in output_maps[key]]
+            for key in ("vdir", "froude")
+        },
+        "water_depth": simulation.get_array("water_depth").copy(),
+        "v": simulation.get_array("v").copy(),
+        "vmax": simulation.get_array("vmax").copy(),
+        "steps": simulation.time_steps_counters["since_start"],
+    }
+    simulation.finalize()
+    return result
+
+
 def _run_center_pulse_simulation(
     domain_5by5,
     helpers,
@@ -93,6 +172,100 @@ def _run_center_pulse_simulation(
     final_depth = simulation.get_array("water_depth").copy()
     simulation.finalize()
     return final_depth
+
+
+@pytest.mark.parametrize(
+    ("diagnostic_keys", "report_flags"),
+    [
+        ([], (False, False)),
+        (["vdir"], (True, False)),
+        (["froude"], (False, True)),
+        (["vdir", "froude"], (True, True)),
+    ],
+    ids=["neither", "vdir", "froude", "both"],
+)
+def test_scheduler_computes_only_requested_report_diagnostics(
+    domain_5by5,
+    helpers,
+    diagnostic_keys: list[str],
+    report_flags: tuple[bool, bool],
+):
+    """Non-report steps retain diagnostics, including before an off-cadence final report."""
+    simulation = _build_diagnostic_simulation(
+        domain_5by5,
+        helpers,
+        ["water_depth", *diagnostic_keys],
+        end_seconds=10.0,
+        record_seconds=4.0,
+        dtmax=3.0,
+    )
+    scheduled_step = simulation.surface_flow.step
+    calls = []
+
+    def tracked_step(*, compute_vdir: bool, compute_froude: bool):
+        step_end = simulation.sim_time + simulation.dt
+        vdir_before = simulation.get_array("vdir").copy()
+        froude_before = simulation.get_array("froude").copy()
+        result = scheduled_step(
+            compute_vdir=compute_vdir,
+            compute_froude=compute_froude,
+        )
+        if not compute_vdir:
+            np.testing.assert_array_equal(simulation.get_array("vdir"), vdir_before)
+        if not compute_froude:
+            np.testing.assert_array_equal(simulation.get_array("froude"), froude_before)
+        calls.append(
+            (
+                step_end - simulation.start_time,
+                (compute_vdir, compute_froude),
+            )
+        )
+        return result
+
+    simulation.surface_flow.step = tracked_step
+    simulation.initialize()
+    simulation.get_array("vdir").fill(-123.0)
+    simulation.get_array("froude").fill(-456.0)
+    while simulation.sim_time < simulation.end_time:
+        simulation.update()
+    simulation.finalize()
+
+    assert calls == [
+        (timedelta(seconds=3), (False, False)),
+        (timedelta(seconds=4), report_flags),
+        (timedelta(seconds=7), (False, False)),
+        (timedelta(seconds=8), report_flags),
+        (timedelta(seconds=10), report_flags),
+    ]
+
+    output_maps = simulation.report.raster_provider.output_maps_dict
+    expected_report_times = [
+        timedelta(seconds=0),
+        timedelta(seconds=4),
+        timedelta(seconds=8),
+        timedelta(seconds=10),
+    ]
+    assert [time for time, _ in output_maps["water_depth"]] == expected_report_times
+    for key in ("vdir", "froude"):
+        expected_times = expected_report_times if key in diagnostic_keys else []
+        assert [time for time, _ in output_maps[key]] == expected_times
+
+
+def test_lazy_diagnostic_reports_match_always_compute_reference(domain_5by5, helpers):
+    optimized = _run_diagnostic_regression(domain_5by5, helpers, force_all=False)
+    reference = _run_diagnostic_regression(domain_5by5, helpers, force_all=True)
+
+    assert optimized["steps"] == reference["steps"]
+    for key in ("water_depth", "v", "vmax"):
+        np.testing.assert_allclose(optimized[key], reference[key], rtol=1e-6, atol=1e-7)
+    for key in ("vdir", "froude"):
+        optimized_outputs = optimized["outputs"][key]
+        reference_outputs = reference["outputs"][key]
+        assert [time for time, _ in optimized_outputs] == [time for time, _ in reference_outputs]
+        for (_, optimized_array), (_, reference_array) in zip(
+            optimized_outputs, reference_outputs, strict=True
+        ):
+            np.testing.assert_allclose(optimized_array, reference_array, rtol=1e-6, atol=1e-7)
 
 
 @pytest.fixture(scope="module")

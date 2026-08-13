@@ -16,12 +16,12 @@ import math
 
 import numpy as np
 import pytest
-
 from itzi_core.compute.partial_inertia_h import (
-    set_solve_h_tile_size,
     get_solve_h_tile_size,
+    set_solve_h_tile_size,
     solve_h,
 )
+
 from itzi_core.data_containers import SurfaceFlowParameters
 
 NUM_CELLS_TO_SHAPE: dict[int, tuple[int, int]] = {
@@ -39,6 +39,12 @@ UPDATE_H_TILE_SIZES: list[tuple[int, int]] = [
     (128, 128),
     (256, 64),
 ]
+DIAGNOSTIC_MODES: dict[str, tuple[bool, bool]] = {
+    "all": (True, True),
+    "none": (False, False),
+    "vdir": (True, False),
+    "froude": (False, True),
+}
 
 
 def full_padded_array(shape: tuple[int, int], fill_value: np.float32) -> np.ndarray:
@@ -108,16 +114,30 @@ def setup_update_h_args(num_cells: int) -> tuple:
     UPDATE_H_TILE_SIZES,
     ids=[f"tile_{tile_rows}x{tile_cols}" for tile_rows, tile_cols in UPDATE_H_TILE_SIZES],
 )
-def test_benchmark_update_h(benchmark, num_cells: int, tile_rows: int, tile_cols: int) -> None:
+@pytest.mark.parametrize("diagnostic_mode", DIAGNOSTIC_MODES)
+def test_benchmark_update_h(
+    benchmark,
+    num_cells: int,
+    tile_rows: int,
+    tile_cols: int,
+    diagnostic_mode: str,
+) -> None:
     solve_h_args = setup_update_h_args(num_cells)
+    compute_vdir, compute_froude = DIAGNOSTIC_MODES[diagnostic_mode]
     previous_tile_rows, previous_tile_cols = get_solve_h_tile_size()
 
     set_solve_h_tile_size(tile_rows, tile_cols)
     try:
-        benchmark(solve_h, *solve_h_args)
+        benchmark(
+            solve_h,
+            *solve_h_args,
+            compute_vdir=compute_vdir,
+            compute_froude=compute_froude,
+        )
     finally:
         set_solve_h_tile_size(previous_tile_rows, previous_tile_cols)
 
     benchmark.extra_info["lattice_updates"] = num_cells
     benchmark.extra_info["tile_rows"] = tile_rows
     benchmark.extra_info["tile_cols"] = tile_cols
+    benchmark.extra_info["diagnostic_mode"] = diagnostic_mode
