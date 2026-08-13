@@ -74,7 +74,7 @@ def create_sim_config(
         ),
         output_map_names=helpers.make_output_map_names(
             "out_hotstart",
-            ["water_depth", "qx", "qy", "volume_error"],
+            ["water_depth", "qx", "qy", "created_volume"],
         ),
         surface_flow_parameters=SurfaceFlowParameters(hmin=0.0001, dtmax=0.3, cfl=0.2),
         infiltration_model=InfiltrationModelType.GREEN_AMPT,
@@ -396,7 +396,7 @@ def test_resume_allows_output_map_name_change(
 
     resumed_output_map_names = helpers.make_output_map_names(
         "out_resume",
-        ["water_depth", "hmax", "qx", "qy", "volume_error"],
+        ["water_depth", "hmax", "qx", "qy", "created_volume"],
     )
     sim_b_config = sim_a_config.model_copy(update={"output_map_names": resumed_output_map_names})
     resumed_output = MemoryRasterOutputProvider(resumed_output_map_names)

@@ -255,18 +255,18 @@ def test_rain_only_simulation_closes_mass_balance(dtype, initial_depth, timestep
     assert report.volume_change == pytest.approx(report.rainfall_volume, rel=1e-9)
 
 
-def test_closure_error_detects_rainfall_residual_without_changing_percent_error():
+def test_relative_closure_error_detects_unreported_rainfall_residual():
     """The reported error should expose a rainfall-versus-volume discrepancy."""
     report = _run_rain_only_simulation(np.float32, timestep=1.0)
     residual = report.volume_change - report.rainfall_volume
     normalizer = max(abs(report.volume_change), abs(report.rainfall_volume))
     expected_error = abs(residual) / normalizer
 
-    assert report.volume_error == 0.0
-    assert report.percent_error == 0.0
+    assert report.created_volume == 0.0
+    assert report.created_volume_ratio == 0.0
     assert report.closure_residual == pytest.approx(residual)
     assert report.closure_residual != 0.0
-    assert report.closure_error == pytest.approx(expected_error)
+    assert report.relative_closure_error == pytest.approx(expected_error)
 
 
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
@@ -327,7 +327,7 @@ def test_combined_removal_reports_and_maps_use_applied_rates(infiltration_model)
     assert report.losses_volume == pytest.approx(-0.125)
     assert report.volume_change == pytest.approx(-0.5)
     assert report.closure_residual == pytest.approx(0.0, abs=1e-6)
-    assert report.closure_error < 0.001
+    assert report.relative_closure_error < 0.001
     assert output_maps["mean_infiltration"][-1][1][0, 0] == pytest.approx(1350.0)
     assert output_maps["mean_losses"][-1][1][0, 0] == pytest.approx(450.0)
     if infiltration_model == InfiltrationModelType.GREEN_AMPT:

@@ -64,7 +64,7 @@ def test_calculate_closure_uses_absolute_tolerance_for_negligible_flow():
 def sim_5by5_stats(domain_5by5, helpers, tmp_path_factory):
     """Run a 5x5 simulation for 5s with 1s record step.
 
-    Outputs: water_depth, mean_infiltration, mean_rainfall, mean_inflow, mean_losses, volume_error
+    Outputs: water_depth, mean_infiltration, mean_rainfall, mean_inflow, mean_losses, created_volume
     Uses CONSTANT infiltration model with rain, infiltration, losses, and inflow.
     """
     # Create temp directory for stats file
@@ -95,7 +95,7 @@ def sim_5by5_stats(domain_5by5, helpers, tmp_path_factory):
                 "mean_rainfall",
                 "mean_inflow",
                 "mean_losses",
-                "volume_error",
+                "created_volume",
             ],
         ),
         # Use default, same as 5by5_stats.ini
@@ -151,7 +151,7 @@ class TestStatsFile:
 
         expected_cols = list(MassBalanceData.model_fields.keys())
         assert df.columns.to_list() == expected_cols
-        assert expected_cols[-2:] == ["closure_residual", "closure_error"]
+        assert expected_cols[-2:] == ["closure_residual", "relative_closure_error"]
 
     def test_stats_volume_values(self, sim_5by5_stats):
         """Volume values should match expected rates x area."""
@@ -196,7 +196,7 @@ class TestStatsFile:
             + df["inflow_volume"]
             + df["losses_volume"]
             + df["drainage_network_volume"]
-            + df["volume_error"]
+            + df["created_volume"]
         )
         assert np.allclose(df["vol_change_ref"], df["volume_change"], atol=1, rtol=0.01)
         assert np.allclose(
@@ -383,7 +383,7 @@ def test_timed_input_stats_first_report_row_stays_interval_coherent(
         + first_report_row["inflow_volume"]
         + first_report_row["losses_volume"]
         + first_report_row["drainage_network_volume"]
-        + first_report_row["volume_error"]
+        + first_report_row["created_volume"]
     )
 
     assert np.isclose(first_report_row[volume_column], expected_volume, atol=1e-6, rtol=1e-6)

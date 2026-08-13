@@ -145,7 +145,7 @@ class Simulation:
         self._update_maximum("water_depth", "hmax")
         self._update_maximum("v", "vmax")
 
-        for arr_key in self.accum_mapping.keys():
+        for arr_key in self.accum_mapping:
             self._update_accum_array(arr_key, self.sim_time)
         self.continuity_data = self.get_continuity_data()
         # Pass data to the reporting module
@@ -236,13 +236,15 @@ class Simulation:
                 self.schedule.advance_event("record", self.report.dt)
             steps_since_report = 0
 
-        if is_error_comp_due:
-            if self.continuity_data.continuity_error >= self.mass_balance_error_threshold:
-                raise MassBalanceError(
-                    f"{step_end}: "
-                    f"Mass balance error {self.continuity_data.continuity_error:.2f} "
-                    f"exceeds threshold {self.mass_balance_error_threshold:.2f}."
-                )
+        error_threshold_exceeded = (
+            self.continuity_data.created_volume_ratio > self.mass_balance_error_threshold
+        )
+        if is_error_comp_due and error_threshold_exceeded:
+            raise MassBalanceError(
+                f"{step_end}: "
+                f"Created volume ratio {self.continuity_data.created_volume_ratio:.2f} "
+                f"exceeds threshold {self.mass_balance_error_threshold:.2f}."
+            )
 
         # Reset time and counters for next time-step
         self.schedule.commit_step(step_end)
@@ -284,6 +286,7 @@ class Simulation:
 
     def _apply_drainage_coupling(self) -> None:
         """Update the drainage exchange array from the current time label state."""
+        assert self.drainage_model is not None
         surface_states = {}
         cell_area = self.raster_domain.cell_area
         arr_z = self.raster_domain.get_array("dem")
@@ -350,7 +353,7 @@ class Simulation:
         return self.raster_domain.get_array(arr_id)
 
     def get_continuity_data(self) -> ContinuityData:
-        """ """
+        """Estimate numerical continuity error."""
         relative_volume_threshold = 1e-5
         cell_area = self.raster_domain.cell_area
         new_domain_vol = rastermetrics.calculate_total_volume(
@@ -359,7 +362,7 @@ class Simulation:
             padded=True,
         )
         volume_change = new_domain_vol - self.old_domain_volume
-        volume_error = rastermetrics.calculate_total_volume(
+        created_volume = rastermetrics.calculate_total_volume(
             depth_array=self.raster_domain.get_padded("error_depth_accum"),
             cell_surface_area=cell_area,
             padded=True,
@@ -370,19 +373,19 @@ class Simulation:
         else:
             relative_volume_change = 0
 
-        if volume_error == 0:
-            continuity_error = 0.0
+        if created_volume == 0:
+            created_volume_ratio = 0.0
         # Prevent returning artificially high error close to steady state
         elif abs(relative_volume_change) < relative_volume_threshold or volume_change == 0:
-            continuity_error = float("nan")
+            created_volume_ratio = float("nan")
         else:
-            continuity_error = volume_error / volume_change
+            created_volume_ratio = created_volume / volume_change
 
         return ContinuityData(
             new_domain_vol=new_domain_vol,
             volume_change=volume_change,
-            volume_error=volume_error,
-            continuity_error=continuity_error,
+            created_volume=created_volume,
+            created_volume_ratio=created_volume_ratio,
         )
 
     def _update_accum_array(self, k: str, sim_time: datetime) -> None:

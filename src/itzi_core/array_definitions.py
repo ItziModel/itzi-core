@@ -488,8 +488,8 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         var_loc="edge",
     ),
     ArrayDefinition(
-        key="volume_error",
-        csdms_name="land_surface_water__time_integral_of_error_volume",
+        key="created_volume",
+        csdms_name="land_surface_water__time_integral_of_created_volume",
         cf_name="",
         category=[ArrayCategory.OUTPUT],
         description="Cumulative volume of water created due to numerical instabilities.",

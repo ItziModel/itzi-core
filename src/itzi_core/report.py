@@ -49,10 +49,12 @@ def calculate_closure(
     absolute_tolerance = max(1e-12, active_domain_area * 1e-9)
 
     if normalizer <= absolute_tolerance:
-        closure_error = 0.0 if abs(closure_residual) < absolute_tolerance else float("nan")
+        relative_closure_error = (
+            0.0 if abs(closure_residual) < absolute_tolerance else float("nan")
+        )
     else:
-        closure_error = abs(closure_residual) / normalizer
-    return closure_residual, closure_error
+        relative_closure_error = abs(closure_residual) / normalizer
+    return closure_residual, relative_closure_error
 
 
 class Report:
@@ -137,7 +139,7 @@ class Report:
                 output_arrays[arr_key] = rastermetrics.calculate_flux(raw["qe_new"], cell_dy)
             elif arr_key == "qy":
                 output_arrays[arr_key] = rastermetrics.calculate_flux(raw["qs_new"], cell_dx)
-            elif arr_key == "volume_error":  # Volume error
+            elif arr_key == "created_volume":
                 output_arrays[arr_key] = accum_arrays["error_depth_accum"] * cell_area
 
         # --- Averaged accumulation arrays ---
@@ -192,10 +194,10 @@ class Report:
             inflow_vol,
             -losses_vol,
             drain_net_vol,
-            continuity_data.volume_error,
+            continuity_data.created_volume,
         )
         active_cells = np.count_nonzero(np.isfinite(data.raw_arrays["water_depth"]))
-        closure_residual, closure_error = calculate_closure(
+        closure_residual, relative_closure_error = calculate_closure(
             continuity_data.volume_change,
             signed_volume_terms,
             active_cells * cell_area,
@@ -219,10 +221,10 @@ class Report:
             drainage_network_volume=drain_net_vol,
             domain_volume=continuity_data.new_domain_vol,
             volume_change=continuity_data.volume_change,
-            volume_error=continuity_data.volume_error,
-            percent_error=continuity_data.continuity_error,
+            created_volume=continuity_data.created_volume,
+            created_volume_ratio=continuity_data.created_volume_ratio,
             closure_residual=closure_residual,
-            closure_error=closure_error,
+            relative_closure_error=relative_closure_error,
         )
         provider = self.mass_balance_output_provider
         assert provider is not None

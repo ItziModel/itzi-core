@@ -99,7 +99,7 @@ def _run_center_pulse_simulation(
 def sim_5by5(domain_5by5, helpers) -> Simulation:
     """Run a 5x5 simulation for 60s with 30s record step.
 
-    Outputs: water_depth, water_surface_elevation, froude, v, vdir, qx, qy, volume_error
+    Outputs: water_depth, water_surface_elevation, froude, v, vdir, qx, qy, created_volume
     """
     # Build SimulationConfig
     sim_config = SimulationConfig(
@@ -122,7 +122,7 @@ def sim_5by5(domain_5by5, helpers) -> Simulation:
                 "vdir",
                 "qx",
                 "qy",
-                "volume_error",
+                "created_volume",
             ],
         ),
         # Same values as original 5by5.ini
@@ -197,10 +197,10 @@ class TestNumberOfOutput:
         output_dict = sim_5by5.report.raster_provider.output_maps_dict
         assert len(output_dict["qy"]) == 3
 
-    def test_volume_error_count(self, sim_5by5):
-        """volume_error should have 3 outputs."""
+    def test_created_volume_count(self, sim_5by5):
+        """created_volume should have 3 outputs."""
         output_dict = sim_5by5.report.raster_provider.output_maps_dict
-        assert len(output_dict["volume_error"]) == 3
+        assert len(output_dict["created_volume"]) == 3
 
 
 class TestFlowSymmetry:

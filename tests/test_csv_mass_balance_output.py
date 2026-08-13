@@ -60,10 +60,10 @@ def test_log_absolute_time(provider_fixture):
         drainage_network_volume=12.34567,
         domain_volume=12.34567,
         volume_change=12.34567,
-        volume_error=12.34567,
-        percent_error=0.123456,
+        created_volume=12.34567,
+        created_volume_ratio=0.123456,
         closure_residual=1.234567890123456e-10,
-        closure_error=9.876543210987654e-12,
+        relative_closure_error=9.876543210987654e-12,
     )
 
     provider.log(test_data)
@@ -76,6 +76,6 @@ def test_log_absolute_time(provider_fixture):
     assert float(row["boundary_volume"]) == test_data.boundary_volume
     assert float(row["rainfall_volume"]) == test_data.rainfall_volume
     assert row["timesteps"] == "34"
-    assert row["percent_error"] == "12.35%"
+    assert float(row["created_volume_ratio"]) == test_data.created_volume_ratio
     assert float(row["closure_residual"]) == test_data.closure_residual
-    assert float(row["closure_error"]) == test_data.closure_error
+    assert float(row["relative_closure_error"]) == test_data.relative_closure_error

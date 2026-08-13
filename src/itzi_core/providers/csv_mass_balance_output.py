@@ -52,8 +52,6 @@ class CSVMassBalanceOutputProvider(MassBalanceOutputProvider):
         for key, value in report_data.model_dump().items():
             if value != value:  # noqa: PLR0124  # test for NaN
                 line_to_write[key] = "-"
-            elif "percent_error" == key:
-                line_to_write[key] = f"{value:.2%}"
             elif isinstance(value, numbers.Real) and not isinstance(value, int):
                 line_to_write[key] = f"{value:.17g}"
             else:

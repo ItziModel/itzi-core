@@ -89,15 +89,12 @@ def test_ea8b_scenario(
     stat_file_path = Path(ea8b_temp_path) / "ea8b.csv"
     if stat_file_path.exists():
         df_stats = pd.read_csv(stat_file_path, sep=",")
-        df_stats["percent_error"] = (
-            df_stats["percent_error"].str.rstrip("%").astype("float") / 100.0
-        )
         df_stats["err_ref"] = np.where(
             df_stats["volume_change"] == 0,
             0.0,
-            df_stats["volume_error"] / df_stats["volume_change"],
+            df_stats["created_volume"] / df_stats["volume_change"],
         )
-        assert np.allclose(df_stats["percent_error"], df_stats["err_ref"], atol=0.0005)
+        assert np.allclose(df_stats["created_volume_ratio"], df_stats["err_ref"], atol=0.0005)
 
         df_stats["vol_change_ref"] = (
             df_stats["boundary_volume"]
@@ -106,7 +103,7 @@ def test_ea8b_scenario(
             + df_stats["inflow_volume"]
             + df_stats["losses_volume"]
             + df_stats["drainage_network_volume"]
-            + df_stats["volume_error"]
+            + df_stats["created_volume"]
         )
         assert np.allclose(
             df_stats["vol_change_ref"], df_stats["volume_change"], atol=1, rtol=0.01

@@ -32,7 +32,7 @@ from itzi_core.simulation_builder import SimulationBuilder
 def sim_5by5_open_boundaries(domain_5by5, helpers):
     """Run a 5x5 simulation for 600s with 60s record step and open boundaries.
 
-    Outputs: water_depth, volume_error, mean_boundary_flow
+    Outputs: water_depth, created_volume, mean_boundary_flow
     Boundary condition type 2 (open) is set at all 16 edge cells.
     """
     # Build SimulationConfig
@@ -49,7 +49,7 @@ def sim_5by5_open_boundaries(domain_5by5, helpers):
         ),
         output_map_names=helpers.make_output_map_names(
             "out_5by5_open_boundaries",
-            ["water_depth", "volume_error", "mean_boundary_flow"],
+            ["water_depth", "created_volume", "mean_boundary_flow"],
         ),
         # Use dtmax=2 as specified in 5by5_open_boundaries.ini
         surface_flow_parameters=SurfaceFlowParameters(dtmax=2.0),
