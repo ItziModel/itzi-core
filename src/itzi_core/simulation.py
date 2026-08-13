@@ -13,40 +13,46 @@ GNU Lesser General Public License for more details.
 """
 
 from __future__ import annotations
-from datetime import datetime, timedelta
-from collections.abc import Mapping
-from typing import Self, TYPE_CHECKING
+
 import copy
 import io
 import logging
+from collections.abc import Mapping
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING, Self
 
 import numpy as np
 
-from itzi_core.data_containers import ContinuityData, SimulationData
-from itzi_core.data_containers import SimulationConfig, DrainageNodeCouplingData
-from itzi_core.data_containers import HotstartSimulationState
-from itzi_core.hotstart import HotstartWriter
-from itzi_core.itzi_error import NullError, MassBalanceError, DtError
-from itzi_core.compute import rastermetrics
 from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi_core.compute import rastermetrics
+from itzi_core.data_containers import (
+    ContinuityData,
+    DrainageNodeCouplingData,
+    HotstartSimulationState,
+    SimulationConfig,
+    SimulationData,
+)
+from itzi_core.hotstart import HotstartWriter
+from itzi_core.itzi_error import DtError, MassBalanceError, NullError
 from itzi_core.simulation_schedule import SimulationSchedule
 from itzi_core.timed_inputs import TimedInputManager
 
 if TYPE_CHECKING:
-    from itzi_core.data_containers import SimulationConfig, DrainageNodeCouplingData
+    from itzi_core.data_containers import DrainageNodeCouplingData, SimulationConfig
     from itzi_core.drainage import DrainageSimulation
     from itzi_core.hydrology import Hydrology
-    from itzi_core.surfaceflow import SurfaceFlowSimulation
+    from itzi_core.providers.domain_data import DomainData
     from itzi_core.rasterdomain import RasterDomain, TimedArray
     from itzi_core.report import Report
-    from itzi_core.providers.domain_data import DomainData
+    from itzi_core.surfaceflow import SurfaceFlowSimulation
 
 
 logger = logging.getLogger(__name__)
 
 
 class Simulation:
-    """ """
+    """Main interface to manage a simulation advance, time-stepping,
+    models orchestration and output generation."""
 
     def __init__(
         self,
@@ -73,7 +79,12 @@ class Simulation:
         self.report = report
 
         # Mass balance error checking
-        self.continuity_data: ContinuityData | None = None
+        self.old_domain_volume = rastermetrics.calculate_total_volume(
+            depth_array=self.raster_domain.get_padded("water_depth"),
+            cell_surface_area=self.raster_domain.cell_area,
+            padded=True,
+        )
+        self.continuity_data: ContinuityData = self.get_continuity_data()
         self.mass_balance_error_threshold = sim_config.surface_flow_parameters.max_error
         # A mapping between source array and the corresponding accumulation array
         self.accum_mapping: dict[str, str] = {
@@ -81,20 +92,21 @@ class Simulation:
             for arr_def in ARRAY_DEFINITIONS
             if arr_def.computes_from is not None and ArrayCategory.ACCUMULATION in arr_def.category
         }
-        self.accum_update_time: dict[str, datetime] = {
+        self.accum_update_time: dict[str, datetime | None] = {
             accum: None for source, accum in self.accum_mapping.items()
         }
         if self.drainage_model:
+            assert self.drainage_nodes_list is not None
             self.node_id_to_loc: dict[str, tuple[int, int]] = {
                 n.node_id: (n.row, n.col)
                 for n in self.drainage_nodes_list
-                if n.node_object.is_coupled()
+                if n.node_object.is_coupled() and n.row is not None and n.col is not None
             }
 
         if self.sim_config.hotstart_config:
             self.hotstart_step: timedelta = self.sim_config.hotstart_config.wallclock_step
-            self.hotstart_filename: str = self.sim_config.hotstart_config.save_file_name
-            self.last_hotstart: datetime = datetime.now()
+            self.hotstart_filename = self.sim_config.hotstart_config.save_file_name
+            self.last_hotstart: datetime = datetime.now(tz=UTC)
 
         # Grid spacing (for BMI)
         self.spacing = (self.raster_domain.dy, self.raster_domain.dx)
@@ -203,7 +215,7 @@ class Simulation:
             self.schedule.set_deadline("input", next_input)
 
         # Update accumulation arrays
-        for arr_key in self.accum_mapping.keys():
+        for arr_key in self.accum_mapping:
             self._update_accum_array(arr_key, step_end)
 
         # Compute continuity error every x time steps
@@ -253,7 +265,7 @@ class Simulation:
 
         # Save hotstart
         if self.sim_config.hotstart_config:
-            wall_time_now: datetime = datetime.now()
+            wall_time_now: datetime = datetime.now(UTC)
             elapsed: timedelta = wall_time_now - self.last_hotstart
             if elapsed >= self.hotstart_step:
                 hotstart_bytes: io.BytesIO = self.create_hotstart()
@@ -398,9 +410,11 @@ class Simulation:
         over active cells and multiplies it by cell area to obtain volume.
         """
         ak = self.accum_mapping[k]
-        if self.accum_update_time[ak] is None:
+        last_update = self.accum_update_time[ak]
+        if last_update is None:
             self.accum_update_time[ak] = sim_time
-        time_diff = (sim_time - self.accum_update_time[ak]).total_seconds()
+            return
+        time_diff = (sim_time - last_update).total_seconds()
         if time_diff > 0:
             rate_array = self.raster_domain.get_padded(k)
             accum_array = self.raster_domain.get_padded(ak)
@@ -427,6 +441,9 @@ class Simulation:
                 "Cannot create hotstart: simulation has not been initialized. "
                 "Call initialize() before creating a hotstart."
             )
+        accum_update_time = {
+            key: value for key, value in self.accum_update_time.items() if value is not None
+        }
 
         # Get SWMM hotstart bytes if drainage is enabled
         swmm_hotstart_bytes: bytes | None = None
@@ -445,7 +462,7 @@ class Simulation:
             dt=self.dt.total_seconds(),
             next_ts=self.schedule.snapshot_deadlines(),
             time_steps_counters=self.time_steps_counters,
-            accum_update_time=self.accum_update_time,
+            accum_update_time=accum_update_time,
             old_domain_volume=self.old_domain_volume,
             swmm_elapsed_time=swmm_elapsed_time,
         )
@@ -525,6 +542,7 @@ class Simulation:
 
         # Restore old domain volume for continuity tracking
         self.old_domain_volume = simulation_state.old_domain_volume
+        self.continuity_data = self.get_continuity_data()
 
         return self
 
