@@ -16,34 +16,14 @@ GNU Lesser General Public License for more details.
 class NullError(RuntimeError):
     """Raised when null values is detected in simulation"""
 
-    pass
-
 
 class DtError(RuntimeError):
     """Error related to time-step calculation"""
-
-    def __init__(self, msg):
-        self.msg = msg
-
-    def __str__(self):
-        return repr(self.msg)
 
 
 class MassBalanceError(RuntimeError):
     """Raised when mass balance error exceeds threshold"""
 
-    def __init__(self, msg: str):
-        self.msg = msg
-
-    def __str__(self):
-        return repr(self.msg)
-
 
 class HotstartError(RuntimeError):
     """Raised when hotstart file operations fail."""
-
-    def __init__(self, msg):
-        self.msg = msg
-
-    def __str__(self):
-        return repr(self.msg)
