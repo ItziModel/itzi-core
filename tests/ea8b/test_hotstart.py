@@ -29,8 +29,6 @@ import zipfile
 from datetime import timedelta
 
 import numpy as np
-import obstore
-import pandas as pd
 import pytest
 
 from itzi_core.const import TemporalType
@@ -40,7 +38,7 @@ from tests.ea8b.helpers import (
     EA8B_FINAL_ARRAY_ATOL,
     assert_matches_reference,
     build_resumed_simulation,
-    drainage_results_to_coupling_series,
+    drainage_data_to_coupling_series,
     get_reference_metrics,
 )
 
@@ -96,7 +94,7 @@ def test_ea8b_hotstart_roundtrip(
     with open(hotstart_split_path, "rb") as f:
         hotstart_bytes = f.read()
 
-    simulation, obj_store = build_resumed_simulation(sim_config, ea8b_data, hotstart_bytes)
+    simulation, vector_output = build_resumed_simulation(sim_config, ea8b_data, hotstart_bytes)
 
     assert simulation.sim_time == split_time
 
@@ -116,9 +114,7 @@ def test_ea8b_hotstart_roundtrip(
         simulation.update()
     simulation.finalize()
 
-    nodes_csv_bytes = bytes(obstore.get(obj_store, "out_drainage_nodes.csv").bytes())
-    df_resumed = pd.read_csv(io.StringIO(nodes_csv_bytes.decode("utf-8")))
-    resumed_results = drainage_results_to_coupling_series(df_resumed)
+    resumed_results = drainage_data_to_coupling_series(vector_output.drainage_data)
     resumed_metrics = get_reference_metrics(resumed_results, ea8b_reference, helpers)
 
     assert_matches_reference(resumed_metrics, label="Resumed hotstart run")

@@ -12,15 +12,16 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
-import icechunk
-import numpy as np
-import obstore
-import pandas as pd
-import pyproj
+from datetime import datetime, timedelta
 
-from itzi_core.data_containers import SimulationConfig
-from itzi_core.providers.csv_output import CSVVectorOutputConfig, CSVVectorOutputProvider
-from itzi_core.providers.icechunk_output import IcechunkRasterOutputProvider
+import numpy as np
+import pandas as pd
+
+from itzi_core.data_containers import DrainageNetworkData, SimulationConfig
+from itzi_core.providers.memory_output import (
+    MemoryRasterOutputProvider,
+    MemoryVectorOutputProvider,
+)
 from itzi_core.providers.xarray_input import XarrayRasterInputProvider
 from itzi_core.simulation_builder import SimulationBuilder
 
@@ -36,8 +37,18 @@ EA8B_FINAL_ARRAY_ATOL: dict[str, float] = {
 }
 
 
-def drainage_results_to_coupling_series(df_results: pd.DataFrame) -> pd.Series:
-    df_results = df_results.copy()
+def drainage_data_to_coupling_series(
+    drainage_records: list[tuple[datetime | timedelta, DrainageNetworkData]],
+) -> pd.Series:
+    rows: list[dict[str, object]] = []
+    for sim_time, drainage_data in drainage_records:
+        for node in drainage_data.nodes:
+            rows.append({"sim_time": sim_time, **node.attributes.model_dump()})
+
+    if not rows:
+        return pd.Series(name="coupling_flow", dtype=float)
+
+    df_results = pd.DataFrame(rows)
     df_results["sim_time"] = pd.to_timedelta(df_results["sim_time"])
     df_results["start_time"] = df_results["sim_time"].dt.total_seconds().astype(int)
     df_results.set_index("start_time", inplace=True)
@@ -85,34 +96,8 @@ def build_resumed_simulation(
             "simulation_end_time": sim_config.end_time,
         }
     )
-    domain_data = raster_input_provider.get_domain_data()
-    coords = domain_data.get_coordinates()
-    x_coords = coords["x"]
-    y_coords = coords["y"]
-    crs = pyproj.CRS.from_wkt(domain_data.crs_wkt)
-
-    output_storage = icechunk.in_memory_storage()
-    raster_output_provider = IcechunkRasterOutputProvider(
-        {
-            "out_map_names": sim_config.output_map_names,
-            "crs": crs,
-            "x_coords": x_coords,
-            "y_coords": y_coords,
-            "icechunk_storage": output_storage,
-        }
-    )
-
-    obj_store = obstore.store.MemoryStore()
-    drainage_results_name = sim_config.drainage_output
-    assert drainage_results_name is not None
-    vector_config: CSVVectorOutputConfig = {
-        "crs": crs,
-        "store": obj_store,
-        "results_prefix": "",
-        "drainage_results_name": drainage_results_name,
-        "overwrite": True,
-    }
-    vector_output_provider = CSVVectorOutputProvider(vector_config)
+    raster_output_provider = MemoryRasterOutputProvider(sim_config.output_map_names)
+    vector_output_provider = MemoryVectorOutputProvider()
 
     simulation = (
         SimulationBuilder(sim_config, arr_mask)
@@ -123,4 +108,4 @@ def build_resumed_simulation(
         .build()
     )
 
-    return simulation, obj_store
+    return simulation, vector_output_provider

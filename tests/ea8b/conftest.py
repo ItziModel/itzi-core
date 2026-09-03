@@ -16,7 +16,6 @@ import os
 import shutil
 import zipfile
 from datetime import datetime, timedelta
-from io import StringIO
 from pathlib import Path
 
 import numpy as np
@@ -27,8 +26,6 @@ import pytest
 # This conftest is imported during collection, before `-m "not cloud"` deselection
 # takes effect, so plain imports would raise ModuleNotFoundError in minimal test
 # environments such as wheel-build checks.
-icechunk = pytest.importorskip("icechunk")
-obstore = pytest.importorskip("obstore")
 xr = pytest.importorskip("xarray")
 rioxarray = pytest.importorskip("rioxarray")
 pyproj = pytest.importorskip("pyproj")
@@ -37,10 +34,13 @@ pyproj = pytest.importorskip("pyproj")
 from itzi_core.const import TemporalType
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
 from itzi_core.providers.csv_mass_balance_output import CSVMassBalanceOutputProvider
-from itzi_core.providers.csv_output import CSVVectorOutputConfig, CSVVectorOutputProvider
-from itzi_core.providers.icechunk_output import IcechunkRasterOutputProvider
+from itzi_core.providers.memory_output import (
+    MemoryRasterOutputProvider,
+    MemoryVectorOutputProvider,
+)
 from itzi_core.providers.xarray_input import XarrayRasterInputProvider
 from itzi_core.simulation_builder import SimulationBuilder
+from tests.ea8b.helpers import drainage_data_to_coupling_series
 
 TEST8B_MD5 = "84b865cedd28f8156cfe70b84004b62c"
 
@@ -141,7 +141,6 @@ def ea8b_simulation(ea8b_data, test_data_path, ea8b_temp_path):
     if db_file.exists():
         db_file.unlink()
 
-    output_storage = icechunk.in_memory_storage()
     source_inp = Path(test_data_path) / "EA_test_8" / "b" / "test8b_drainage_ponding.inp"
     inp_file = ea8b_temp_path / source_inp.name
     shutil.copy2(source_inp, inp_file)
@@ -174,33 +173,8 @@ def ea8b_simulation(ea8b_data, test_data_path, ea8b_temp_path):
             "simulation_end_time": sim_config.end_time,
         }
     )
-    domain_data = raster_input_provider.get_domain_data()
-    coords = domain_data.get_coordinates()
-    x_coords = coords["x"]
-    y_coords = coords["y"]
-    crs = pyproj.CRS.from_wkt(domain_data.crs_wkt)
-
-    raster_output_provider = IcechunkRasterOutputProvider(
-        {
-            "out_map_names": sim_config.output_map_names,
-            "crs": crs,
-            "x_coords": x_coords,
-            "y_coords": y_coords,
-            "icechunk_storage": output_storage,
-        }
-    )
-
-    obj_store = obstore.store.MemoryStore()
-    drainage_results_name = sim_config.drainage_output
-    assert drainage_results_name is not None
-    vector_config: CSVVectorOutputConfig = {
-        "crs": crs,
-        "store": obj_store,
-        "results_prefix": "",
-        "drainage_results_name": drainage_results_name,
-        "overwrite": True,
-    }
-    vector_output_provider = CSVVectorOutputProvider(vector_config)
+    raster_output_provider = MemoryRasterOutputProvider(sim_config.output_map_names)
+    vector_output_provider = MemoryVectorOutputProvider()
 
     simulation = (
         SimulationBuilder(sim_config, arr_mask)
@@ -238,8 +212,8 @@ def ea8b_simulation(ea8b_data, test_data_path, ea8b_temp_path):
     np.savez(final_state_path, **final_state)  # ty: ignore[invalid-argument-type]
 
     return {
-        "obj_store": obj_store,
-        "output_storage": output_storage,
+        "raster_output": raster_output_provider,
+        "vector_output": vector_output_provider,
         "hotstart_split_path": hotstart_split_path,
         "hotstart_end_path": hotstart_end_path,
         "final_state_path": final_state_path,
@@ -252,18 +226,8 @@ def ea8b_simulation(ea8b_data, test_data_path, ea8b_temp_path):
 
 @pytest.fixture(scope="package")
 def ea8b_drainage_results(ea8b_simulation):
-    obj_store = ea8b_simulation["obj_store"]
-    nodes_csv = StringIO(
-        bytes(obstore.get(obj_store, "out_drainage_nodes.csv").bytes()).decode("utf-8")
-    )
-    df_results = pd.read_csv(nodes_csv)
-    df_results["sim_time"] = pd.to_timedelta(df_results["sim_time"])
-    df_results["start_time"] = df_results["sim_time"].dt.total_seconds().astype(int)
-    df_results.set_index("start_time", inplace=True)
-    df_results.drop(columns=["sim_time"], inplace=True)
-    df_results = df_results[df_results.index >= 3000]
-    df_results.index = pd.to_timedelta(df_results.index, unit="s")
-    return df_results["coupling_flow"]
+    vector_output = ea8b_simulation["vector_output"]
+    return drainage_data_to_coupling_series(vector_output.drainage_data)
 
 
 @pytest.fixture(scope="session")

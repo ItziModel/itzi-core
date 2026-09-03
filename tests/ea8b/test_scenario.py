@@ -15,19 +15,16 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
+import hashlib
 import json
 import zipfile
-import hashlib
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
-import xarray as xr
-import icechunk
 
 from tests.ea8b.helpers import EA8B_REFERENCE_MAX_RSR, EA8B_REFERENCE_MIN_NSE
-
 
 pytestmark = pytest.mark.cloud
 
@@ -52,27 +49,21 @@ def test_ea8b_scenario(
     assert nse > EA8B_REFERENCE_MIN_NSE
     assert rsr < EA8B_REFERENCE_MAX_RSR
 
-    output_storage = ea8b_simulation["output_storage"]
-    repo = icechunk.Repository.open(output_storage)
-    session = repo.readonly_session("main")
-    output_dataset = xr.open_zarr(session.store)
+    raster_output = ea8b_simulation["raster_output"]
+    water_depth_records = raster_output.output_maps_dict["water_depth"]
+    assert water_depth_records
+    water_depth_data = np.stack([array for _, array in water_depth_records])
 
-    assert "test_water_depth" in output_dataset.variables
-
-    water_depth_data = output_dataset["test_water_depth"]
-
-    nan_count = np.sum(np.isnan(water_depth_data.values))
+    nan_count = np.sum(np.isnan(water_depth_data))
     assert nan_count == 0, (
         f"Found {nan_count} NaN values in water depth data - there should be none"
     )
 
-    min_depth = np.min(water_depth_data.values)
-    max_depth = np.max(water_depth_data.values)
+    min_depth = np.min(water_depth_data)
+    max_depth = np.max(water_depth_data)
 
     assert min_depth >= 0.0, f"Water depth values below 0 found: minimum = {min_depth}"
     assert max_depth <= 2.0, f"Water depth values above 2 found: maximum = {max_depth}"
-
-    print(f"Water depth range: {min_depth:.3f} to {max_depth:.3f}")
 
     assert water_depth_data.ndim == 3
 
@@ -82,9 +73,6 @@ def test_ea8b_scenario(
 
     assert spatial_shape[0] == expected_rows
     assert spatial_shape[1] == expected_cols
-
-    print(f"Water depth data shape: {water_depth_data.shape}")
-    print(f"Water depth data dimensions: {water_depth_data.dims}")
 
     stat_file_path = Path(ea8b_temp_path) / "ea8b.csv"
     if stat_file_path.exists():
@@ -110,12 +98,14 @@ def test_ea8b_scenario(
         )
 
     hotstart_end_path = ea8b_simulation["hotstart_end_path"]
-    with zipfile.ZipFile(hotstart_end_path, "r") as zip_ref:
-        with zip_ref.open("metadata.json") as metadata_file:
-            metadata_dict = json.load(metadata_file)
-            ref_raster_hash = metadata_dict["simulation_state"]["raster_domain_hash"]
-            hash_raster = hashlib.blake2b(zip_ref.read("raster_state.npz")).hexdigest()
-            assert hash_raster == ref_raster_hash
-            ref_swmm_hash = metadata_dict["simulation_state"]["swmm_hotstart_hash"]
-            hash_swmm = hashlib.blake2b(zip_ref.read("swmm_hotstart.hsf")).hexdigest()
-            assert hash_swmm == ref_swmm_hash
+    with (
+        zipfile.ZipFile(hotstart_end_path, "r") as zip_ref,
+        zip_ref.open("metadata.json") as metadata_file,
+    ):
+        metadata_dict = json.load(metadata_file)
+        ref_raster_hash = metadata_dict["simulation_state"]["raster_domain_hash"]
+        hash_raster = hashlib.blake2b(zip_ref.read("raster_state.npz")).hexdigest()
+        assert hash_raster == ref_raster_hash
+        ref_swmm_hash = metadata_dict["simulation_state"]["swmm_hotstart_hash"]
+        hash_swmm = hashlib.blake2b(zip_ref.read("swmm_hotstart.hsf")).hexdigest()
+        assert hash_swmm == ref_swmm_hash
