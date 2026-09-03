@@ -27,8 +27,7 @@ from itzi_core.const import TemporalType
 from itzi_core.data_containers import MassBalanceData, SimulationData
 
 if TYPE_CHECKING:
-    from itzi.data_containers import DrainageNetworkData
-
+    from itzi_core.data_containers import DrainageNetworkAttributes, DrainageNetworkTopology
     from itzi_core.providers.base import (
         MassBalanceOutputProvider,
         RasterOutputProvider,
@@ -82,9 +81,25 @@ class Report:
         self.output_maplist = {k: [] for k in self.out_map_names}
         self.dt = dt
         self.last_step = copy.copy(start_time)
+        self._drainage_topology_written = False
+
+    def start(self, drainage_topology: DrainageNetworkTopology | None) -> Report:
+        """Initialize output providers before the first report is written."""
+        if drainage_topology is None:
+            return self
+        if self._drainage_topology_written:
+            raise RuntimeError("Drainage topology has already been written.")
+        self.vector_provider.write_topology(drainage_topology)
+        self._drainage_topology_written = True
+        return self
 
     def step(self, simulation_data: SimulationData):
         """write results at given time-step"""
+        if (
+            simulation_data.drainage_network_attributes is not None
+            and not self._drainage_topology_written
+        ):
+            raise RuntimeError("Drainage attributes cannot be written before topology.")
         sim_time = simulation_data.sim_time
         if self.temporal_type == TemporalType.RELATIVE:
             converted_sim_time = sim_time - self.start_time
@@ -94,9 +109,9 @@ class Report:
         self.raster_provider.write_arrays(array_dict=output_arrays, sim_time=converted_sim_time)
         if self.mass_balance_output_provider is not None:
             self.write_mass_balance(simulation_data, converted_sim_time)
-        drainage_data = simulation_data.drainage_network_data
-        if drainage_data is not None:
-            self.save_drainage_values(drainage_data, converted_sim_time)
+        drainage_attributes = simulation_data.drainage_network_attributes
+        if drainage_attributes is not None:
+            self.save_drainage_values(drainage_attributes, converted_sim_time)
         self.record_counter += 1
         self.last_step = copy.copy(sim_time)
         return self
@@ -232,8 +247,10 @@ class Report:
         return self
 
     def save_drainage_values(
-        self, drainage_data: DrainageNetworkData, sim_time: datetime | timedelta
-    ):
-        """Write vector map of drainage network"""
-        self.vector_provider.write_vector(drainage_data, sim_time)
+        self, drainage_attributes: DrainageNetworkAttributes, sim_time: datetime | timedelta
+    ) -> Report:
+        """Write drainage attributes for a simulation record."""
+        if not self._drainage_topology_written:
+            raise RuntimeError("Drainage attributes cannot be written before topology.")
+        self.vector_provider.write_attributes(drainage_attributes, sim_time)
         return self

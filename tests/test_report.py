@@ -15,6 +15,7 @@ GNU Lesser General Public License for more details.
 from datetime import UTC, datetime, timedelta
 
 import numpy as np
+import pytest
 
 from itzi_core.const import TemporalType
 from itzi_core.data_containers import ContinuityData, SimulationData
@@ -23,7 +24,7 @@ from itzi_core.providers.memory_output import (
     MemoryVectorOutputProvider,
 )
 from itzi_core.report import Report
-
+from tests.fixtures_vector_output import create_dummy_drainage_network
 
 CONTINUITY_DATA = ContinuityData(
     new_domain_vol=0.0,
@@ -58,7 +59,7 @@ def test_get_output_arrays_returns_a_fresh_selection() -> None:
         accumulation_arrays={},
         cell_dx=1.0,
         cell_dy=1.0,
-        drainage_network_data=None,
+        drainage_network_attributes=None,
     )
 
     report.step(data)
@@ -96,7 +97,7 @@ def test_maxima_are_selected_independently_of_base_arrays() -> None:
         accumulation_arrays={},
         cell_dx=1.0,
         cell_dy=1.0,
-        drainage_network_data=None,
+        drainage_network_attributes=None,
     )
 
     report.step(data)
@@ -108,3 +109,46 @@ def test_maxima_are_selected_independently_of_base_arrays() -> None:
     np.testing.assert_array_equal(
         raster_provider.output_maps_dict["vmax"][0][1], data.raw_arrays["vmax"]
     )
+
+
+def test_drainage_topology_is_written_before_attributes() -> None:
+    start_time = datetime(2000, 1, 1, tzinfo=UTC)
+    raster_provider = MemoryRasterOutputProvider({})
+    vector_provider = MemoryVectorOutputProvider()
+    report = Report(
+        start_time=start_time,
+        temporal_type=TemporalType.RELATIVE,
+        raster_output_provider=raster_provider,
+        vector_output_provider=vector_provider,
+        mass_balance_output_provider=None,
+        out_map_names={},
+        dt=timedelta(seconds=60),
+    )
+    drainage_network = create_dummy_drainage_network()
+    data = SimulationData(
+        sim_time=start_time,
+        time_step=60.0,
+        time_steps_counter=1,
+        continuity_data=CONTINUITY_DATA,
+        raw_arrays={},
+        accumulation_arrays={},
+        cell_dx=1.0,
+        cell_dy=1.0,
+        drainage_network_attributes=drainage_network.attributes,
+    )
+
+    with pytest.raises(RuntimeError, match="before topology"):
+        report.step(data)
+    assert not raster_provider.output_maps_dict
+
+    report.start(drainage_network.topology)
+    report.step(data)
+    report.step(data.model_copy(update={"sim_time": start_time + timedelta(seconds=60)}))
+
+    assert vector_provider.drainage_topology == drainage_network.topology
+    assert vector_provider.drainage_attributes == [
+        (timedelta(0), drainage_network.attributes),
+        (timedelta(seconds=60), drainage_network.attributes),
+    ]
+    with pytest.raises(RuntimeError, match="already been written"):
+        report.start(drainage_network.topology)

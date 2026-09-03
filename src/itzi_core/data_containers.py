@@ -80,14 +80,15 @@ class DrainageLinkAttributes(DrainageAttributes):
     froude: float
 
 
-class DrainageLinkData(BaseModel):
-    """Store the instantaneous state of a node during a drainage simulation.
-    Vertices include the coordinates of the start and end nodes."""
+class DrainageLinkTopology(BaseModel):
+    """Store the fixed topology of a drainage link."""
 
     model_config = ConfigDict(frozen=True)
 
+    link_id: str
+    start_node_id: str
+    end_node_id: str
     vertices: None | tuple[tuple[float, float] | None, ...]
-    attributes: DrainageLinkAttributes
 
 
 class DrainageNodeAttributes(DrainageAttributes):
@@ -114,20 +115,29 @@ class DrainageNodeAttributes(DrainageAttributes):
     full_volume: float
 
 
-class DrainageNodeData(BaseModel):
-    """Store the instantaneous state of a node during a drainage simulation"""
+class DrainageNodeTopology(BaseModel):
+    """Store the fixed topology of a drainage node."""
 
     model_config = ConfigDict(frozen=True)
 
+    node_id: str
     coordinates: None | tuple[float, float]
-    attributes: DrainageNodeAttributes
 
 
-class DrainageNetworkData(BaseModel):
+class DrainageNetworkTopology(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    nodes: tuple[DrainageNodeData, ...]
-    links: tuple[DrainageLinkData, ...]
+    nodes: tuple[DrainageNodeTopology, ...]
+    links: tuple[DrainageLinkTopology, ...]
+
+
+class DrainageNetworkAttributes(BaseModel):
+    """Store the time-varying state of a drainage network."""
+
+    model_config = ConfigDict(frozen=True)
+
+    nodes: tuple[DrainageNodeAttributes, ...]
+    links: tuple[DrainageLinkAttributes, ...]
 
 
 class ContinuityData(BaseModel):
@@ -159,7 +169,7 @@ class SimulationData(BaseModel):
     accumulation_arrays: dict[str, np.ndarray]
     cell_dx: PositiveFloat  # cell size in east-west direction
     cell_dy: PositiveFloat  # cell size in north-south direction
-    drainage_network_data: DrainageNetworkData | None
+    drainage_network_attributes: DrainageNetworkAttributes | None
 
 
 class MassBalanceData(BaseModel):

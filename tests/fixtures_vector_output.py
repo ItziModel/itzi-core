@@ -12,15 +12,17 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
+from typing import NamedTuple
+
 from itzi_core.data_containers import (
-    DrainageNetworkData,
-    DrainageNodeData,
-    DrainageNodeAttributes,
-    DrainageLinkData,
     DrainageLinkAttributes,
+    DrainageLinkTopology,
+    DrainageNetworkAttributes,
+    DrainageNetworkTopology,
+    DrainageNodeAttributes,
+    DrainageNodeTopology,
 )
 from itzi_core.drainage import CouplingTypes
-
 
 expected_node_coords = {
     "N1": (100.0, 200.0),
@@ -32,6 +34,11 @@ expected_vertices = {
     "L1": [(100.0, 200.0), (125.0, 190.0), (150.0, 180.0)],
     "L2": [(150.0, 180.0), (175.0, 170.0), (200.0, 160.0)],
 }
+
+
+class DummyDrainageNetwork(NamedTuple):
+    topology: DrainageNetworkTopology
+    attributes: DrainageNetworkAttributes
 
 
 def create_dummy_drainage_network(with_coords=True):
@@ -104,21 +111,15 @@ def create_dummy_drainage_network(with_coords=True):
         full_volume=7.5,
     )
 
-    # Create node data objects
+    # Create node topology objects
     if with_coords:
-        node1 = DrainageNodeData(
-            coordinates=expected_node_coords["N1"], attributes=node1_attributes
-        )
-        node2 = DrainageNodeData(
-            coordinates=expected_node_coords["N2"], attributes=node2_attributes
-        )
-        node3 = DrainageNodeData(
-            coordinates=expected_node_coords["N3"], attributes=node3_attributes
-        )
+        node1 = DrainageNodeTopology(node_id="N1", coordinates=expected_node_coords["N1"])
+        node2 = DrainageNodeTopology(node_id="N2", coordinates=expected_node_coords["N2"])
+        node3 = DrainageNodeTopology(node_id="N3", coordinates=expected_node_coords["N3"])
     else:
-        node1 = DrainageNodeData(coordinates=None, attributes=node1_attributes)
-        node2 = DrainageNodeData(coordinates=None, attributes=node2_attributes)
-        node3 = DrainageNodeData(coordinates=None, attributes=node3_attributes)
+        node1 = DrainageNodeTopology(node_id="N1", coordinates=None)
+        node2 = DrainageNodeTopology(node_id="N2", coordinates=None)
+        node3 = DrainageNodeTopology(node_id="N3", coordinates=None)
 
     # Create 2 drainage links with correct types from drainage.py
     link1_attributes = DrainageLinkAttributes(
@@ -143,29 +144,40 @@ def create_dummy_drainage_network(with_coords=True):
         froude=0.3,
     )
 
-    # Create link data objects with vertices connecting the nodes
+    # Create link topology objects with vertices connecting the nodes
     if with_coords:
-        link1 = DrainageLinkData(
+        link1 = DrainageLinkTopology(
+            link_id="L1",
+            start_node_id="N1",
+            end_node_id="N2",
             vertices=expected_vertices["L1"],  # N1 to N2
-            attributes=link1_attributes,
         )
 
-        link2 = DrainageLinkData(
+        link2 = DrainageLinkTopology(
+            link_id="L2",
+            start_node_id="N2",
+            end_node_id="N3",
             vertices=expected_vertices["L2"],  # N2 to N3
-            attributes=link2_attributes,
         )
     else:
-        link1 = DrainageLinkData(
+        link1 = DrainageLinkTopology(
+            link_id="L1",
+            start_node_id="N1",
+            end_node_id="N2",
             vertices=None,
-            attributes=link1_attributes,
         )
 
-        link2 = DrainageLinkData(
+        link2 = DrainageLinkTopology(
+            link_id="L2",
+            start_node_id="N2",
+            end_node_id="N3",
             vertices=None,
-            attributes=link2_attributes,
         )
 
-    # Create the drainage network
-    drainage_network = DrainageNetworkData(nodes=(node1, node2, node3), links=(link1, link2))
-
-    return drainage_network
+    return DummyDrainageNetwork(
+        topology=DrainageNetworkTopology(nodes=(node1, node2, node3), links=(link1, link2)),
+        attributes=DrainageNetworkAttributes(
+            nodes=(node1_attributes, node2_attributes, node3_attributes),
+            links=(link1_attributes, link2_attributes),
+        ),
+    )

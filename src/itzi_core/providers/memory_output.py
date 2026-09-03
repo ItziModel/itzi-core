@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
-from itzi_core.data_containers import DrainageNetworkData
+from itzi_core.data_containers import DrainageNetworkAttributes, DrainageNetworkTopology
 from itzi_core.providers.base import RasterOutputProvider, VectorOutputProvider
 
 
@@ -46,10 +46,19 @@ class MemoryVectorOutputProvider(VectorOutputProvider):
 
     def __init__(self) -> None:
         """Initialize output provider with simulation configuration."""
-        self.drainage_data = []
+        self.drainage_topology: DrainageNetworkTopology | None = None
+        self.drainage_attributes: list[tuple[datetime | timedelta, DrainageNetworkAttributes]] = []
 
-    def write_vector(
-        self, drainage_data: DrainageNetworkData, sim_time: datetime | timedelta
+    def write_topology(self, topology: DrainageNetworkTopology) -> None:
+        """Save the fixed drainage-network topology."""
+        if self.drainage_topology is not None:
+            raise RuntimeError("Drainage topology has already been written.")
+        self.drainage_topology = deepcopy(topology)
+
+    def write_attributes(
+        self, attributes: DrainageNetworkAttributes, sim_time: datetime | timedelta
     ) -> None:
-        """Save simulation data for current time step."""
-        self.drainage_data.append((deepcopy(sim_time), deepcopy(drainage_data)))
+        """Save drainage attributes for the current time step."""
+        if self.drainage_topology is None:
+            raise RuntimeError("Drainage attributes cannot be written before topology.")
+        self.drainage_attributes.append((deepcopy(sim_time), deepcopy(attributes)))

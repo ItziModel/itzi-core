@@ -28,10 +28,11 @@ from pyswmm.toolkitapi import NodeResults, SimulationParameters, SimulationTime
 from itzi_core import DefaultValues
 from itzi_core.data_containers import (
     DrainageLinkAttributes,
-    DrainageLinkData,
-    DrainageNetworkData,
+    DrainageLinkTopology,
+    DrainageNetworkAttributes,
+    DrainageNetworkTopology,
     DrainageNodeAttributes,
-    DrainageNodeData,
+    DrainageNodeTopology,
 )
 
 if TYPE_CHECKING:
@@ -152,14 +153,19 @@ class DrainageSimulation:
                 calculated_flows[node_id] = node.coupling_flow
         return calculated_flows
 
-    def get_drainage_network_data(self) -> DrainageNetworkData:
-        nodes_data = []
-        links_data = []
-        for node in self.nodes:
-            nodes_data.append(node.get_data())
-        for link in self.links:
-            links_data.append(link.get_data())
-        return DrainageNetworkData(nodes=tuple(nodes_data), links=tuple(links_data))
+    def get_drainage_network_topology(self) -> DrainageNetworkTopology:
+        """Return the fixed topology of the drainage network."""
+        return DrainageNetworkTopology(
+            nodes=tuple(node.get_topology() for node in self.nodes),
+            links=tuple(link.get_topology() for link in self.links),
+        )
+
+    def get_drainage_network_attributes(self) -> DrainageNetworkAttributes:
+        """Return the current drainage-network state."""
+        return DrainageNetworkAttributes(
+            nodes=tuple(node.get_attrs() for node in self.nodes),
+            links=tuple(link.get_attrs() for link in self.links),
+        )
 
     def get_hotstart(self) -> BytesIO:
         """Save a temp SWMM hotstart, return a binary object."""
@@ -265,8 +271,8 @@ class DrainageNode(object):
             full_volume=self.get_full_volume(),
         )
 
-    def get_data(self) -> DrainageNodeData:
-        return DrainageNodeData(coordinates=self.coordinates, attributes=self.get_attrs())
+    def get_topology(self) -> DrainageNodeTopology:
+        return DrainageNodeTopology(node_id=self.node_id, coordinates=self.coordinates)
 
     def apply_coupling(self, z, h, dt_drainage, cell_surf):
         """Apply the coupling to the node"""
@@ -416,8 +422,13 @@ class DrainageLink(object):
             froude=self.pyswmm_link.froude,
         )
 
-    def get_data(self) -> DrainageLinkData:
-        return DrainageLinkData(vertices=self.vertices, attributes=self.get_attrs())
+    def get_topology(self) -> DrainageLinkTopology:
+        return DrainageLinkTopology(
+            link_id=self.link_id,
+            start_node_id=self.start_node_id,
+            end_node_id=self.end_node_id,
+            vertices=self.vertices,
+        )
 
 
 # Rebuild Pydantic models that have forward references to DrainageNode

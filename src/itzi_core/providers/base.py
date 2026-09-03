@@ -23,7 +23,11 @@ if TYPE_CHECKING:
 
     import numpy as np
 
-    from itzi_core.data_containers import DrainageNetworkData, MassBalanceData
+    from itzi_core.data_containers import (
+        DrainageNetworkAttributes,
+        DrainageNetworkTopology,
+        MassBalanceData,
+    )
     from itzi_core.providers.domain_data import DomainData
 
 
@@ -69,10 +73,16 @@ class VectorOutputProvider(ABC):
     """Abstract base class for drainage simulation outputs."""
 
     @abstractmethod
-    def write_vector(
-        self, drainage_data: DrainageNetworkData, sim_time: datetime | timedelta
+    def write_topology(self, topology: DrainageNetworkTopology) -> None:
+        """Write the fixed drainage-network topology once."""
+
+    @abstractmethod
+    def write_attributes(
+        self,
+        attributes: DrainageNetworkAttributes,
+        sim_time: datetime | timedelta,
     ) -> None:
-        """Write simulation data for current time step."""
+        """Write drainage attributes for the current time step."""
 
     def finalize(self) -> None:
         """Flush and close provider resources."""
