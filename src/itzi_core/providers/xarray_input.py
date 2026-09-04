@@ -15,7 +15,8 @@ GNU Lesser General Public License for more details.
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from typing import TYPE_CHECKING, NotRequired, TypedDict
+from datetime import datetime, timedelta
+from typing import NotRequired, TypedDict
 
 import numpy as np
 
@@ -31,9 +32,6 @@ except ImportError:
 from itzi_core.const import TemporalType
 from itzi_core.providers.base import RasterInputProvider
 from itzi_core.providers.domain_data import DomainData
-
-if TYPE_CHECKING:
-    from datetime import datetime, timedelta
 
 
 type DimensionsDict = dict[str, dict[str, str]]
@@ -338,10 +336,15 @@ class XarrayRasterInputProvider(RasterInputProvider):
         return active_idx, start_value, end_value
 
     def _to_datetime(self, time_value: np.timedelta64 | np.datetime64, time_dim: str) -> datetime:
+        if np.isnat(time_value):
+            raise ValueError("Time coordinate values cannot be NaT.")
+
         if self.temporal_types[time_dim] == TemporalType.RELATIVE:
-            delta: timedelta = time_value.astype("O")
-            return self.sim_start_time + delta
-        value: datetime = time_value.astype("O")
+            nanoseconds = time_value.astype("timedelta64[ns]").astype(np.int64)
+            microseconds = int((nanoseconds + 500) // 1_000)
+            return self.sim_start_time + timedelta(microseconds=microseconds)
+
+        value: datetime = time_value.astype("datetime64[us]").item()
         return value
 
     def get_array(

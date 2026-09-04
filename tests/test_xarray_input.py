@@ -229,6 +229,98 @@ def test_xarray_input_provider_creation(xarray_input_data: Dict, default_times: 
     assert len(ds.data_vars) > 0
 
 
+@pytest.mark.parametrize(
+    ("time_value", "expected_offset"),
+    [
+        (np.datetime64("2023-01-01T01:02:03", "s"), timedelta(hours=1, minutes=2, seconds=3)),
+        (
+            np.datetime64("2023-01-01T01:02:03.123", "ms"),
+            timedelta(hours=1, minutes=2, seconds=3, milliseconds=123),
+        ),
+        (
+            np.datetime64("2023-01-01T01:02:03.123456", "us"),
+            timedelta(hours=1, minutes=2, seconds=3, microseconds=123_456),
+        ),
+        (
+            np.datetime64("2023-01-01T01:02:03.123456789", "ns"),
+            timedelta(hours=1, minutes=2, seconds=3, microseconds=123_456),
+        ),
+    ],
+)
+def test_xarray_input_provider_converts_absolute_time_scalars(
+    xarray_input_data: dict,
+    default_times: dict,
+    time_value: np.datetime64,
+    expected_offset: timedelta,
+):
+    config: XarrayRasterInputConfig = {
+        "dataset": xarray_input_data["dataset"],
+        "input_map_names": xarray_input_data["input_map_names"],
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
+    }
+    provider = XarrayRasterInputProvider(config)
+
+    assert (
+        provider._to_datetime(time_value, "time") == default_times["start_time"] + expected_offset
+    )
+
+
+@pytest.mark.parametrize(
+    ("time_value", "expected_offset"),
+    [
+        (np.timedelta64(1, "s"), timedelta(seconds=1)),
+        (np.timedelta64(123, "ms"), timedelta(milliseconds=123)),
+        (np.timedelta64(123_456, "us"), timedelta(microseconds=123_456)),
+        (np.timedelta64(123_456_789, "ns"), timedelta(microseconds=123_457)),
+        (np.timedelta64(500, "ns"), timedelta(microseconds=1)),
+        (np.timedelta64(-500, "ns"), timedelta(0)),
+    ],
+)
+def test_xarray_input_provider_converts_relative_time_scalars(
+    xarray_input_data_relative_time: dict,
+    default_times: dict,
+    time_value: np.timedelta64,
+    expected_offset: timedelta,
+):
+    config: XarrayRasterInputConfig = {
+        "dataset": xarray_input_data_relative_time["dataset"],
+        "input_map_names": xarray_input_data_relative_time["input_map_names"],
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
+    }
+    provider = XarrayRasterInputProvider(config)
+
+    assert (
+        provider._to_datetime(time_value, "time") == default_times["start_time"] + expected_offset
+    )
+
+
+def test_xarray_input_provider_rejects_nat_time_scalars(
+    xarray_input_data: dict, xarray_input_data_relative_time: dict, default_times: dict
+):
+    absolute_config: XarrayRasterInputConfig = {
+        "dataset": xarray_input_data["dataset"],
+        "input_map_names": xarray_input_data["input_map_names"],
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
+    }
+    relative_config: XarrayRasterInputConfig = {
+        "dataset": xarray_input_data_relative_time["dataset"],
+        "input_map_names": xarray_input_data_relative_time["input_map_names"],
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
+    }
+
+    absolute_provider = XarrayRasterInputProvider(absolute_config)
+    relative_provider = XarrayRasterInputProvider(relative_config)
+
+    with pytest.raises(ValueError, match="cannot be NaT"):
+        absolute_provider._to_datetime(np.datetime64("NaT", "ns"), "time")
+    with pytest.raises(ValueError, match="cannot be NaT"):
+        relative_provider._to_datetime(np.timedelta64("NaT", "ns"), "time")
+
+
 def test_xarray_input_provider_get_array_static_variable(
     xarray_input_data: Dict, default_times: Dict
 ):
