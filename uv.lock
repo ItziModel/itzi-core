@@ -254,7 +254,7 @@ wheels = [
 
 [[package]]
 name = "itzi-core"
-version = "0.5.0"
+version = "0.6.0"
 source = { editable = "." }
 dependencies = [
     { name = "bmipy" },
@@ -264,7 +264,7 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-cloud = [
+xarray = [
     { name = "xarray" },
 ]
 
@@ -289,9 +289,9 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.5" },
     { name = "pydantic", specifier = ">=2.13.4" },
     { name = "pyswmm", specifier = ">=2.1.0" },
-    { name = "xarray", marker = "extra == 'cloud'", specifier = ">=2026.4.0" },
+    { name = "xarray", marker = "extra == 'xarray'", specifier = ">=2026.4.0" },
 ]
-provides-extras = ["cloud"]
+provides-extras = ["xarray"]
 
 [package.metadata.requires-dev]
 dev = [
