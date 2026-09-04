@@ -55,26 +55,21 @@ class DrainageSimulation:
     def __init__(
         self,
         pyswmm_sim: pyswmm.Simulation,
-        nodes_list: list[DrainageNode],
-        links_list: list[DrainageLink],
+        nodes: tuple[DrainageNode, ...],
+        links: tuple[DrainageLink, ...],
         hotstart_filename: str | None = None,
         hotstart_start_datetime: datetime | None = None,
     ):
         """Initialize the drainage simulation.
 
         Args:
-            pyswmm_sim: A pyswmm Simulation object.
-            nodes_list: List of DrainageNode objects.
-            links_list: List of DrainageLink objects.
             hotstart_filename: Path to SWMM hotstart file (.hsf) to restore state from.
             hotstart_start_datetime: datetime to set as SWMM's start time after hotstart
                 restore. This is used to ensure SWMM reads timeseries from the correct
                 point after resuming from a hotstart.
         """
-        # A list of DrainageNode object
-        self.nodes = nodes_list
-        # A list of DrainageLink objects
-        self.links = links_list
+        self.nodes = nodes
+        self.links = links
         # create swmm object, open files and start simulation
         self.swmm_sim = pyswmm_sim
         self.swmm_model: PySWMM = self.swmm_sim._model
@@ -181,7 +176,7 @@ class DrainageSimulation:
         # File is automatically deleted on context manager exit, even on exception
 
 
-class DrainageNode(object):
+class DrainageNode:
     """A wrapper around the pyswmm node object.
     Includes the flow coupling logic
     """
@@ -219,7 +214,6 @@ class DrainageNode(object):
         self.damping_factor = damping_factor
 
     def get_node_type(self):
-        """ """
         if self.pyswmm_node.is_junction():
             return "junction"
         elif self.pyswmm_node.is_outfall():
@@ -246,7 +240,6 @@ class DrainageNode(object):
         return self.coupling_type != CouplingTypes.NOT_COUPLED
 
     def get_attrs(self) -> DrainageNodeAttributes:
-        """ """
         return DrainageNodeAttributes(
             node_id=self.node_id,
             node_type=self.node_type,
@@ -379,10 +372,10 @@ class DrainageNode(object):
         return math.copysign(unsigned_q, node_head - wse)
 
 
-class DrainageLink(object):
+class DrainageLink:
     """A wrapper around the pyswmm link object"""
 
-    def __init__(self, link_object, vertices=[]):
+    def __init__(self, link_object, vertices: tuple[tuple[float, float], ...] = ()):
         self.pyswmm_link = link_object
         self.link_id = self.pyswmm_link.linkid
         self.link_type = self._get_link_type()
@@ -408,7 +401,6 @@ class DrainageLink(object):
         return link_type
 
     def get_attrs(self) -> DrainageLinkAttributes:
-        """ """
         return DrainageLinkAttributes(
             link_id=self.link_id,
             link_type=self.link_type,

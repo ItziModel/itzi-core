@@ -12,17 +12,17 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
+import shutil
 from datetime import timedelta
 from pathlib import Path
-import shutil
 
 import pandas as pd
-import pytest
 import pyswmm
+import pytest
 
 from itzi_core import SwmmInputParser
-from itzi_core.drainage import DrainageNode, CouplingTypes, DrainageSimulation
-from itzi_core.simulation_builder import get_links_list
+from itzi_core.drainage import CouplingTypes, DrainageNode, DrainageSimulation
+from itzi_core.simulation_builder import get_links
 
 
 @pytest.fixture(scope="class")
@@ -49,10 +49,10 @@ def drainage_sim_results(test_data_path, tmp_path_factory):
     coupling_node = DrainageNode(
         pyswmm_node, nodes_coors_dict[coupling_node_id], CouplingTypes.COUPLED_NO_FLOW
     )
-    nodes_list = [coupling_node]
+    nodes_list = (coupling_node,)
     # Create Link objects
     links_vertices_dict = swmm_inp.get_links_id_as_dict()
-    links_list = get_links_list(pyswmm.Links(swmm_sim), links_vertices_dict, nodes_coors_dict)
+    links_list = get_links(pyswmm.Links(swmm_sim), links_vertices_dict, nodes_coors_dict)
     # Create simulation object
     drainage = DrainageSimulation(swmm_sim, nodes_list, links_list)
 

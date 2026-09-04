@@ -527,7 +527,7 @@ class SimulationBuilder:
     def _create_drainage_simulation(
         self,
         domain_data: DomainData,
-    ) -> tuple[list[DrainageNodeCouplingData], DrainageSimulation | None]:
+    ) -> tuple[tuple[DrainageNodeCouplingData, ...], DrainageSimulation | None]:
         """Create drainage simulation components if SWMM input is provided.
 
         If hotstart data includes SWMM state, writes the SWMM hotstart bytes
@@ -540,7 +540,7 @@ class SimulationBuilder:
         in their timeseries rather than restarting from T=0.
         """
         if not self.sim_config.swmm_inp:
-            return [], None
+            return (), None
 
         swmm_input_path = str(self.sim_config.swmm_inp)
 
@@ -562,7 +562,7 @@ class SimulationBuilder:
         # Create Node objects
         all_nodes = pyswmm.Nodes(swmm_sim)
         nodes_coors_dict = swmm_inp.get_nodes_id_as_dict()
-        nodes_list: list[DrainageNodeCouplingData] = self._get_nodes_list(
+        nodes_list = self._get_nodes(
             all_nodes,
             nodes_coors_dict,
             domain_data=domain_data,
@@ -574,8 +574,8 @@ class SimulationBuilder:
 
         # Create Link objects
         links_vertices_dict = swmm_inp.get_links_id_as_dict()
-        links_list = get_links_list(pyswmm.Links(swmm_sim), links_vertices_dict, nodes_coors_dict)
-        node_objects_only = [i.node_object for i in nodes_list]
+        links_list = get_links(pyswmm.Links(swmm_sim), links_vertices_dict, nodes_coors_dict)
+        node_objects_only = tuple(i.node_object for i in nodes_list)
 
         # Handle SWMM hotstart injection if present
         if self.hotstart_loader is not None and self.hotstart_loader.has_swmm_hotstart():
@@ -600,7 +600,7 @@ class SimulationBuilder:
 
         return nodes_list, drainage_sim
 
-    def _get_nodes_list(
+    def _get_nodes(
         self,
         pswmm_nodes: Iterable[Any],
         nodes_coor_dict: dict[str, Any],
@@ -609,7 +609,7 @@ class SimulationBuilder:
         free_weir_coeff: float,
         submerged_weir_coeff: float,
         g: float,
-    ) -> list[DrainageNodeCouplingData]:
+    ) -> tuple[DrainageNodeCouplingData, ...]:
         """Check if the drainage nodes are inside the region and can be coupled.
         A node without coordinates cannot be coupled.
         """
@@ -644,11 +644,11 @@ class SimulationBuilder:
                 node_id=pyswmm_node.nodeid, node_object=node, x=x_coor, y=y_coor, row=row, col=col
             )
             nodes_list.append(drainage_node_data)
-        return nodes_list
+        return tuple(nodes_list)
 
 
 # Not in the main class to allow manual creation of a DrainageModel object for testing
-def get_links_list(pyswmm_links, links_vertices_dict, nodes_coor_dict) -> list[DrainageLink]:
+def get_links(pyswmm_links, links_vertices_dict, nodes_coor_dict) -> tuple[DrainageLink, ...]:
     """Build drainage links from parsed SWMM geometry."""
     links_list = []
     for pyswmm_link in pyswmm_links:
@@ -658,7 +658,7 @@ def get_links_list(pyswmm_links, links_vertices_dict, nodes_coor_dict) -> list[D
         vertices = [in_node_coor]
         vertices.extend(links_vertices_dict[pyswmm_link.linkid].vertices)
         vertices.append(out_node_coor)
-        link = DrainageLink(link_object=pyswmm_link, vertices=vertices)
+        link = DrainageLink(link_object=pyswmm_link, vertices=tuple(vertices))
         # add link to the list
         links_list.append(link)
-    return links_list
+    return tuple(links_list)

@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 class TimedArraySource(Protocol):
     arr_start: datetime
     arr_end: datetime
-    arr: np.ndarray | None
+    arr: np.ndarray
 
     def is_valid(self, sim_time: datetime) -> bool: ...
 

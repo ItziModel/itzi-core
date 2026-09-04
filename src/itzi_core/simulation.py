@@ -65,7 +65,7 @@ class Simulation:
         hydrology_model: Hydrology,
         surface_flow: SurfaceFlowSimulation,
         drainage_model: DrainageSimulation | None,
-        drainage_nodes_list: list[DrainageNodeCouplingData],
+        drainage_nodes_list: tuple[DrainageNodeCouplingData, ...],
         report: Report,
     ):
         self.sim_config = sim_config
