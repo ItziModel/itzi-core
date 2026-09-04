@@ -20,7 +20,6 @@ from typing import TYPE_CHECKING, NotRequired, TypedDict
 import numpy as np
 
 try:
-    import pandas as pd
     import xarray as xr
 except ImportError:
     raise ImportError(
@@ -34,7 +33,7 @@ from itzi_core.providers.base import RasterInputProvider
 from itzi_core.providers.domain_data import DomainData
 
 if TYPE_CHECKING:
-    from datetime import datetime
+    from datetime import datetime, timedelta
 
 
 type DimensionsDict = dict[str, dict[str, str]]
@@ -54,23 +53,21 @@ class XarrayRasterInputConfig(TypedDict):
 class DimensionsDictFormatter:
     """Populate the dimension mapping based on default values and user-provided ones."""
 
-    # Default dimension names
-    default_dims: dict[str, str] = {
-        "time": "time",
-        "y": "y",
-        "x": "x",
-    }
-
     def __init__(self, input_var_names: Iterable[str], input_dims: DimensionsDict | None):
         self.input_var_names = input_var_names
         self.input_dims = input_dims
         self._dataset_dims: DimensionsDict = {}
 
         # Instantiate the dimensions with default values
+        default_dims: dict[str, str] = {
+            "time": "time",
+            "y": "y",
+            "x": "x",
+        }
         for var_name in input_var_names:
             self._dataset_dims[var_name] = (
                 # copy avoids shared state
-                self.default_dims.copy()
+                default_dims.copy()
             )
 
         self._check_input_dims()
@@ -121,7 +118,7 @@ class XarrayRasterInputProvider(RasterInputProvider):
 
         # Set dimensions Mapping
         dim_names: DimensionsDict | None = config.get("dimension_names")
-        input_var_names: list[str] = [str(var_name) for var_name in self.dataset.data_vars.keys()]
+        input_var_names: list[str] = [str(var_name) for var_name in self.dataset.data_vars]
         dim_formatter = DimensionsDictFormatter(input_var_names, dim_names)
         self.dataset_dims: DimensionsDict = dim_formatter.get_formatted_dims()
 
@@ -137,7 +134,7 @@ class XarrayRasterInputProvider(RasterInputProvider):
 
     def _validate_map_names_are_variables(self):
         """Make sure that the provided maps names exist as variables in the provided dataset."""
-        var_names: list[str] = [str(var_name) for var_name in self.dataset.data_vars.keys()]
+        var_names: list[str] = [str(var_name) for var_name in self.dataset.data_vars]
         for map_key, map_name in self.input_map_names.items():
             if map_name not in var_names:
                 raise ValueError(
@@ -149,7 +146,7 @@ class XarrayRasterInputProvider(RasterInputProvider):
         """Validate that:
         - the specified spatial dimensions exist in the dataset.
         - The dimensions are one-dimensional."""
-        for raw_var_name in self.dataset.data_vars.keys():
+        for raw_var_name in self.dataset.data_vars:
             var_name = str(raw_var_name)
             da_var: xr.DataArray = self.dataset[var_name]
             var_dims = {str(dim) for dim in da_var.dims}
@@ -280,12 +277,12 @@ class XarrayRasterInputProvider(RasterInputProvider):
     def get_domain_data(self) -> DomainData:
         """Return a DomainData object."""
         # get the first coords. They are all the same (checked at init).
-        y_dim_name: str = [
+        y_dim_name: str = next(
             self.dataset_dims[var_name]["y"] for var_name in self.input_map_names.values()
-        ][0]
-        x_dim_name: str = [
+        )
+        x_dim_name: str = next(
             self.dataset_dims[var_name]["x"] for var_name in self.input_map_names.values()
-        ][0]
+        )
         # Coordinates are at the center of the cells
         y_coords: xr.DataArray = self.dataset[y_dim_name]
         rows: int = len(y_coords)
@@ -340,10 +337,12 @@ class XarrayRasterInputProvider(RasterInputProvider):
             end_value = None
         return active_idx, start_value, end_value
 
-    def _to_datetime(self, time_value, time_dim: str) -> datetime:
+    def _to_datetime(self, time_value: np.timedelta64 | np.datetime64, time_dim: str) -> datetime:
         if self.temporal_types[time_dim] == TemporalType.RELATIVE:
-            return self.sim_start_time + pd.to_timedelta(time_value).to_pytimedelta()
-        return pd.to_datetime(time_value).to_pydatetime()
+            delta: timedelta = time_value.astype("O")
+            return self.sim_start_time + delta
+        value: datetime = time_value.astype("O")
+        return value
 
     def get_array(
         self, map_key: str, current_time: datetime
