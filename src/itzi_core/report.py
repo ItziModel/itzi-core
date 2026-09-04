@@ -84,11 +84,11 @@ class Report:
         self._drainage_topology_written = False
 
     def start(self, drainage_topology: DrainageNetworkTopology | None) -> Report:
-        """Initialize output providers before the first report is written."""
+        """Write drainage topology once before report records with attributes."""
         if drainage_topology is None:
             return self
         if self._drainage_topology_written:
-            raise RuntimeError("Drainage topology has already been written.")
+            return self
         self.vector_provider.write_topology(drainage_topology)
         self._drainage_topology_written = True
         return self

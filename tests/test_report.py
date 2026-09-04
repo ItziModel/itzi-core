@@ -142,6 +142,7 @@ def test_drainage_topology_is_written_before_attributes() -> None:
     assert not raster_provider.output_maps_dict
 
     report.start(drainage_network.topology)
+    report.start(drainage_network.topology)
     report.step(data)
     report.step(data.model_copy(update={"sim_time": start_time + timedelta(seconds=60)}))
 
@@ -150,5 +151,3 @@ def test_drainage_topology_is_written_before_attributes() -> None:
         (timedelta(0), drainage_network.attributes),
         (timedelta(seconds=60), drainage_network.attributes),
     ]
-    with pytest.raises(RuntimeError, match="already been written"):
-        report.start(drainage_network.topology)

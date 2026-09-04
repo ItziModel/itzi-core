@@ -78,7 +78,6 @@ class Simulation:
         self.drainage_nodes_list = drainage_nodes_list
         self.surface_flow = surface_flow
         self.report = report
-        self._report_started = False
 
         # Mass balance error checking
         self.old_domain_volume = rastermetrics.calculate_total_volume(
@@ -164,7 +163,9 @@ class Simulation:
             self._update_accum_array(arr_key, self.sim_time)
         self.continuity_data = self.get_continuity_data()
         # Pass data to the reporting module
-        self._start_reporting()
+        self.report.start(
+            self.drainage_model.get_drainage_network_topology() if self.drainage_model else None
+        )
         self.report.step(self._build_simulation_data(self.sim_time, 0))
 
         # d. Reset accumulators
@@ -245,7 +246,11 @@ class Simulation:
         # Reporting last to get simulated values #
         if should_write_report:
             logger.debug(f"{step_end}: Writing output maps...")
-            self._start_reporting()
+            self.report.start(
+                self.drainage_model.get_drainage_network_topology()
+                if self.drainage_model
+                else None
+            )
             self.report.step(
                 self._build_simulation_data(
                     sim_time=step_end,
@@ -308,14 +313,6 @@ class Simulation:
         self.report.end()
         if self.drainage_model:
             self.drainage_model.close()
-
-    def _start_reporting(self) -> None:
-        """Initialize output providers before the first report write."""
-        if self._report_started:
-            return
-        if self.drainage_model:
-            self.report.start(self.drainage_model.get_drainage_network_topology())
-        self._report_started = True
 
     def _apply_drainage_coupling(self) -> None:
         """Update the drainage exchange array from the current time label state."""
