@@ -42,7 +42,7 @@ from itzi_core.providers.xarray_input import XarrayRasterInputConfig, XarrayRast
 from itzi_core.simulation_builder import SimulationBuilder
 
 # Mark all tests in this module as cloud tests
-pytestmark = pytest.mark.cloud
+pytestmark = pytest.mark.xarray
 
 
 TEST8A_MD5 = "46b589ee000ff87c9077fcc51fa71e8e"

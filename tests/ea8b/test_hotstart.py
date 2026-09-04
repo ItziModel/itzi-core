@@ -42,7 +42,7 @@ from tests.ea8b.helpers import (
     get_reference_metrics,
 )
 
-pytestmark = pytest.mark.cloud
+pytestmark = pytest.mark.xarray
 
 
 @pytest.mark.slow

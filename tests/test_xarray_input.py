@@ -13,7 +13,6 @@ GNU Lesser General Public License for more details.
 """
 
 from datetime import datetime, timedelta
-from typing import Dict
 
 import numpy as np
 import pandas as pd
@@ -30,7 +29,7 @@ from itzi_core.const import TemporalType
 from itzi_core.providers.xarray_input import XarrayRasterInputConfig, XarrayRasterInputProvider
 
 # Mark all tests in this module as cloud tests
-pytestmark = pytest.mark.cloud
+pytestmark = pytest.mark.xarray
 
 
 @pytest.fixture(scope="module")
@@ -45,7 +44,7 @@ def input_maps_dict():
 
 
 @pytest.fixture(scope="module")
-def coordinates(input_maps_dict: Dict):
+def coordinates(input_maps_dict: dict):
     """Generate x and y coordinates for the test arrays"""
     arr_shape = next(iter(input_maps_dict.values())).shape
     res = 10
@@ -93,11 +92,11 @@ def relative_time_coordinates():
 
 @pytest.fixture
 def xarray_input_data_relative_time(
-    input_maps_dict: Dict,
-    coordinates: Dict,
+    input_maps_dict: dict,
+    coordinates: dict,
     crs: pyproj.CRS,
     relative_time_coordinates: list,
-    input_map_names: Dict,
+    input_map_names: dict,
 ):
     """Create a Dataset with relative time input data for testing"""
 
@@ -137,7 +136,7 @@ def xarray_input_data_relative_time(
 
 
 @pytest.fixture(scope="module")
-def input_map_names(input_maps_dict: Dict):
+def input_map_names(input_maps_dict: dict):
     """Mapping from itzi internal names to dataset variable names"""
     # Create a mapping where some keys map to different variable names in xarray.dataset
     mapping = {}
@@ -154,11 +153,11 @@ def input_map_names(input_maps_dict: Dict):
 
 @pytest.fixture
 def xarray_input_data(
-    input_maps_dict: Dict,
-    coordinates: Dict,
+    input_maps_dict: dict,
+    coordinates: dict,
     crs: pyproj.CRS,
     time_coordinates: list,
-    input_map_names: Dict,
+    input_map_names: dict,
 ):
     """Create a dataset repository with input data for testing"""
     time_len = len(time_coordinates)
@@ -206,7 +205,7 @@ def default_times():
     }
 
 
-def test_xarray_input_provider_creation(xarray_input_data: Dict, default_times: Dict):
+def test_xarray_input_provider_creation(xarray_input_data: dict, default_times: dict):
     """Test that XarrayRasterInputProvider can be created successfully"""
     config: XarrayRasterInputConfig = {
         "dataset": xarray_input_data["dataset"],
@@ -322,7 +321,7 @@ def test_xarray_input_provider_rejects_nat_time_scalars(
 
 
 def test_xarray_input_provider_get_array_static_variable(
-    xarray_input_data: Dict, default_times: Dict
+    xarray_input_data: dict, default_times: dict
 ):
     """Test get_array method for static (non-time-dependent) variables"""
     config: XarrayRasterInputConfig = {
@@ -358,7 +357,7 @@ def test_xarray_input_provider_get_array_static_variable(
 
 
 def test_xarray_input_provider_get_array_time_dependent_variable(
-    xarray_input_data: Dict, default_times: Dict
+    xarray_input_data: dict, default_times: dict
 ):
     """Test get_array method for time-dependent variables"""
     config: XarrayRasterInputConfig = {
@@ -411,7 +410,7 @@ def test_xarray_input_provider_get_array_time_dependent_variable(
 
 
 def test_xarray_input_provider_uses_half_open_windows_at_exact_boundary(
-    xarray_input_data: Dict, default_times: Dict
+    xarray_input_data: dict, default_times: dict
 ):
     config: XarrayRasterInputConfig = {
         "dataset": xarray_input_data["dataset"],
@@ -437,7 +436,7 @@ def test_xarray_input_provider_uses_half_open_windows_at_exact_boundary(
 
 
 def test_xarray_input_provider_extends_last_slice_to_simulation_end(
-    xarray_input_data: Dict, default_times: Dict
+    xarray_input_data: dict, default_times: dict
 ):
     config: XarrayRasterInputConfig = {
         "dataset": xarray_input_data["dataset"],
@@ -463,7 +462,7 @@ def test_xarray_input_provider_extends_last_slice_to_simulation_end(
 
 
 def test_xarray_input_provider_get_array_nonexistent_key(
-    xarray_input_data: Dict, default_times: Dict
+    xarray_input_data: dict, default_times: dict
 ):
     """Test get_array method with a non-existent map key"""
     config: XarrayRasterInputConfig = {
@@ -496,7 +495,7 @@ def test_xarray_input_provider_get_array_nonexistent_key(
 
 
 def test_xarray_input_provider_origin(
-    xarray_input_data: Dict, default_times: Dict, coordinates: Dict
+    xarray_input_data: dict, default_times: dict, coordinates: dict
 ):
     """Test the get_origin() function - should return NW corner coordinates as (N, W) tuple"""
     config: XarrayRasterInputConfig = {
@@ -527,7 +526,7 @@ def test_xarray_input_provider_origin(
     assert west == expected_west
 
 
-def test_xarray_input_provider_data_consistency(xarray_input_data: Dict, default_times: Dict):
+def test_xarray_input_provider_data_consistency(xarray_input_data: dict, default_times: dict):
     """Test that the provider can consistently access the same data"""
     config: XarrayRasterInputConfig = {
         "dataset": xarray_input_data["dataset"],
@@ -566,7 +565,7 @@ def test_xarray_input_provider_data_consistency(xarray_input_data: Dict, default
 
 @pytest.mark.parametrize("map_key", ["dem", "friction", "rainfall"])
 def test_xarray_input_provider_multiple_variables(
-    xarray_input_data: Dict, default_times: Dict, map_key: str
+    xarray_input_data: dict, default_times: dict, map_key: str
 ):
     """Test get_array method with different variable types"""
     if map_key not in xarray_input_data["input_map_names"]:
@@ -604,7 +603,7 @@ def test_xarray_input_provider_multiple_variables(
 
 
 def test_xarray_input_provider_get_array_time_dependent_variable_relative_time(
-    xarray_input_data_relative_time: Dict, default_times: Dict
+    xarray_input_data_relative_time: dict, default_times: dict
 ):
     """Test get_array method for time-dependent variables with relative time (timedelta)"""
     config: XarrayRasterInputConfig = {
@@ -658,7 +657,7 @@ def test_xarray_input_provider_get_array_time_dependent_variable_relative_time(
 
 
 @pytest.fixture
-def unsorted_coordinates_data(input_maps_dict: Dict, crs: pyproj.CRS):
+def unsorted_coordinates_data(input_maps_dict: dict, crs: pyproj.CRS):
     """Create a dataset with unsorted coordinates for testing"""
 
     # Create unsorted coordinates
@@ -688,7 +687,7 @@ def unsorted_coordinates_data(input_maps_dict: Dict, crs: pyproj.CRS):
 
 
 @pytest.fixture
-def unequal_spacing_data(input_maps_dict: Dict, crs: pyproj.CRS):
+def unequal_spacing_data(input_maps_dict: dict, crs: pyproj.CRS):
     """Create a dataset with unequally spaced coordinates for testing"""
 
     # Create unequally spaced but sorted coordinates
@@ -717,7 +716,7 @@ def unequal_spacing_data(input_maps_dict: Dict, crs: pyproj.CRS):
     }
 
 
-def test_is_dataset_sorted_with_sorted_coordinates(xarray_input_data: Dict, default_times: Dict):
+def test_is_dataset_sorted_with_sorted_coordinates(xarray_input_data: dict, default_times: dict):
     """Test that provider creation succeeds with properly sorted coordinates"""
     config: XarrayRasterInputConfig = {
         "dataset": xarray_input_data["dataset"],
@@ -734,7 +733,7 @@ def test_is_dataset_sorted_with_sorted_coordinates(xarray_input_data: Dict, defa
 
 
 def test_is_dataset_sorted_with_unsorted_coordinates(
-    unsorted_coordinates_data: Dict, default_times: Dict
+    unsorted_coordinates_data: dict, default_times: dict
 ):
     """Test that provider creation fails with unsorted coordinates"""
     # This test should fail during provider creation due to unsorted coordinates
@@ -750,7 +749,7 @@ def test_is_dataset_sorted_with_unsorted_coordinates(
         XarrayRasterInputProvider(config)
 
 
-def test_is_equal_spacing_with_equal_spacing(xarray_input_data: Dict, default_times: Dict):
+def test_is_equal_spacing_with_equal_spacing(xarray_input_data: dict, default_times: dict):
     """Test that provider creation succeeds with equally spaced coordinates"""
     config: XarrayRasterInputConfig = {
         "dataset": xarray_input_data["dataset"],
@@ -766,7 +765,7 @@ def test_is_equal_spacing_with_equal_spacing(xarray_input_data: Dict, default_ti
     assert provider is not None
 
 
-def test_is_equal_spacing_with_unequal_spacing(unequal_spacing_data: Dict, default_times: Dict):
+def test_is_equal_spacing_with_unequal_spacing(unequal_spacing_data: dict, default_times: dict):
     """Test that provider creation fails with unequally spaced coordinates"""
 
     # Should raise ValueError because coordinates are not equally spaced
@@ -815,11 +814,11 @@ def test_is_array_sorted_static_method():
 
 
 def test_wrong_time_dimension_name_causes_assertion_error(
-    input_maps_dict: Dict,
-    coordinates: Dict,
+    input_maps_dict: dict,
+    coordinates: dict,
     crs: pyproj.CRS,
     time_coordinates: list,
-    default_times: Dict,
+    default_times: dict,
 ):
     """
     Test that reproduces the error when time dimension name is wrong.
@@ -864,7 +863,7 @@ def test_wrong_time_dimension_name_causes_assertion_error(
 
 
 def test_xarray_input_provider_2d_only_no_time_coordinate(
-    input_maps_dict: Dict, coordinates: Dict, crs: pyproj.CRS, default_times: Dict
+    input_maps_dict: dict, coordinates: dict, crs: pyproj.CRS, default_times: dict
 ):
     """Test that XarrayRasterInputProvider handles datasets with only 2D variables and NO time coordinate.
 
@@ -941,7 +940,7 @@ def test_xarray_input_provider_2d_only_no_time_coordinate(
 
 
 @pytest.fixture
-def mixed_dimensions_data(input_maps_dict: Dict, coordinates: Dict, crs: pyproj.CRS):
+def mixed_dimensions_data(input_maps_dict: dict, coordinates: dict, crs: pyproj.CRS):
     """Create a dataset with mixed dimension names and time types:
     - 1 2D array (no time dim) with dimensions (lat, lon)
     - 1 3D array with relative time with dimensions (rel_time, northing, easting)
@@ -1010,7 +1009,7 @@ def mixed_dimensions_data(input_maps_dict: Dict, coordinates: Dict, crs: pyproj.
     }
 
 
-def test_xarray_input_provider_mixed_dimensions(mixed_dimensions_data: Dict, default_times: Dict):
+def test_xarray_input_provider_mixed_dimensions(mixed_dimensions_data: dict, default_times: dict):
     """Test XarrayRasterInputProvider with mixed dimension names and time types.
 
     This test validates that the provider can handle:

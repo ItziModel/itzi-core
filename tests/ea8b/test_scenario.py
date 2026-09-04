@@ -26,7 +26,7 @@ import pytest
 
 from tests.ea8b.helpers import EA8B_REFERENCE_MAX_RSR, EA8B_REFERENCE_MIN_NSE
 
-pytestmark = pytest.mark.cloud
+pytestmark = pytest.mark.xarray
 
 
 @pytest.mark.slow

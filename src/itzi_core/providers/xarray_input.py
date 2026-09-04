@@ -25,14 +25,13 @@ try:
 except ImportError:
     raise ImportError(
         "To use the xarray input backend, install itzi with: "
-        "'uv tool install itzi[cloud]' "
-        "or 'pip install itzi[cloud]'"
+        "'uv tool install itzi[xarray]' "
+        "or 'pip install itzi[xarray]'"
     )
 
 from itzi_core.const import TemporalType
 from itzi_core.providers.base import RasterInputProvider
 from itzi_core.providers.domain_data import DomainData
-
 
 type DimensionsDict = dict[str, dict[str, str]]
 
