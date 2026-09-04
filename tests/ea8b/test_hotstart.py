@@ -114,7 +114,7 @@ def test_ea8b_hotstart_roundtrip(
         simulation.update()
     simulation.finalize()
 
-    resumed_results = drainage_data_to_coupling_series(vector_output.drainage_data)
+    resumed_results = drainage_data_to_coupling_series(vector_output.drainage_attributes)
     resumed_metrics = get_reference_metrics(resumed_results, ea8b_reference, helpers)
 
     assert_matches_reference(resumed_metrics, label="Resumed hotstart run")

@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
-from itzi_core.data_containers import DrainageNetworkData, SimulationConfig
+from itzi_core.data_containers import DrainageNetworkAttributes, SimulationConfig
 from itzi_core.providers.memory_output import (
     MemoryRasterOutputProvider,
     MemoryVectorOutputProvider,
@@ -38,12 +38,12 @@ EA8B_FINAL_ARRAY_ATOL: dict[str, float] = {
 
 
 def drainage_data_to_coupling_series(
-    drainage_records: list[tuple[datetime | timedelta, DrainageNetworkData]],
+    drainage_records: list[tuple[datetime | timedelta, DrainageNetworkAttributes]],
 ) -> pd.Series:
     rows: list[dict[str, object]] = []
     for sim_time, drainage_data in drainage_records:
         for node in drainage_data.nodes:
-            rows.append({"sim_time": sim_time, **node.attributes.model_dump()})
+            rows.append({"sim_time": sim_time, **node.model_dump()})
 
     if not rows:
         return pd.Series(name="coupling_flow", dtype=float)

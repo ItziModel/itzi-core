@@ -227,7 +227,7 @@ def ea8b_simulation(ea8b_data, test_data_path, ea8b_temp_path):
 @pytest.fixture(scope="package")
 def ea8b_drainage_results(ea8b_simulation):
     vector_output = ea8b_simulation["vector_output"]
-    return drainage_data_to_coupling_series(vector_output.drainage_data)
+    return drainage_data_to_coupling_series(vector_output.drainage_attributes)
 
 
 @pytest.fixture(scope="session")
