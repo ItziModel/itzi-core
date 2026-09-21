@@ -44,9 +44,9 @@ jobs:
             ITZI_BDIST_WHEEL=1
             NO_STABLE_ABI=1
           CIBW_BEFORE_TEST: "pip install pytest pytest-benchmark pandas scipy"
-          CIBW_TEST_SOURCES: tests
+          CIBW_TEST_SOURCES: tests scripts pyproject.toml
           CIBW_TEST_COMMAND: >  # Fast tests
-            pytest -m "not slow and not xarray" tests/
+            python -m pytest -m "not slow and not xarray" tests/
 
       - uses: actions/upload-artifact@v6
         with:
