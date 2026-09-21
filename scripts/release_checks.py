@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import re
+import subprocess
+import sys
 import tarfile
 import tomllib
 import zipfile
@@ -9,10 +11,6 @@ from email.parser import BytesParser
 from pathlib import Path
 
 PROJECT_NAME = "itzi-core"
-# linux-amd64-libc, linux-amd64-musl, linux-arm64-libc, linux-arm64-musl, windows-amd6, macos
-SUPPORTED_ARCH = 6
-SUPPORTED_PYTHON_VER = 3
-EXPECTED_WHEEL_COUNT = SUPPORTED_ARCH * SUPPORTED_PYTHON_VER
 
 
 def version_from_tag(tag: str) -> str:
@@ -28,6 +26,24 @@ def verify_version(tag: str, pyproject_path: Path) -> None:
         raise SystemExit(f"Tag {tag!r} does not match project.version {project_version!r}.")
 
 
+def verify_wheel_count(wheelhouse: Path) -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "cibuildwheel", "--print-build-identifiers"],
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    identifiers = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    wheels = list(wheelhouse.glob("*.whl"))
+
+    if not identifiers:
+        raise SystemExit("cibuildwheel did not select any wheel builds.")
+    if len(wheels) != len(identifiers):
+        raise SystemExit(
+            f"Expected {len(identifiers)} wheels for {identifiers}, found {len(wheels)}: {wheels}"
+        )
+
+
 def verify_artifacts(dist: Path, tag: str) -> None:
     version = version_from_tag(tag)
     sdists = list(dist.glob("*.tar.gz"))
@@ -35,8 +51,6 @@ def verify_artifacts(dist: Path, tag: str) -> None:
 
     if len(sdists) != 1:
         raise SystemExit(f"Expected one sdist, found {len(sdists)}: {sdists}")
-    if len(wheels) != EXPECTED_WHEEL_COUNT:
-        raise SystemExit(f"Expected {EXPECTED_WHEEL_COUNT} wheels, found {len(wheels)}: {wheels}")
 
     with tarfile.open(sdists[0]) as archive:
         pyproject = next(
@@ -75,6 +89,9 @@ def main() -> None:
     version_parser.add_argument("tag")
     version_parser.add_argument("--pyproject", type=Path, default=Path("pyproject.toml"))
 
+    wheel_count_parser = subparsers.add_parser("verify-wheel-count")
+    wheel_count_parser.add_argument("wheelhouse", type=Path)
+
     artifacts_parser = subparsers.add_parser("verify-artifacts")
     artifacts_parser.add_argument("dist", type=Path)
     artifacts_parser.add_argument("tag")
@@ -82,6 +99,8 @@ def main() -> None:
     args = parser.parse_args()
     if args.command == "verify-version":
         verify_version(args.tag, args.pyproject)
+    elif args.command == "verify-wheel-count":
+        verify_wheel_count(args.wheelhouse)
     else:
         verify_artifacts(args.dist, args.tag)
 
