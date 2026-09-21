@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 import pytest
+from pydantic import ValidationError
 
 # Skip entire module if optional dependencies are missing
 pytest.importorskip("xarray")
@@ -207,12 +208,12 @@ def default_times():
 
 def test_xarray_input_provider_creation(xarray_input_data: dict, default_times: dict):
     """Test that XarrayRasterInputProvider can be created successfully"""
-    config: XarrayRasterInputConfig = {
-        "dataset": xarray_input_data["dataset"],
-        "input_map_names": xarray_input_data["input_map_names"],
-        "simulation_start_time": default_times["start_time"],
-        "simulation_end_time": default_times["end_time"],
-    }
+    config = XarrayRasterInputConfig(
+        dataset=xarray_input_data["dataset"],
+        input_map_names=xarray_input_data["input_map_names"],
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
+    )
 
     # Create the provider
     provider = XarrayRasterInputProvider(config)
@@ -226,6 +227,54 @@ def test_xarray_input_provider_creation(xarray_input_data: dict, default_times: 
     ds = provider.dataset
     assert ds is not None
     assert len(ds.data_vars) > 0
+
+
+def test_xarray_input_config_applies_dimension_defaults(
+    xarray_input_data: dict, default_times: dict
+):
+    var_name = next(iter(xarray_input_data["input_map_names"].values()))
+
+    config = XarrayRasterInputConfig(
+        dataset=xarray_input_data["dataset"],
+        input_map_names=xarray_input_data["input_map_names"],
+        dimension_names={var_name: {"time": "observation_time"}},
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
+    )
+
+    dimensions = config.dimension_names[var_name]
+    assert dimensions.time == "observation_time"
+    assert dimensions.y == "y"
+    assert dimensions.x == "x"
+
+
+def test_xarray_input_config_rejects_invalid_values(xarray_input_data: dict, default_times: dict):
+    config_data: dict[str, object] = {
+        "dataset": xarray_input_data["dataset"],
+        "input_map_names": xarray_input_data["input_map_names"],
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
+    }
+    var_name = next(iter(xarray_input_data["input_map_names"].values()))
+
+    with pytest.raises(ValidationError):
+        XarrayRasterInputConfig.model_validate(config_data | {"unknown_option": True})
+    with pytest.raises(ValidationError):
+        XarrayRasterInputConfig.model_validate(config_data | {"input_map_names": {}})
+    with pytest.raises(ValidationError):
+        XarrayRasterInputConfig.model_validate(
+            config_data | {"input_map_names": {"dem": "missing"}}
+        )
+    with pytest.raises(ValidationError):
+        XarrayRasterInputConfig.model_validate(config_data | {"dimension_names": {"missing": {}}})
+    with pytest.raises(ValidationError):
+        XarrayRasterInputConfig.model_validate(
+            config_data | {"dimension_names": {var_name: {"z": "z"}}}
+        )
+    with pytest.raises(ValidationError):
+        XarrayRasterInputConfig.model_validate(
+            config_data | {"simulation_start_time": default_times["end_time"]}
+        )
 
 
 @pytest.mark.parametrize(
@@ -252,12 +301,12 @@ def test_xarray_input_provider_converts_absolute_time_scalars(
     time_value: np.datetime64,
     expected_offset: timedelta,
 ):
-    config: XarrayRasterInputConfig = {
-        "dataset": xarray_input_data["dataset"],
-        "input_map_names": xarray_input_data["input_map_names"],
-        "simulation_start_time": default_times["start_time"],
-        "simulation_end_time": default_times["end_time"],
-    }
+    config = XarrayRasterInputConfig(
+        dataset=xarray_input_data["dataset"],
+        input_map_names=xarray_input_data["input_map_names"],
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
+    )
     provider = XarrayRasterInputProvider(config)
 
     assert (
@@ -282,12 +331,12 @@ def test_xarray_input_provider_converts_relative_time_scalars(
     time_value: np.timedelta64,
     expected_offset: timedelta,
 ):
-    config: XarrayRasterInputConfig = {
-        "dataset": xarray_input_data_relative_time["dataset"],
-        "input_map_names": xarray_input_data_relative_time["input_map_names"],
-        "simulation_start_time": default_times["start_time"],
-        "simulation_end_time": default_times["end_time"],
-    }
+    config = XarrayRasterInputConfig(
+        dataset=xarray_input_data_relative_time["dataset"],
+        input_map_names=xarray_input_data_relative_time["input_map_names"],
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
+    )
     provider = XarrayRasterInputProvider(config)
 
     assert (
@@ -298,18 +347,18 @@ def test_xarray_input_provider_converts_relative_time_scalars(
 def test_xarray_input_provider_rejects_nat_time_scalars(
     xarray_input_data: dict, xarray_input_data_relative_time: dict, default_times: dict
 ):
-    absolute_config: XarrayRasterInputConfig = {
-        "dataset": xarray_input_data["dataset"],
-        "input_map_names": xarray_input_data["input_map_names"],
-        "simulation_start_time": default_times["start_time"],
-        "simulation_end_time": default_times["end_time"],
-    }
-    relative_config: XarrayRasterInputConfig = {
-        "dataset": xarray_input_data_relative_time["dataset"],
-        "input_map_names": xarray_input_data_relative_time["input_map_names"],
-        "simulation_start_time": default_times["start_time"],
-        "simulation_end_time": default_times["end_time"],
-    }
+    absolute_config = XarrayRasterInputConfig(
+        dataset=xarray_input_data["dataset"],
+        input_map_names=xarray_input_data["input_map_names"],
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
+    )
+    relative_config = XarrayRasterInputConfig(
+        dataset=xarray_input_data_relative_time["dataset"],
+        input_map_names=xarray_input_data_relative_time["input_map_names"],
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
+    )
 
     absolute_provider = XarrayRasterInputProvider(absolute_config)
     relative_provider = XarrayRasterInputProvider(relative_config)
@@ -324,12 +373,12 @@ def test_xarray_input_provider_get_array_static_variable(
     xarray_input_data: dict, default_times: dict
 ):
     """Test get_array method for static (non-time-dependent) variables"""
-    config: XarrayRasterInputConfig = {
-        "dataset": xarray_input_data["dataset"],
-        "input_map_names": xarray_input_data["input_map_names"],
-        "simulation_start_time": default_times["start_time"],
-        "simulation_end_time": default_times["end_time"],
-    }
+    config = XarrayRasterInputConfig(
+        dataset=xarray_input_data["dataset"],
+        input_map_names=xarray_input_data["input_map_names"],
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
+    )
 
     provider = XarrayRasterInputProvider(config)
 
@@ -360,12 +409,12 @@ def test_xarray_input_provider_get_array_time_dependent_variable(
     xarray_input_data: dict, default_times: dict
 ):
     """Test get_array method for time-dependent variables"""
-    config: XarrayRasterInputConfig = {
-        "dataset": xarray_input_data["dataset"],
-        "input_map_names": xarray_input_data["input_map_names"],
-        "simulation_start_time": default_times["start_time"],
-        "simulation_end_time": default_times["end_time"],
-    }
+    config = XarrayRasterInputConfig(
+        dataset=xarray_input_data["dataset"],
+        input_map_names=xarray_input_data["input_map_names"],
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
+    )
 
     provider = XarrayRasterInputProvider(config)
 
@@ -412,12 +461,12 @@ def test_xarray_input_provider_get_array_time_dependent_variable(
 def test_xarray_input_provider_uses_half_open_windows_at_exact_boundary(
     xarray_input_data: dict, default_times: dict
 ):
-    config: XarrayRasterInputConfig = {
-        "dataset": xarray_input_data["dataset"],
-        "input_map_names": xarray_input_data["input_map_names"],
-        "simulation_start_time": default_times["start_time"],
-        "simulation_end_time": default_times["end_time"],
-    }
+    config = XarrayRasterInputConfig(
+        dataset=xarray_input_data["dataset"],
+        input_map_names=xarray_input_data["input_map_names"],
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
+    )
 
     provider = XarrayRasterInputProvider(config)
 
@@ -438,12 +487,12 @@ def test_xarray_input_provider_uses_half_open_windows_at_exact_boundary(
 def test_xarray_input_provider_extends_last_slice_to_simulation_end(
     xarray_input_data: dict, default_times: dict
 ):
-    config: XarrayRasterInputConfig = {
-        "dataset": xarray_input_data["dataset"],
-        "input_map_names": xarray_input_data["input_map_names"],
-        "simulation_start_time": default_times["start_time"],
-        "simulation_end_time": default_times["end_time"],
-    }
+    config = XarrayRasterInputConfig(
+        dataset=xarray_input_data["dataset"],
+        input_map_names=xarray_input_data["input_map_names"],
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
+    )
 
     provider = XarrayRasterInputProvider(config)
 
@@ -465,12 +514,12 @@ def test_xarray_input_provider_get_array_nonexistent_key(
     xarray_input_data: dict, default_times: dict
 ):
     """Test get_array method with a non-existent map key"""
-    config: XarrayRasterInputConfig = {
-        "dataset": xarray_input_data["dataset"],
-        "input_map_names": xarray_input_data["input_map_names"],
-        "simulation_start_time": default_times["start_time"],
-        "simulation_end_time": default_times["end_time"],
-    }
+    config = XarrayRasterInputConfig(
+        dataset=xarray_input_data["dataset"],
+        input_map_names=xarray_input_data["input_map_names"],
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
+    )
 
     provider = XarrayRasterInputProvider(config)
 
@@ -498,12 +547,12 @@ def test_xarray_input_provider_origin(
     xarray_input_data: dict, default_times: dict, coordinates: dict
 ):
     """Test the get_origin() function - should return NW corner coordinates as (N, W) tuple"""
-    config: XarrayRasterInputConfig = {
-        "dataset": xarray_input_data["dataset"],
-        "input_map_names": xarray_input_data["input_map_names"],
-        "simulation_start_time": default_times["start_time"],
-        "simulation_end_time": default_times["end_time"],
-    }
+    config = XarrayRasterInputConfig(
+        dataset=xarray_input_data["dataset"],
+        input_map_names=xarray_input_data["input_map_names"],
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
+    )
 
     provider = XarrayRasterInputProvider(config)
 
@@ -528,12 +577,12 @@ def test_xarray_input_provider_origin(
 
 def test_xarray_input_provider_data_consistency(xarray_input_data: dict, default_times: dict):
     """Test that the provider can consistently access the same data"""
-    config: XarrayRasterInputConfig = {
-        "dataset": xarray_input_data["dataset"],
-        "input_map_names": xarray_input_data["input_map_names"],
-        "simulation_start_time": default_times["start_time"],
-        "simulation_end_time": default_times["end_time"],
-    }
+    config = XarrayRasterInputConfig(
+        dataset=xarray_input_data["dataset"],
+        input_map_names=xarray_input_data["input_map_names"],
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
+    )
 
     provider = XarrayRasterInputProvider(config)
 
@@ -571,12 +620,12 @@ def test_xarray_input_provider_multiple_variables(
     if map_key not in xarray_input_data["input_map_names"]:
         pytest.skip(f"Variable {map_key} not in test data")
 
-    config: XarrayRasterInputConfig = {
-        "dataset": xarray_input_data["dataset"],
-        "input_map_names": xarray_input_data["input_map_names"],
-        "simulation_start_time": default_times["start_time"],
-        "simulation_end_time": default_times["end_time"],
-    }
+    config = XarrayRasterInputConfig(
+        dataset=xarray_input_data["dataset"],
+        input_map_names=xarray_input_data["input_map_names"],
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
+    )
 
     provider = XarrayRasterInputProvider(config)
     current_time = datetime(2023, 1, 1, 12, 0, 0)
@@ -606,12 +655,12 @@ def test_xarray_input_provider_get_array_time_dependent_variable_relative_time(
     xarray_input_data_relative_time: dict, default_times: dict
 ):
     """Test get_array method for time-dependent variables with relative time (timedelta)"""
-    config: XarrayRasterInputConfig = {
-        "dataset": xarray_input_data_relative_time["dataset"],
-        "input_map_names": xarray_input_data_relative_time["input_map_names"],
-        "simulation_start_time": default_times["start_time"],
-        "simulation_end_time": default_times["end_time"],
-    }
+    config = XarrayRasterInputConfig(
+        dataset=xarray_input_data_relative_time["dataset"],
+        input_map_names=xarray_input_data_relative_time["input_map_names"],
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
+    )
 
     provider = XarrayRasterInputProvider(config)
 
@@ -718,12 +767,12 @@ def unequal_spacing_data(input_maps_dict: dict, crs: pyproj.CRS):
 
 def test_is_dataset_sorted_with_sorted_coordinates(xarray_input_data: dict, default_times: dict):
     """Test that provider creation succeeds with properly sorted coordinates"""
-    config: XarrayRasterInputConfig = {
-        "dataset": xarray_input_data["dataset"],
-        "input_map_names": xarray_input_data["input_map_names"],
-        "simulation_start_time": default_times["start_time"],
-        "simulation_end_time": default_times["end_time"],
-    }
+    config = XarrayRasterInputConfig(
+        dataset=xarray_input_data["dataset"],
+        input_map_names=xarray_input_data["input_map_names"],
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
+    )
 
     # Should not raise any exception with sorted coordinates
     provider = XarrayRasterInputProvider(config)
@@ -737,12 +786,12 @@ def test_is_dataset_sorted_with_unsorted_coordinates(
 ):
     """Test that provider creation fails with unsorted coordinates"""
     # This test should fail during provider creation due to unsorted coordinates
-    config: XarrayRasterInputConfig = {
-        "dataset": unsorted_coordinates_data["dataset"],
-        "input_map_names": unsorted_coordinates_data["input_map_names"],
-        "simulation_start_time": default_times["start_time"],
-        "simulation_end_time": default_times["end_time"],
-    }
+    config = XarrayRasterInputConfig(
+        dataset=unsorted_coordinates_data["dataset"],
+        input_map_names=unsorted_coordinates_data["input_map_names"],
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
+    )
 
     # Should raise ValueError because coordinates are not sorted (detected as not equally spaced)
     with pytest.raises(ValueError, match="not equally spaced|is not sorted"):
@@ -751,12 +800,12 @@ def test_is_dataset_sorted_with_unsorted_coordinates(
 
 def test_is_equal_spacing_with_equal_spacing(xarray_input_data: dict, default_times: dict):
     """Test that provider creation succeeds with equally spaced coordinates"""
-    config: XarrayRasterInputConfig = {
-        "dataset": xarray_input_data["dataset"],
-        "input_map_names": xarray_input_data["input_map_names"],
-        "simulation_start_time": default_times["start_time"],
-        "simulation_end_time": default_times["end_time"],
-    }
+    config = XarrayRasterInputConfig(
+        dataset=xarray_input_data["dataset"],
+        input_map_names=xarray_input_data["input_map_names"],
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
+    )
 
     # Should not raise any exception with equally spaced coordinates
     provider = XarrayRasterInputProvider(config)
@@ -771,12 +820,12 @@ def test_is_equal_spacing_with_unequal_spacing(unequal_spacing_data: dict, defau
     # Should raise ValueError because coordinates are not equally spaced
     with pytest.raises(ValueError, match="not equally spaced"):
         XarrayRasterInputProvider(
-            {
-                "dataset": unequal_spacing_data["dataset"],
-                "input_map_names": unequal_spacing_data["input_map_names"],
-                "simulation_start_time": default_times["start_time"],
-                "simulation_end_time": default_times["end_time"],
-            }
+            XarrayRasterInputConfig(
+                dataset=unequal_spacing_data["dataset"],
+                input_map_names=unequal_spacing_data["input_map_names"],
+                simulation_start_time=default_times["start_time"],
+                simulation_end_time=default_times["end_time"],
+            )
         )
 
 
@@ -848,13 +897,13 @@ def test_wrong_time_dimension_name_causes_assertion_error(
     ds.attrs["crs_wkt"] = crs.to_wkt()
 
     # Configure provider with default time dimension name "time" (which doesn't exist)
-    config: XarrayRasterInputConfig = {
-        "dataset": ds,
-        "input_map_names": {"rainfall": "rainfall"},
-        "simulation_start_time": default_times["start_time"],
-        "simulation_end_time": default_times["end_time"],
+    config = XarrayRasterInputConfig(
+        dataset=ds,
+        input_map_names={"rainfall": "rainfall"},
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
         # NOT providing dimension_names, so it defaults to looking for "time"
-    }
+    )
 
     with pytest.raises(ValueError):
         provider = XarrayRasterInputProvider(config)
@@ -902,12 +951,12 @@ def test_xarray_input_provider_2d_only_no_time_coordinate(
     }
 
     # This should NOT raise a KeyError about missing 'time' dimension
-    config: XarrayRasterInputConfig = {
-        "dataset": ds,
-        "input_map_names": input_map_names,
-        "simulation_start_time": default_times["start_time"],
-        "simulation_end_time": default_times["end_time"],
-    }
+    config = XarrayRasterInputConfig(
+        dataset=ds,
+        input_map_names=input_map_names,
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
+    )
 
     # Create the provider - this should succeed without errors
     provider = XarrayRasterInputProvider(config)
@@ -1042,13 +1091,13 @@ def test_xarray_input_provider_mixed_dimensions(mixed_dimensions_data: dict, def
         },
     }
 
-    config: XarrayRasterInputConfig = {
-        "dataset": mixed_dimensions_data["dataset"],
-        "input_map_names": input_map_names,
-        "dimension_names": dimension_names,
-        "simulation_start_time": default_times["start_time"],
-        "simulation_end_time": default_times["end_time"],
-    }
+    config = XarrayRasterInputConfig(
+        dataset=mixed_dimensions_data["dataset"],
+        input_map_names=input_map_names,
+        dimension_names=dimension_names,
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
+    )
 
     # Create the provider
     provider = XarrayRasterInputProvider(config)

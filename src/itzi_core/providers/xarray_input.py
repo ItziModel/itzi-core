@@ -14,11 +14,10 @@ GNU Lesser General Public License for more details.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
 from datetime import datetime, timedelta
-from typing import NotRequired, TypedDict
 
 import numpy as np
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 try:
     import xarray as xr
@@ -33,94 +32,72 @@ from itzi_core.const import TemporalType
 from itzi_core.providers.base import RasterInputProvider
 from itzi_core.providers.domain_data import DomainData
 
-type DimensionsDict = dict[str, dict[str, str]]
+
+class XarrayDimensions(BaseModel):
+    """Names of the time and spatial dimensions for one data variable."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    time: str = Field(default="time", min_length=1)
+    y: str = Field(default="y", min_length=3)
+    x: str = Field(default="x", min_length=3)
 
 
-class XarrayRasterInputConfig(TypedDict):
+class XarrayRasterInputConfig(BaseModel):
+    """Configuration for an xarray-backed raster input provider."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid", arbitrary_types_allowed=True)
+
     dataset: xr.Dataset
-    # A dict of key: input names
-    input_map_names: Mapping[str, str]
-    # A Mapping of dimensions names
-    # {"time": "start_time", "x": "longitude"}
-    dimension_names: NotRequired[DimensionsDict]
+    input_map_names: dict[str, str] = Field(min_length=1)
+    dimension_names: dict[str, XarrayDimensions] = Field(default_factory=dict)
     simulation_start_time: datetime
     simulation_end_time: datetime
 
+    @model_validator(mode="after")
+    def validate_configuration(self) -> XarrayRasterInputConfig:
+        if self.simulation_start_time >= self.simulation_end_time:
+            raise ValueError("simulation_start_time must be before simulation_end_time")
 
-class DimensionsDictFormatter:
-    """Populate the dimension mapping based on default values and user-provided ones."""
-
-    def __init__(self, input_var_names: Iterable[str], input_dims: DimensionsDict | None):
-        self.input_var_names = input_var_names
-        self.input_dims = input_dims
-        self._dataset_dims: DimensionsDict = {}
-
-        # Instantiate the dimensions with default values
-        default_dims: dict[str, str] = {
-            "time": "time",
-            "y": "y",
-            "x": "x",
-        }
-        for var_name in input_var_names:
-            self._dataset_dims[var_name] = (
-                # copy avoids shared state
-                default_dims.copy()
+        dataset_var_names = {str(var_name) for var_name in self.dataset.data_vars}
+        unknown_map_variables = sorted(set(self.input_map_names.values()) - dataset_var_names)
+        if unknown_map_variables:
+            raise ValueError(
+                "input_map_names reference variables not found in the dataset: "
+                f"{', '.join(unknown_map_variables)}"
             )
 
-        self._check_input_dims()
+        unknown_dimension_variables = sorted(set(self.dimension_names) - dataset_var_names)
+        if unknown_dimension_variables:
+            raise ValueError(
+                "dimension_names reference variables not found in the dataset: "
+                f"{', '.join(unknown_dimension_variables)}"
+            )
 
-    def _check_input_dims(self):
-        """Check conformity of provided dims dict."""
-        if self.input_dims is None:
-            return
-        if not isinstance(self.input_dims, dict):
-            raise TypeError("The 'dims' parameter must be of type dict[str, dict[str, str]].")
-        # Check that all values are dicts
-        for var_name, dims in self.input_dims.items():
-            if not isinstance(dims, dict):
-                raise TypeError(
-                    f"The 'dims' parameter must be of type dict[str, dict[str, str]]. "
-                    f"Value for key '{var_name}' is not a dict."
-                )
-            if var_name not in self.input_var_names:
-                raise ValueError(
-                    f"Variable {var_name} not found in the input dataset. "
-                    f"Variables found: {self.input_var_names}"
-                )
-
-    def _fill_dims(self):
-        """Replace the default values with those given by the user."""
-        if self.input_dims is None:
-            return
-        for var_name, dims in self.input_dims.items():
-            for dim_key, dim_value in dims.items():
-                self._dataset_dims[var_name][dim_key] = dim_value
-
-    def get_formatted_dims(self) -> DimensionsDict:
-        self._fill_dims()
-        return self._dataset_dims
+        return self
 
 
 class XarrayRasterInputProvider(RasterInputProvider):
-    """Abstract base class for handling raster simulation inputs."""
+    """Provide raster simulation inputs from an xarray dataset."""
 
     def __init__(self, config: XarrayRasterInputConfig) -> None:
-        self.sim_start_time = config["simulation_start_time"]
-        self.sim_end_time = config["simulation_end_time"]
-        self.input_map_names = config["input_map_names"]
+        if not isinstance(config, XarrayRasterInputConfig):
+            raise TypeError("config must be an XarrayRasterInputConfig instance")
 
-        # Open dataset
-        self.dataset = config["dataset"]
+        self.sim_start_time = config.simulation_start_time
+        self.sim_end_time = config.simulation_end_time
+        self.input_map_names = config.input_map_names
+
+        self.dataset = config.dataset
         self.crs_wkt: str = self.dataset.attrs.get("crs_wkt", "")
 
-        # Set dimensions Mapping
-        dim_names: DimensionsDict | None = config.get("dimension_names")
         input_var_names: list[str] = [str(var_name) for var_name in self.dataset.data_vars]
-        dim_formatter = DimensionsDictFormatter(input_var_names, dim_names)
-        self.dataset_dims: DimensionsDict = dim_formatter.get_formatted_dims()
+        self.dataset_dims: dict[str, XarrayDimensions] = {
+            var_name: config.dimension_names.get(var_name, XarrayDimensions())
+            for var_name in input_var_names
+        }
 
         # Data validation
-        self._validate_map_names_are_variables()
         self._validate_dimensions()
         self._validate_variables_dimensionality()
         self._validate_equal_spacing_of_spatial_dims()
@@ -128,16 +105,6 @@ class XarrayRasterInputProvider(RasterInputProvider):
         self._validate_equality_of_spatial_dims()
 
         self.temporal_types: dict[str, TemporalType] = self.detect_temporal_type()
-
-    def _validate_map_names_are_variables(self):
-        """Make sure that the provided maps names exist as variables in the provided dataset."""
-        var_names: list[str] = [str(var_name) for var_name in self.dataset.data_vars]
-        for map_key, map_name in self.input_map_names.items():
-            if map_name not in var_names:
-                raise ValueError(
-                    f"provided input map name {map_name} "
-                    f"for map key {map_key} not found in dataset."
-                )
 
     def _validate_dimensions(self) -> None:
         """Validate that:
@@ -147,8 +114,8 @@ class XarrayRasterInputProvider(RasterInputProvider):
             var_name = str(raw_var_name)
             da_var: xr.DataArray = self.dataset[var_name]
             var_dims = {str(dim) for dim in da_var.dims}
-            for dim_type in ["x", "y"]:
-                dim_name: str = self.dataset_dims[var_name][dim_type]
+            dimensions = self.dataset_dims[var_name]
+            for dim_type, dim_name in (("x", dimensions.x), ("y", dimensions.y)):
                 if dim_name not in var_dims:
                     raise ValueError(
                         f"{dim_type} dimension '{dim_name}' not found in variable {var_name}. "
@@ -167,8 +134,9 @@ class XarrayRasterInputProvider(RasterInputProvider):
             da_var: xr.DataArray = self.dataset[var_name]
             var_dims = {str(dim) for dim in da_var.dims}
             num_dims = len(da_var.dims)
-            x_dim: str = self.dataset_dims[var_name]["x"]
-            y_dim: str = self.dataset_dims[var_name]["y"]
+            dimensions = self.dataset_dims[var_name]
+            x_dim = dimensions.x
+            y_dim = dimensions.y
 
             # Check if variable is 2D or 3D
             if num_dims == 2:
@@ -179,7 +147,7 @@ class XarrayRasterInputProvider(RasterInputProvider):
                         f"Found: {list(da_var.dims)}"
                     )
             elif num_dims == 3:
-                time_dim: str = self.dataset_dims[var_name]["time"]
+                time_dim = dimensions.time
 
                 # Must have x, y, and time dimensions
                 if time_dim not in var_dims:
@@ -202,8 +170,9 @@ class XarrayRasterInputProvider(RasterInputProvider):
     def _validate_equal_spacing_of_spatial_dims(self) -> None:
         """Check if spatial coordinates are equally spaced."""
         for var_name in self.input_map_names.values():
-            x_dim: str = self.dataset_dims[var_name]["x"]
-            y_dim: str = self.dataset_dims[var_name]["y"]
+            dimensions = self.dataset_dims[var_name]
+            x_dim = dimensions.x
+            y_dim = dimensions.y
             for dim_name in [x_dim, y_dim]:
                 coord: xr.DataArray = self.dataset[dim_name]
                 diffs = np.diff(coord.values if hasattr(coord, "values") else coord)
@@ -220,10 +189,10 @@ class XarrayRasterInputProvider(RasterInputProvider):
         ⚠️ Must check first that they are all one-dimensional,
         if not, the check might wrongly pass because of numpy broadcasting.
         """
-        for dim_type in ["x", "y"]:
-            dim_names: set[str] = {
-                self.dataset_dims[var_name][dim_type] for var_name in self.input_map_names.values()
-            }
+        for dim_type, dim_names in (
+            ("x", {self.dataset_dims[var_name].x for var_name in self.input_map_names.values()}),
+            ("y", {self.dataset_dims[var_name].y for var_name in self.input_map_names.values()}),
+        ):
             if len(dim_names) == 0:
                 continue
             da_list: list[xr.DataArray] = [self.dataset[dim_name] for dim_name in dim_names]
@@ -252,7 +221,7 @@ class XarrayRasterInputProvider(RasterInputProvider):
             time_dim_names: set[str] = set()
             for var_name in self.input_map_names.values():
                 da_var: xr.DataArray = self.dataset[var_name]
-                time_dim: str = self.dataset_dims[var_name]["time"]
+                time_dim = self.dataset_dims[var_name].time
                 # Check if this variable actually has the time dimension
                 if time_dim in da_var.dims:
                     time_dim_names.add(time_dim)
@@ -275,10 +244,10 @@ class XarrayRasterInputProvider(RasterInputProvider):
         """Return a DomainData object."""
         # get the first coords. They are all the same (checked at init).
         y_dim_name: str = next(
-            self.dataset_dims[var_name]["y"] for var_name in self.input_map_names.values()
+            self.dataset_dims[var_name].y for var_name in self.input_map_names.values()
         )
         x_dim_name: str = next(
-            self.dataset_dims[var_name]["x"] for var_name in self.input_map_names.values()
+            self.dataset_dims[var_name].x for var_name in self.input_map_names.values()
         )
         # Coordinates are at the center of the cells
         y_coords: xr.DataArray = self.dataset[y_dim_name]
@@ -360,7 +329,7 @@ class XarrayRasterInputProvider(RasterInputProvider):
             return None, self.sim_start_time, self.sim_end_time
 
         da: xr.DataArray = self.dataset[var_name]
-        time_dim: str = self.dataset_dims[var_name]["time"]
+        time_dim = self.dataset_dims[var_name].time
 
         if time_dim in da.dims:
             if not self.sim_start_time <= current_time < self.sim_end_time:

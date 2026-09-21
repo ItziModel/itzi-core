@@ -274,17 +274,17 @@ def ea_test8a_sim(ea_test8a_xarray_data, test_data_path, test_data_temp_path):
     sim_end_time = sim_start_time + sim_duration
 
     # Create input provider
-    input_config: XarrayRasterInputConfig = {
-        "dataset": ds,
-        "input_map_names": {
+    input_config = XarrayRasterInputConfig(
+        dataset=ds,
+        input_map_names={
             "dem": "dem",
             "friction": "friction",
             "rain": "rainfall",
             "inflow": "inflow",
         },
-        "simulation_start_time": sim_start_time,
-        "simulation_end_time": sim_end_time,
-    }
+        simulation_start_time=sim_start_time,
+        simulation_end_time=sim_end_time,
+    )
     input_provider = XarrayRasterInputProvider(input_config)
 
     # Create simulation configuration

@@ -22,7 +22,7 @@ from itzi_core.providers.memory_output import (
     MemoryRasterOutputProvider,
     MemoryVectorOutputProvider,
 )
-from itzi_core.providers.xarray_input import XarrayRasterInputProvider
+from itzi_core.providers.xarray_input import XarrayRasterInputConfig, XarrayRasterInputProvider
 from itzi_core.simulation_builder import SimulationBuilder
 
 EA8B_REFERENCE_MIN_NSE = 0.99
@@ -89,12 +89,12 @@ def build_resumed_simulation(
     arr_mask = np.zeros((ea8b_data["rows"], ea8b_data["cols"]), dtype=bool)
 
     raster_input_provider = XarrayRasterInputProvider(
-        {
-            "dataset": ea8b_data["dataset"],
-            "input_map_names": sim_config.input_map_names,
-            "simulation_start_time": sim_config.start_time,
-            "simulation_end_time": sim_config.end_time,
-        }
+        XarrayRasterInputConfig(
+            dataset=ea8b_data["dataset"],
+            input_map_names=sim_config.input_map_names,
+            simulation_start_time=sim_config.start_time,
+            simulation_end_time=sim_config.end_time,
+        )
     )
     raster_output_provider = MemoryRasterOutputProvider(sim_config.output_map_names)
     vector_output_provider = MemoryVectorOutputProvider()
