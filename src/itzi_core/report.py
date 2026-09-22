@@ -258,7 +258,6 @@ class Report:
         """Write drainage attributes for a simulation record."""
         if not self._drainage_topology_written:
             raise RuntimeError("Drainage attributes cannot be written before topology.")
-        provider = self.vector_provider
-        assert provider is not None
-        provider.write_attributes(drainage_attributes, sim_time)
+        assert self.vector_provider is not None
+        self.vector_provider.write_attributes(drainage_attributes, sim_time)
         return self
