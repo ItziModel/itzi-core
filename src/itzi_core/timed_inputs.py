@@ -16,11 +16,11 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict
 
 from itzi_core.itzi_error import NullError
 
@@ -33,10 +33,9 @@ _RATE_INPUTS = frozenset({"rain", "hydraulic_conductivity", "infiltration", "los
 _LENGTH_INPUTS = frozenset({"capillary_pressure"})
 
 
-class InputWindow(BaseModel):
+@dataclass(frozen=True)
+class InputWindow:
     """Immutable metadata for a cached input validity interval."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
 
     origin: tuple[float, float]
     start: datetime

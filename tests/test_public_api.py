@@ -12,10 +12,10 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
+from dataclasses import FrozenInstanceError
 from datetime import UTC, datetime
 
 import pytest
-from pydantic import ValidationError
 
 from itzi_core import (
     ARRAY_DEFINITIONS,
@@ -90,5 +90,5 @@ def test_input_window_is_an_immutable_snapshot() -> None:
         end=datetime(2000, 1, 2, tzinfo=UTC),
     )
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(FrozenInstanceError):
         window.start = datetime(2001, 1, 1, tzinfo=UTC)  # ty: ignore[invalid-assignment]
