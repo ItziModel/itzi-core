@@ -35,17 +35,16 @@ from itzi_core.data_containers import (
 from itzi_core.hotstart import HotstartWriter
 from itzi_core.itzi_error import DtError, MassBalanceError, NullError
 from itzi_core.simulation_schedule import SimulationSchedule
-from itzi_core.timed_inputs import TimedInputManager
+from itzi_core.timed_inputs import InputWindow, TimedInputManager
 
 if TYPE_CHECKING:
     from itzi_core.data_containers import DrainageNodeCouplingData, SimulationConfig
+    from itzi_core.domain_data import DomainData
     from itzi_core.drainage import DrainageSimulation
     from itzi_core.hydrology import Hydrology
-    from itzi_core.providers.domain_data import DomainData
     from itzi_core.rasterdomain import RasterDomain
     from itzi_core.report import Report
     from itzi_core.surfaceflow import SurfaceFlowSimulation
-    from itzi_core.timed_array import TimedArraySource
 
 
 logger = logging.getLogger(__name__)
@@ -142,11 +141,11 @@ class Simulation:
     def end_time(self) -> datetime:
         return self.schedule.end_time
 
-    @property
-    def timed_arrays(self) -> dict[str, TimedArraySource] | None:
+    def get_input_window(self, key: str) -> InputWindow | None:
+        """Return a snapshot of the current cached input validity window."""
         if self.timed_input_manager is None:
             return None
-        return self.timed_input_manager.timed_arrays
+        return self.timed_input_manager.get_window(key)
 
     def initialize(self) -> Self:
         """Record the initial stage of the simulation, before time-stepping."""

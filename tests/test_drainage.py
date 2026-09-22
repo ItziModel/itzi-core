@@ -20,9 +20,9 @@ import pandas as pd
 import pyswmm
 import pytest
 
-from itzi_core import SwmmInputParser
 from itzi_core.drainage import CouplingTypes, DrainageNode, DrainageSimulation
 from itzi_core.simulation_builder import get_links
+from itzi_core.swmm_input_parser import SwmmInputParser
 
 
 @pytest.fixture(scope="class")

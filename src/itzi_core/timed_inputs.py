@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -24,7 +25,7 @@ import numpy as np
 from itzi_core.itzi_error import NullError
 
 if TYPE_CHECKING:
-    from itzi_core.timed_array import TimedArraySource
+    from itzi_core.timed_array import TimedArrayProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -32,20 +33,40 @@ _RATE_INPUTS = frozenset({"rain", "hydraulic_conductivity", "infiltration", "los
 _LENGTH_INPUTS = frozenset({"capillary_pressure"})
 
 
+@dataclass(frozen=True)
+class InputWindow:
+    """Immutable metadata for a cached input validity interval."""
+
+    origin: tuple[float, float]
+    start: datetime
+    end: datetime
+
+
 class TimedInputManager:
     """Fetch, validate, convert, and cache timed input arrays without applying them."""
 
     def __init__(
         self,
-        timed_arrays: Mapping[str, TimedArraySource],
+        timed_arrays: Mapping[str, TimedArrayProtocol],
         input_wse: bool,
         end_time: datetime,
         mask: np.ndarray,
     ) -> None:
-        self.timed_arrays = dict(timed_arrays)
+        self._timed_arrays = dict(timed_arrays)
         self.input_wse = input_wse
         self.end_time = end_time
         self.mask = mask
+
+    def get_window(self, key: str) -> InputWindow | None:
+        """Return a snapshot of the current half-open input validity window."""
+        timed_array = self._timed_arrays[key]
+        if timed_array.arr_start >= timed_array.arr_end:
+            return None
+        return InputWindow(
+            origin=timed_array.origin,
+            start=timed_array.arr_start,
+            end=timed_array.arr_end,
+        )
 
     def read_at(self, sim_time: datetime) -> tuple[list[tuple[str, np.ndarray]], datetime]:
         """Prepare detached arrays to apply at ``sim_time`` and the next input boundary."""
@@ -74,19 +95,19 @@ class TimedInputManager:
 
         cache_state = {
             key: (timed_array.arr_start, timed_array.arr_end, timed_array.arr)
-            for key, timed_array in self.timed_arrays.items()
+            for key, timed_array in self._timed_arrays.items()
         }
         try:
             updates: list[tuple[str, np.ndarray]] = []
             # WSE conversion depends on the DEM at the same time label.
             self._prepare_array("dem", sim_time, updates, update_keys)
-            for key in self.timed_arrays:
+            for key in self._timed_arrays:
                 if key == "dem" or not self._is_active(key):
                     continue
                 self._prepare_array(key, sim_time, updates, update_keys)
 
             next_input = self.end_time
-            for key, timed_array in self.timed_arrays.items():
+            for key, timed_array in self._timed_arrays.items():
                 if self._is_active(key) and timed_array.is_valid(sim_time):
                     next_input = min(next_input, timed_array.arr_end)
             return updates, next_input
@@ -94,7 +115,7 @@ class TimedInputManager:
             # TimedArray.get() updates its cache before validation succeeds. Restore all
             # cache entries so a retry cannot skip an input that was never applied.
             for key, (arr_start, arr_end, array) in cache_state.items():
-                timed_array = self.timed_arrays[key]
+                timed_array = self._timed_arrays[key]
                 timed_array.arr_start = arr_start
                 timed_array.arr_end = arr_end
                 timed_array.arr = array
@@ -107,7 +128,7 @@ class TimedInputManager:
         updates: list[tuple[str, np.ndarray]],
         update_keys: set[str] | frozenset[str] | None,
     ) -> None:
-        timed_array = self.timed_arrays[key]
+        timed_array = self._timed_arrays[key]
         if timed_array.is_valid(sim_time):
             return
         # RasterDomain.mask_array mutates its input. Own the update before returning it.

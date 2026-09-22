@@ -15,20 +15,19 @@ GNU Lesser General Public License for more details.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from typing import NotRequired, TypedDict
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict
 
 from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi_core.domain_data import DomainData
 from itzi_core.providers.base import RasterInputProvider
-from itzi_core.providers.domain_data import DomainData
 
 
-class TimedRasterSlice(BaseModel):
-    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
-
+@dataclass(frozen=True)
+class TimedRasterSlice:
     start_time: datetime
     end_time: datetime
     array: np.ndarray

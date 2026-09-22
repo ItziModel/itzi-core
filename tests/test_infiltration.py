@@ -28,8 +28,9 @@ from itzi_core.compute.hydrology import (
 )
 from scipy.special import lambertw
 
-from itzi_core import InfGreenAmpt, RasterDomain
 from itzi_core.hydrology import Hydrology
+from itzi_core.infiltration import InfGreenAmpt
+from itzi_core.rasterdomain import RasterDomain
 
 
 def ga_serrano2001(inf_params):

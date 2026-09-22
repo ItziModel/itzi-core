@@ -27,7 +27,11 @@ import pyproj
 import xarray as xr
 
 from itzi_core.const import TemporalType
-from itzi_core.providers.xarray_input import XarrayRasterInputConfig, XarrayRasterInputProvider
+from itzi_core.providers.xarray_input import (
+    XarrayDimensions,
+    XarrayRasterInputConfig,
+    XarrayRasterInputProvider,
+)
 
 # Mark all tests in this module as cloud tests
 pytestmark = pytest.mark.xarray
@@ -246,6 +250,59 @@ def test_xarray_input_config_applies_dimension_defaults(
     assert dimensions.time == "observation_time"
     assert dimensions.y == "y"
     assert dimensions.x == "x"
+
+
+def test_xarray_dimension_names_accept_single_character_names() -> None:
+    dimensions = XarrayDimensions(time="t", y="y", x="x")
+
+    assert dimensions == XarrayDimensions(time="t", y="y", x="x")
+
+
+def test_xarray_input_provider_ignores_unselected_data_variables(
+    xarray_input_data: dict, default_times: dict
+) -> None:
+    dataset = xarray_input_data["dataset"].copy()
+    dataset["ancillary_metadata"] = xr.DataArray(1)
+    config = XarrayRasterInputConfig(
+        dataset=dataset,
+        input_map_names=xarray_input_data["input_map_names"],
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
+    )
+
+    provider = XarrayRasterInputProvider(config)
+
+    selected_var = next(iter(xarray_input_data["input_map_names"].values()))
+    assert provider.get_domain_data().shape == dataset[selected_var].shape[-2:]
+
+
+def test_xarray_input_provider_rejects_descending_time_coordinates(
+    xarray_input_data: dict, default_times: dict
+) -> None:
+    dataset = xarray_input_data["dataset"].sortby("time", ascending=False)
+    config = XarrayRasterInputConfig(
+        dataset=dataset,
+        input_map_names=xarray_input_data["input_map_names"],
+        simulation_start_time=default_times["start_time"],
+        simulation_end_time=default_times["end_time"],
+    )
+
+    with pytest.raises(ValueError, match="must be sorted in ascending order"):
+        XarrayRasterInputProvider(config)
+
+
+def test_xarray_input_provider_requires_validated_config(
+    xarray_input_data: dict, default_times: dict
+) -> None:
+    raw_config = {
+        "dataset": xarray_input_data["dataset"],
+        "input_map_names": xarray_input_data["input_map_names"],
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
+    }
+
+    with pytest.raises(TypeError, match="XarrayRasterInputConfig"):
+        XarrayRasterInputProvider(raw_config)  # ty: ignore[invalid-argument-type]
 
 
 def test_xarray_input_config_rejects_invalid_values(xarray_input_data: dict, default_times: dict):

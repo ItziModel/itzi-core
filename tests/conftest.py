@@ -14,11 +14,11 @@ GNU Lesser General Public License for more details.
 
 import hashlib
 import os
-from datetime import datetime, timedelta
 from collections import namedtuple
+from datetime import datetime, timedelta
 
-import pytest
 import numpy as np
+import pytest
 
 from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 
@@ -149,7 +149,7 @@ def domain_5by5() -> Domain5by5Data:
     rows, cols = 5, 5
     north, south, east, west = 50.0, 0.0, 50.0, 0.0
 
-    from itzi_core.providers.domain_data import DomainData
+    from itzi_core import DomainData
 
     domain_data = DomainData(
         north=north, south=south, east=east, west=west, rows=rows, cols=cols, crs_wkt=""

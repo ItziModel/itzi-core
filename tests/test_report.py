@@ -12,6 +12,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import numpy as np
@@ -144,7 +145,7 @@ def test_drainage_topology_is_written_before_attributes() -> None:
     report.start(drainage_network.topology)
     report.start(drainage_network.topology)
     report.step(data)
-    report.step(data.model_copy(update={"sim_time": start_time + timedelta(seconds=60)}))
+    report.step(replace(data, sim_time=start_time + timedelta(seconds=60)))
 
     assert vector_provider.drainage_topology == drainage_network.topology
     assert vector_provider.drainage_attributes == [

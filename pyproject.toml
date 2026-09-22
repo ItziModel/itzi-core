@@ -1,6 +1,6 @@
 [project]
 name = "itzi-core"
-version = "0.6.0"
+version = "0.7.0"
 description = "A flexible, API-first dynamic flood model."
 authors = [
     {name = "Laurent Courty", email = "lrntct@gmail.com"},
@@ -66,6 +66,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "*" = ["*.pyx"]
+"itzi_core" = ["py.typed"]
 "itzi_core.data" = ["*.ini"]
 "itzi_core.data.colortable" = ["*.txt"]
 

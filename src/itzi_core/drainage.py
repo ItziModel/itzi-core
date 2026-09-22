@@ -25,7 +25,7 @@ import numpy as np
 import pyswmm
 from pyswmm.toolkitapi import NodeResults, SimulationParameters, SimulationTime
 
-from itzi_core import DefaultValues
+from itzi_core.const import DefaultValues
 from itzi_core.data_containers import (
     DrainageLinkAttributes,
     DrainageLinkTopology,

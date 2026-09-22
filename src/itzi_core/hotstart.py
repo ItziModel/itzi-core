@@ -18,17 +18,16 @@ import hashlib
 import io
 import zipfile
 from datetime import datetime, timezone
+from importlib.metadata import version
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from importlib.metadata import version
-
+from itzi_core.data_containers import HotstartMetadata, HotstartSimulationState
 from itzi_core.itzi_error import HotstartError
-from itzi_core.data_containers import HotstartSimulationState, HotstartMetadata
 
 if TYPE_CHECKING:
-    from itzi_core.providers.domain_data import DomainData
     from itzi_core.data_containers import SimulationConfig
+    from itzi_core.domain_data import DomainData
 
 
 # Hotstart archive format constants

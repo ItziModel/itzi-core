@@ -13,6 +13,9 @@ GNU Lesser General Public License for more details.
 """
 
 from collections import Counter
+from dataclasses import FrozenInstanceError
+
+import pytest
 
 from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 
@@ -60,3 +63,11 @@ def test_maximum_arrays_are_internal_outputs():
     for key in ("hmax", "vmax"):
         assert ArrayCategory.INTERNAL in definitions[key].category
         assert ArrayCategory.OUTPUT in definitions[key].category
+
+
+def test_array_catalog_is_immutable() -> None:
+    assert isinstance(ARRAY_DEFINITIONS, tuple)
+    definition = ARRAY_DEFINITIONS[0]
+    assert isinstance(definition.category, tuple)
+    with pytest.raises(FrozenInstanceError):
+        definition.key = "changed"  # ty: ignore[invalid-assignment]
