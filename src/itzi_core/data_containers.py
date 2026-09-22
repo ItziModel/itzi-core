@@ -14,6 +14,7 @@ GNU Lesser General Public License for more details.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -140,10 +141,9 @@ class DrainageNetworkAttributes(BaseModel):
     links: tuple[DrainageLinkAttributes, ...]
 
 
-class ContinuityData(BaseModel):
+@dataclass(frozen=True)
+class ContinuityData:
     """Store information about simulation continuity"""
-
-    model_config = ConfigDict(frozen=True)
 
     new_domain_vol: float
     volume_change: float
@@ -151,7 +151,8 @@ class ContinuityData(BaseModel):
     created_volume_ratio: float
 
 
-class SimulationData(BaseModel):
+@dataclass(frozen=True)
+class SimulationData:
     """Immutable data container for passing raw simulation state to Report.
 
     This is a pure data structure containing only the "raw ingredients"
@@ -159,16 +160,14 @@ class SimulationData(BaseModel):
     average rates) are performed by the Report class itself.
     """
 
-    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
-
     sim_time: datetime
     time_step: float  # time step duration
     time_steps_counter: int  # number of time steps since last update
     continuity_data: ContinuityData
     raw_arrays: dict[str, np.ndarray]
     accumulation_arrays: dict[str, np.ndarray]
-    cell_dx: PositiveFloat  # cell size in east-west direction
-    cell_dy: PositiveFloat  # cell size in north-south direction
+    cell_dx: float  # cell size in east-west direction
+    cell_dy: float  # cell size in north-south direction
     drainage_network_attributes: DrainageNetworkAttributes | None
 
 
