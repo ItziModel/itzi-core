@@ -23,6 +23,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from itzi_core import DomainData
 from itzi_core.const import InfiltrationModelType, TemporalType
 from itzi_core.data_containers import (
     HotstartSimulationState,
@@ -31,7 +32,6 @@ from itzi_core.data_containers import (
 )
 from itzi_core.hotstart import HotstartLoader, HotstartWriter
 from itzi_core.itzi_error import HotstartError
-from itzi_core.providers.domain_data import DomainData
 from itzi_core.providers.memory_output import (
     MemoryRasterOutputProvider,
     MemoryVectorOutputProvider,

@@ -21,10 +21,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from itzi_core import DomainData
 from itzi_core.const import InfiltrationModelType, TemporalType
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
 from itzi_core.providers.csv_mass_balance_output import CSVMassBalanceOutputProvider
-from itzi_core.providers.domain_data import DomainData
 from itzi_core.providers.memory_output import (
     MemoryRasterOutputProvider,
     MemoryVectorOutputProvider,

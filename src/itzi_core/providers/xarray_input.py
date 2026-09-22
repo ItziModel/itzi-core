@@ -23,14 +23,15 @@ try:
     import xarray as xr
 except ImportError:
     raise ImportError(
-        "To use the xarray input backend, install itzi with: "
-        "'uv tool install itzi[xarray]' "
-        "or 'pip install itzi[xarray]'"
+        "To use the xarray input backend, install itzi-core with: "
+        "'uv add itzi-core[xarray]' or 'pip install itzi-core[xarray]'"
     )
 
 from itzi_core.const import TemporalType
+from itzi_core.domain_data import DomainData
 from itzi_core.providers.base import RasterInputProvider
-from itzi_core.providers.domain_data import DomainData
+
+__all__ = ["XarrayDimensions", "XarrayRasterInputConfig", "XarrayRasterInputProvider"]
 
 
 class XarrayDimensions(BaseModel):
@@ -39,8 +40,8 @@ class XarrayDimensions(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     time: str = Field(default="time", min_length=1)
-    y: str = Field(default="y", min_length=3)
-    x: str = Field(default="x", min_length=3)
+    y: str = Field(default="y", min_length=1)
+    x: str = Field(default="x", min_length=1)
 
 
 class XarrayRasterInputConfig(BaseModel):
@@ -67,10 +68,11 @@ class XarrayRasterInputConfig(BaseModel):
                 f"{', '.join(unknown_map_variables)}"
             )
 
-        unknown_dimension_variables = sorted(set(self.dimension_names) - dataset_var_names)
+        input_var_names = set(self.input_map_names.values())
+        unknown_dimension_variables = sorted(set(self.dimension_names) - input_var_names)
         if unknown_dimension_variables:
             raise ValueError(
-                "dimension_names reference variables not found in the dataset: "
+                "dimension_names reference variables not selected by input_map_names: "
                 f"{', '.join(unknown_dimension_variables)}"
             )
 
@@ -91,7 +93,7 @@ class XarrayRasterInputProvider(RasterInputProvider):
         self.dataset = config.dataset
         self.crs_wkt: str = self.dataset.attrs.get("crs_wkt", "")
 
-        input_var_names: list[str] = [str(var_name) for var_name in self.dataset.data_vars]
+        input_var_names = set(config.input_map_names.values())
         self.dataset_dims: dict[str, XarrayDimensions] = {
             var_name: config.dimension_names.get(var_name, XarrayDimensions())
             for var_name in input_var_names
@@ -110,8 +112,7 @@ class XarrayRasterInputProvider(RasterInputProvider):
         """Validate that:
         - the specified spatial dimensions exist in the dataset.
         - The dimensions are one-dimensional."""
-        for raw_var_name in self.dataset.data_vars:
-            var_name = str(raw_var_name)
+        for var_name in self.input_map_names.values():
             da_var: xr.DataArray = self.dataset[var_name]
             var_dims = {str(dim) for dim in da_var.dims}
             dimensions = self.dataset_dims[var_name]
@@ -204,14 +205,30 @@ class XarrayRasterInputProvider(RasterInputProvider):
                     )
 
     def _validate_coordinates_are_sorted(self):
-        """Check if all coordinates are sorted."""
-        for coord_name, da_coord in self.dataset.coords.items():
+        """Check if coordinates used by selected input variables are sorted."""
+        spatial_coord_names: set[str] = set()
+        time_coord_names: set[str] = set()
+        for var_name in self.input_map_names.values():
+            dimensions = self.dataset_dims[var_name]
+            spatial_coord_names.update((dimensions.x, dimensions.y))
+            if dimensions.time in self.dataset[var_name].dims:
+                time_coord_names.add(dimensions.time)
+
+        for coord_name in spatial_coord_names:
+            da_coord: xr.DataArray = self.dataset[coord_name]
             arr_coord: np.ndarray = da_coord.values
             coord_ascending = self.is_array_sorted(arr_coord, ascending=True)
             coord_descending = self.is_array_sorted(arr_coord, ascending=False)
             dim_is_sorted = coord_ascending or coord_descending
             if not dim_is_sorted:
                 raise ValueError(f"Coordinates array {coord_name} is not sorted.")
+
+        for coord_name in time_coord_names:
+            arr_coord = self.dataset[coord_name].values
+            if not self.is_array_sorted(arr_coord, ascending=True):
+                raise ValueError(
+                    f"Time coordinates array {coord_name} must be sorted in ascending order."
+                )
 
     def detect_temporal_type(self) -> dict[str, TemporalType]:
         """Detect if time coordinates are relative (timedelta) or absolute (datetime)."""

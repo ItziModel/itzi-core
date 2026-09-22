@@ -24,7 +24,8 @@ if TYPE_CHECKING:
     from itzi_core.providers.base import RasterInputProvider
 
 
-class TimedArraySource(Protocol):
+class TimedArrayProtocol(Protocol):
+    origin: tuple[float, float]
     arr_start: datetime
     arr_end: datetime
     arr: np.ndarray
@@ -55,7 +56,7 @@ class TimedArray:
         self.arr_start = datetime(1, 1, 2)
         self.arr_end = datetime(1, 1, 1)
         # Necessary for BMI implementation
-        self.origin = raster_provider.get_origin()
+        self.origin: tuple[float, float] = raster_provider.get_origin()
         self.arr: np.ndarray = self.default_array_func()
 
     def get(self, sim_time: datetime) -> np.ndarray:

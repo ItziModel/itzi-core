@@ -366,11 +366,11 @@ def _assert_resume_with_timed_memory_inputs(
     np.testing.assert_allclose(resumed.raster_domain.get_array("rain"), checkpoint["rain"])
     np.testing.assert_allclose(resumed.raster_domain.get_array("rain"), expected_rain_arrays[10])
 
-    assert resumed.timed_arrays is not None
-    rain_timed_array = resumed.timed_arrays["rain"]
+    rain_window = resumed.get_input_window("rain")
+    assert rain_window is not None
     assert second_slice_start <= resumed.sim_time < second_slice_end
-    assert rain_timed_array.arr_start == second_slice_start
-    assert rain_timed_array.arr_end == second_slice_end
+    assert rain_window.start == second_slice_start
+    assert rain_window.end == second_slice_end
     np.testing.assert_allclose(resumed.raster_domain.get_array("rain"), expected_rain_arrays[10])
     assert not np.allclose(resumed.raster_domain.get_array("rain"), expected_rain_arrays[0])
 
@@ -695,10 +695,10 @@ def test_hotstart_priming_preserves_evolved_water_depth(
         hotstart_bytes=hotstart_bytes,
     )
 
-    assert resumed.timed_arrays is not None
-    source_cache = resumed.timed_arrays[source_key]
-    assert source_cache.arr_start == start_time
-    assert source_cache.arr_end == end_time
+    source_window = resumed.get_input_window(source_key)
+    assert source_window is not None
+    assert source_window.start == start_time
+    assert source_window.end == end_time
     np.testing.assert_array_equal(resumed.raster_domain.get_array("water_depth"), archived_depth)
 
     _run_to_end(resumed, skip_initialize=True)
@@ -745,16 +745,16 @@ def test_timed_memory_rain_switches_cleanly_around_boundary(
     simulation.initialize()
     simulation.update_until(timedelta(seconds=target_seconds))
 
-    assert simulation.timed_arrays is not None
-    rain_timed_array = simulation.timed_arrays["rain"]
+    rain_window = simulation.get_input_window("rain")
+    assert rain_window is not None
     np.testing.assert_allclose(
         simulation.raster_domain.get_array("rain"),
         expected_rain_arrays[expected_source_seconds],
     )
     expected_start = start_time + timedelta(seconds=expected_window[0])
     expected_end = start_time + timedelta(seconds=expected_window[1])
-    assert rain_timed_array.arr_start == expected_start
-    assert rain_timed_array.arr_end == expected_end
+    assert rain_window.start == expected_start
+    assert rain_window.end == expected_end
 
 
 def test_timed_memory_rain_is_applied_before_a_step_crosses_its_boundary(domain_5by5) -> None:

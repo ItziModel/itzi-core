@@ -205,10 +205,14 @@ def test_timed_memory_input_updates_water_depth_from_wse(domain_5by5) -> None:
         simulation.raster_domain.get_array("hmax"),
         simulation.raster_domain.get_array("water_depth"),
     )
-    assert simulation.timed_arrays is not None
-    wse_timed_array = simulation.timed_arrays["water_surface_elevation"]
-    assert wse_timed_array.arr_start == start_time
-    assert wse_timed_array.arr_end == boundary_time
+    first_window = simulation.get_input_window("water_surface_elevation")
+    assert first_window is not None
+    assert first_window.origin == (
+        domain_5by5.domain_data.north,
+        domain_5by5.domain_data.west,
+    )
+    assert first_window.start == start_time
+    assert first_window.end == boundary_time
 
     simulation.update_until(timedelta(seconds=10))
 
@@ -223,5 +227,9 @@ def test_timed_memory_input_updates_water_depth_from_wse(domain_5by5) -> None:
     )
     reported_hmax = raster_output.output_maps_dict["hmax"][-1][1]
     np.testing.assert_allclose(reported_hmax, simulation.raster_domain.get_array("hmax"))
-    assert wse_timed_array.arr_start == boundary_time
-    assert wse_timed_array.arr_end == end_time
+    second_window = simulation.get_input_window("water_surface_elevation")
+    assert second_window is not None
+    assert second_window.start == boundary_time
+    assert second_window.end == end_time
+    assert first_window.start == start_time
+    assert first_window.end == boundary_time

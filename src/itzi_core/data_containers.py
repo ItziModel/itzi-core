@@ -30,7 +30,7 @@ from pydantic import (
 )
 
 from itzi_core.const import DefaultValues, InfiltrationModelType, TemporalType
-from itzi_core.providers.domain_data import DomainData
+from itzi_core.domain_data import DomainData
 
 if TYPE_CHECKING:
     from itzi_core.drainage import DrainageNode

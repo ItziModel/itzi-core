@@ -20,7 +20,7 @@ from typing import Any, cast
 import numpy as np
 import pytest
 
-from itzi_core.providers.domain_data import DomainData
+from itzi_core import DomainData
 from itzi_core.providers.memory_input import (
     MemoryRasterInputConfig,
     MemoryRasterInputProvider,

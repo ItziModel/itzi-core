@@ -16,7 +16,8 @@ class StubTimedArray:
         self.source_end = end
         self.arr_start = datetime.min
         self.arr_end = datetime.min
-        self.arr: np.ndarray | None = None
+        self.origin = (0.0, 0.0)
+        self.arr = np.zeros_like(array)
 
     def is_valid(self, sim_time: datetime) -> bool:
         return self.arr_start <= sim_time < self.arr_end
@@ -162,7 +163,8 @@ def test_read_at_selects_only_the_configured_stage_input(
     update_map = dict(updates)
     assert list(update_map) == ["dem", active_key]
     np.testing.assert_allclose(update_map[active_key], values[active_key])
-    assert timed_arrays[inactive_key].arr is None
+    assert timed_arrays[inactive_key].arr_start == timed_arrays[inactive_key].arr_end
+    assert not timed_arrays[inactive_key].is_valid(start)
     assert next_input == end
 
 

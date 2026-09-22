@@ -24,10 +24,6 @@ from pydantic import ValidationError
 from itzi_core.const import TemporalType
 from itzi_core.data_containers import MassBalanceData, SimulationConfig, SurfaceFlowParameters
 from itzi_core.providers.base import MassBalanceOutputProvider
-from itzi_core.providers.memory_output import (
-    MemoryRasterOutputProvider,
-    MemoryVectorOutputProvider,
-)
 from itzi_core.simulation_builder import SimulationBuilder
 
 if TYPE_CHECKING:
@@ -71,11 +67,8 @@ def _build_simulation(
         output_map_names=helpers.make_output_map_names("provider_test", []),
         surface_flow_parameters=SurfaceFlowParameters(),
     )
-    builder = (
-        SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
-        .with_domain_data(domain_5by5.domain_data)
-        .with_raster_output_provider(MemoryRasterOutputProvider(sim_config.output_map_names))
-        .with_vector_output_provider(MemoryVectorOutputProvider())
+    builder = SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32).with_domain_data(
+        domain_5by5.domain_data
     )
     if provider is not None:
         assert builder.with_mass_balance_output_provider(provider) is builder
@@ -115,6 +108,32 @@ def test_mass_balance_output_is_disabled_without_configuration(domain_5by5, help
     simulation.initialize()
 
     assert simulation.report.mass_balance_output_provider is None
+
+
+def test_configured_raster_outputs_require_a_provider(domain_5by5, helpers) -> None:
+    simulation = _build_simulation(domain_5by5, helpers)
+    config = simulation.sim_config.model_copy(
+        update={"output_map_names": {"water_depth": "depth"}}
+    )
+
+    builder = SimulationBuilder(config, domain_5by5.arr_mask).with_domain_data(
+        domain_5by5.domain_data
+    )
+
+    with pytest.raises(ValueError, match="raster output provider"):
+        builder.build()
+
+
+def test_drainage_requires_a_vector_provider(domain_5by5, helpers) -> None:
+    simulation = _build_simulation(domain_5by5, helpers)
+    config = simulation.sim_config.model_copy(update={"swmm_inp": "drainage.inp"})
+
+    builder = SimulationBuilder(config, domain_5by5.arr_mask).with_domain_data(
+        domain_5by5.domain_data
+    )
+
+    with pytest.raises(ValueError, match="vector output provider"):
+        builder.build()
 
 
 def test_simulation_config_rejects_removed_stats_file() -> None:

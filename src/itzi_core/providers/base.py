@@ -28,7 +28,7 @@ if TYPE_CHECKING:
         DrainageNetworkTopology,
         MassBalanceData,
     )
-    from itzi_core.providers.domain_data import DomainData
+    from itzi_core.domain_data import DomainData
 
 
 class RasterInputProvider(ABC):
@@ -74,7 +74,9 @@ class VectorOutputProvider(ABC):
 
     @abstractmethod
     def write_topology(self, topology: DrainageNetworkTopology) -> None:
-        """Write the fixed drainage-network topology once."""
+        """Initialize the drainage network provider before attributes are written.
+        The implementation must tolerate initialization for a resumed run when
+        they target a persistent output."""
 
     @abstractmethod
     def write_attributes(

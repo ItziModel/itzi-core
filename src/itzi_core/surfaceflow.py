@@ -29,6 +29,16 @@ if TYPE_CHECKING:
     from itzi_core.rasterdomain import RasterDomain
 
 
+def estimate_surface_flow_timestep(
+    cfl: float,
+    min_cell_size: float,
+    gravity: float,
+    max_depth: float,
+) -> float:
+    """Estimate the surface-flow timestep in seconds."""
+    return cfl * (min_cell_size / math.sqrt(gravity * max_depth))
+
+
 class SurfaceFlowSimulation:
     """Surface flow simulation on staggered raster grid
     Accessed through step() methods
@@ -89,17 +99,13 @@ class SurfaceFlowSimulation:
         maxh = float(np.amax(self.dom.get_array("water_depth")))  # max depth in domain
         min_dim = min(self.dx, self.dy)
         if maxh > 0:
-            dt = self.dt_s(self.cfl, min_dim, self.g, maxh)
+            dt = estimate_surface_flow_timestep(self.cfl, min_dim, self.g, maxh)
             self._dt = float(min(self.dtmax, dt))
         else:
             self._dt = float(self.dtmax)
         if self._dt <= self._dt_fudge:
             raise DtError(f"Tiny computed dt ({self._dt}s)")
         return self
-
-    @staticmethod
-    def dt_s(cfl, min_dim, g, maxh):
-        return cfl * (min_dim / (math.sqrt(g * maxh)))
 
     @property
     def dt(self):

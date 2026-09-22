@@ -29,7 +29,7 @@ import pytest
 from pyswmm.simulation import _sim_state_instance
 from pyswmm.toolkitapi import NodeResults, SimulationTime
 
-from itzi_core import SwmmInputParser
+from itzi_core.swmm_input_parser import SwmmInputParser
 
 SECONDS_PER_DAY = 24 * 3600
 SPLIT_TIME = timedelta(hours=1, minutes=40)

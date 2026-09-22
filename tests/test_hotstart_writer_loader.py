@@ -23,30 +23,26 @@ import json
 import zipfile
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
 
-from itzi_core.hotstart import (
-    HotstartWriter,
-    HotstartLoader,
-    HOTSTART_VERSION,
-    METADATA_FILENAME,
-    RASTER_STATE_FILENAME,
-    SWMM_HOTSTART_FILENAME,
-)
+from itzi_core import DomainData
+from itzi_core.const import TemporalType
 from itzi_core.data_containers import (
     HotstartSimulationState,
     SimulationConfig,
     SurfaceFlowParameters,
 )
-from itzi_core.providers.domain_data import DomainData
+from itzi_core.hotstart import (
+    HOTSTART_VERSION,
+    METADATA_FILENAME,
+    RASTER_STATE_FILENAME,
+    SWMM_HOTSTART_FILENAME,
+    HotstartLoader,
+    HotstartWriter,
+)
 from itzi_core.itzi_error import HotstartError
-from itzi_core.const import TemporalType
-
-if TYPE_CHECKING:
-    pass
 
 
 @pytest.fixture
