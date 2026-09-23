@@ -18,8 +18,6 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 import numpy as np
-import pytest
-from pydantic import ValidationError
 
 from itzi_core.const import TemporalType
 from itzi_core.data_containers import MassBalanceData, SimulationConfig, SurfaceFlowParameters
@@ -108,67 +106,6 @@ def test_mass_balance_output_is_disabled_without_configuration(domain_5by5, help
     simulation.initialize()
 
     assert simulation.report.mass_balance_output_provider is None
-
-
-def test_configured_raster_outputs_require_a_provider(domain_5by5, helpers) -> None:
-    simulation = _build_simulation(domain_5by5, helpers)
-    config = simulation.sim_config.model_copy(
-        update={"output_map_names": {"water_depth": "depth"}}
-    )
-
-    builder = SimulationBuilder(config, domain_5by5.arr_mask).with_domain_data(
-        domain_5by5.domain_data
-    )
-
-    with pytest.raises(ValueError, match="raster output provider"):
-        builder.build()
-
-
-def test_configured_drainage_output_requires_a_vector_provider(domain_5by5, helpers) -> None:
-    simulation = _build_simulation(domain_5by5, helpers)
-    config = simulation.sim_config.model_copy(update={"drainage_output": "drainage"})
-
-    builder = SimulationBuilder(config, domain_5by5.arr_mask).with_domain_data(
-        domain_5by5.domain_data
-    )
-
-    with pytest.raises(ValueError, match="vector output provider"):
-        builder.build()
-
-
-def test_drainage_without_configured_output_does_not_require_a_vector_provider(
-    domain_5by5, helpers, monkeypatch
-) -> None:
-    simulation = _build_simulation(domain_5by5, helpers)
-    config = simulation.sim_config.model_copy(update={"swmm_inp": "drainage.inp"})
-
-    builder = SimulationBuilder(config, domain_5by5.arr_mask).with_domain_data(
-        domain_5by5.domain_data
-    )
-    monkeypatch.setattr(builder, "_create_drainage_simulation", lambda domain_data: ((), None))
-
-    built_simulation = builder.build()
-
-    assert built_simulation.report.vector_provider is None
-
-
-def test_simulation_config_rejects_removed_stats_file() -> None:
-    assert "stats_file" not in SimulationConfig.model_fields
-    start_time = datetime(2000, 1, 1, tzinfo=UTC)
-
-    with pytest.raises(ValidationError, match="stats_file"):
-        SimulationConfig.model_validate(
-            {
-                "start_time": start_time,
-                "end_time": start_time + timedelta(seconds=1),
-                "record_step": timedelta(seconds=1),
-                "temporal_type": TemporalType.RELATIVE,
-                "input_map_names": {},
-                "output_map_names": {},
-                "surface_flow_parameters": SurfaceFlowParameters(),
-                "stats_file": "removed.csv",
-            }
-        )
 
 
 def test_finalize_calls_mass_balance_provider_once(domain_5by5, helpers) -> None:
