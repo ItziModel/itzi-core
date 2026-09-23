@@ -29,6 +29,9 @@ class ArrayCategory(Enum):
     OUTPUT = "OUTPUT"  # Derived arrays for output/reporting
 
 
+type CFCellMethod = Literal["time: maximum", "time: sum", "time: mean"]
+
+
 @dataclass(frozen=True)
 class ArrayDefinition:
     """Complete definition of a simulation array"""
@@ -46,6 +49,7 @@ class ArrayDefinition:
     fill_value: float | int = 0.0  # Fill value (replace NaN)
     computes_from: str | None = None  # For accumulation arrays
     dtype: DTypeLike | None = None  # Optional storage dtype override
+    cf_cell_methods: CFCellMethod | None = None
 
 
 # Centralized array definitions - Single source of truth
@@ -302,6 +306,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         unit="m",
         cf_unit="",
         var_loc="face",
+        cf_cell_methods="time: maximum",
     ),
     ArrayDefinition(
         key="v",
@@ -332,6 +337,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         unit="m s-1",
         cf_unit="",
         var_loc="face",
+        cf_cell_methods="time: maximum",
     ),
     ArrayDefinition(
         key="froude",
@@ -387,6 +393,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         unit="m",
         cf_unit="",
         var_loc="face",
+        cf_cell_methods="time: sum",
     ),
     ArrayDefinition(
         key="infiltration_accum",
@@ -398,6 +405,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         cf_unit="",
         var_loc="face",
         computes_from="computed_infiltration",
+        cf_cell_methods="time: sum",
     ),
     ArrayDefinition(
         key="rainfall_accum",
@@ -409,6 +417,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         cf_unit="",
         var_loc="face",
         computes_from="rain",
+        cf_cell_methods="time: sum",
     ),
     ArrayDefinition(
         key="inflow_accum",
@@ -420,6 +429,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         cf_unit="",
         var_loc="face",
         computes_from="inflow",
+        cf_cell_methods="time: sum",
     ),
     ArrayDefinition(
         key="losses_accum",
@@ -431,6 +441,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         cf_unit="",
         var_loc="face",
         computes_from="capped_losses",
+        cf_cell_methods="time: sum",
     ),
     ArrayDefinition(
         key="drainage_network_accum",
@@ -443,6 +454,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         cf_unit="",
         var_loc="face",
         computes_from="n_drain",
+        cf_cell_methods="time: sum",
     ),
     ArrayDefinition(
         key="error_depth_accum",
@@ -453,6 +465,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         unit="m",
         cf_unit="",
         var_loc="face",
+        cf_cell_methods="time: sum",
     ),
 ]
 # ===== OUTPUT ARRAYS =====
@@ -497,6 +510,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         unit="m3",
         cf_unit="",
         var_loc="face",
+        cf_cell_methods="time: sum",
     ),
     ArrayDefinition(
         key="mean_boundary_flow",
@@ -509,6 +523,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         cf_unit="",
         var_loc="face",
         computes_from="boundaries_accum",
+        cf_cell_methods="time: mean",
     ),
     ArrayDefinition(
         key="mean_inflow",
@@ -521,6 +536,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         cf_unit="",
         var_loc="face",
         computes_from="inflow_accum",
+        cf_cell_methods="time: mean",
     ),
     ArrayDefinition(
         key="mean_losses",
@@ -533,6 +549,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         cf_unit="",
         var_loc="face",
         computes_from="losses_accum",
+        cf_cell_methods="time: mean",
     ),
     ArrayDefinition(
         key="mean_drainage_flow",
@@ -546,6 +563,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         cf_unit="",
         var_loc="face",
         computes_from="drainage_network_accum",
+        cf_cell_methods="time: mean",
     ),
     ArrayDefinition(
         key="mean_infiltration",
@@ -557,6 +575,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         cf_unit="",
         var_loc="face",
         computes_from="infiltration_accum",
+        cf_cell_methods="time: mean",
     ),
     ArrayDefinition(
         key="mean_rainfall",
@@ -568,6 +587,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         cf_unit="",
         var_loc="face",
         computes_from="rainfall_accum",
+        cf_cell_methods="time: mean",
     ),
 ]
 
