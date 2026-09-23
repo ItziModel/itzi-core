@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -33,15 +32,6 @@ _RATE_INPUTS = frozenset({"rain", "hydraulic_conductivity", "infiltration", "los
 _LENGTH_INPUTS = frozenset({"capillary_pressure"})
 
 
-@dataclass(frozen=True)
-class InputWindow:
-    """Immutable metadata for a cached input validity interval."""
-
-    origin: tuple[float, float]
-    start: datetime
-    end: datetime
-
-
 class TimedInputManager:
     """Fetch, validate, convert, and cache timed input arrays without applying them."""
 
@@ -56,17 +46,6 @@ class TimedInputManager:
         self.input_wse = input_wse
         self.end_time = end_time
         self.mask = mask
-
-    def get_window(self, key: str) -> InputWindow | None:
-        """Return a snapshot of the current half-open input validity window."""
-        timed_array = self._timed_arrays[key]
-        if timed_array.arr_start >= timed_array.arr_end:
-            return None
-        return InputWindow(
-            origin=timed_array.origin,
-            start=timed_array.arr_start,
-            end=timed_array.arr_end,
-        )
 
     def read_at(self, sim_time: datetime) -> tuple[list[tuple[str, np.ndarray]], datetime]:
         """Prepare detached arrays to apply at ``sim_time`` and the next input boundary."""

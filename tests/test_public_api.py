@@ -12,11 +12,6 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
-from dataclasses import FrozenInstanceError
-from datetime import UTC, datetime
-
-import pytest
-
 from itzi_core import (
     ARRAY_DEFINITIONS,
     ArrayCategory,
@@ -24,7 +19,6 @@ from itzi_core import (
     DomainData,
     HotstartRunConfig,
     InfiltrationModelType,
-    InputWindow,
     Simulation,
     SimulationBuilder,
     SimulationConfig,
@@ -58,7 +52,6 @@ def test_application_api_exports() -> None:
     assert DomainData
     assert HotstartRunConfig
     assert InfiltrationModelType.NULL.value == "null"
-    assert InputWindow
     assert Simulation
     assert SimulationBuilder
     assert SimulationConfig
@@ -81,14 +74,3 @@ def test_provider_api_exports() -> None:
     assert RasterInputProvider
     assert RasterOutputProvider
     assert VectorOutputProvider
-
-
-def test_input_window_is_an_immutable_snapshot() -> None:
-    window = InputWindow(
-        origin=(10.0, 20.0),
-        start=datetime(2000, 1, 1, tzinfo=UTC),
-        end=datetime(2000, 1, 2, tzinfo=UTC),
-    )
-
-    with pytest.raises(FrozenInstanceError):
-        window.start = datetime(2001, 1, 1, tzinfo=UTC)  # ty: ignore[invalid-assignment]
