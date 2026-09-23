@@ -14,6 +14,7 @@ GNU Lesser General Public License for more details.
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import Literal
 
 import numpy as np
 from numpy.typing import DTypeLike
@@ -41,7 +42,7 @@ class ArrayDefinition:
     description: str  # Human-readable description
     unit: str  # Physical units of the array
     cf_unit: str  # The unit expected by the CF convention
-    var_loc: str  # Location of the value. Either "face" or "edge"
+    var_loc: Literal["face", "edge"]  # Location of the value.
     fill_value: float | int = 0.0  # Fill value (replace NaN)
     computes_from: str | None = None  # For accumulation arrays
     dtype: DTypeLike | None = None  # Optional storage dtype override
