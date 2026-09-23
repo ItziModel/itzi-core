@@ -58,7 +58,7 @@ class DrainageAttributes(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     @classmethod
-    def get_columns_definition(cls, cat_primary_key=True) -> list[tuple[str, str]]:
+    def get_columns_definition(cls, cat_primary_key=True) -> tuple[tuple[str, str], ...]:
         """Return a list of tuples to create DB columns"""
         type_mapping = {str: "TEXT", int: "INT", float: "REAL"}
         db_columns_def = [("cat", "INTEGER PRIMARY KEY")]
@@ -67,7 +67,7 @@ class DrainageAttributes(BaseModel):
         for field_name, field_info in cls.model_fields.items():
             db_field = (field_name, type_mapping[field_info.annotation])
             db_columns_def.append(db_field)
-        return db_columns_def
+        return tuple(db_columns_def)
 
 
 class DrainageLinkAttributes(DrainageAttributes):
