@@ -362,8 +362,8 @@ class SimulationBuilder:
             raise ValueError("Domain data must be set via input provider or directly")
         if self.sim_config.output_map_names and raster_output_provider is None:
             raise ValueError("A raster output provider is required for configured raster outputs")
-        if self.sim_config.swmm_inp is not None and vector_output_provider is None:
-            raise ValueError("A vector output provider is required when drainage is enabled")
+        if self.sim_config.drainage_output is not None and vector_output_provider is None:
+            raise ValueError("A vector output provider is required for configured drainage output")
 
         # Validate hotstart congruence before building
         if hotstart_loader is not None:
