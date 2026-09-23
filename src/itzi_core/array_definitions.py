@@ -88,22 +88,22 @@ _INPUT_ARRAY_DEFINITIONS = [
     ArrayDefinition(
         key="effective_porosity",
         csdms_name="soil_water__effective_porosity",
-        cf_name="soil_porosity",
+        cf_name="",
         category=(ArrayCategory.INPUT,),
         description="Porosity available to contribute to fluid flow.",
         unit="m/m",
-        cf_unit="m",
+        cf_unit="1",
         var_loc="face",
         fill_value=0.0,
     ),
     ArrayDefinition(
         key="capillary_pressure",
         csdms_name="soil_water__pressure_head",
-        cf_name="soil_suction_at_saturation",
+        cf_name="",
         category=(ArrayCategory.INPUT,),
         description="Soil capillary pressure. Also called suction head.",
         unit="m",
-        cf_unit="Pa",
+        cf_unit="m",
         var_loc="face",
         fill_value=0.0,
     ),
@@ -121,11 +121,11 @@ _INPUT_ARRAY_DEFINITIONS = [
     ArrayDefinition(
         key="soil_water_content",
         csdms_name="soil_water__volume_fraction",
-        cf_name="soil_liquid_water_content",
+        cf_name="volume_fraction_of_condensed_water_in_soil",
         category=(ArrayCategory.INPUT,),
         description="Relative soil water content.",
         unit="m/m",
-        cf_unit="kg m-2",
+        cf_unit="1",
         var_loc="face",
         fill_value=0.0,
     ),
@@ -213,7 +213,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="total_infiltration",
-        csdms_name="",
+        csdms_name="soil_surface_water__time_integral_of_infiltration_volume_flux",
         cf_name="",
         category=(ArrayCategory.INTERNAL,),
         description="Cumulative applied infiltration used by the Green-Ampt model.",
@@ -236,7 +236,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ArrayDefinition(
         key="hfe",
         csdms_name="land_surface_water__x_component_of_depth",
-        cf_name="",
+        cf_name="flood_water_thickness",
         category=(ArrayCategory.INTERNAL,),
         description="Water depth at eastern cell edge.",
         unit="m",
@@ -246,7 +246,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ArrayDefinition(
         key="hfs",
         csdms_name="land_surface_water__y_component_of_depth",
-        cf_name="",
+        cf_name="flood_water_thickness",
         category=(ArrayCategory.INTERNAL,),
         description="Water depth at southern cell edge.",
         unit="m",
@@ -255,7 +255,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="qe",
-        csdms_name="land_surface_water__x_component_of_old_volume_flux",
+        csdms_name="land_surface_water_flow__x_component_of_z_integral_of_velocity",
         cf_name="",
         category=(ArrayCategory.INTERNAL,),
         description="Water flux at eastern cell edge (previous timestep).",
@@ -265,7 +265,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="qs",
-        csdms_name="land_surface_water__y_component_of_old_volume_flux",
+        csdms_name="land_surface_water_flow__y_component_of_z_integral_of_velocity",
         cf_name="",
         category=(ArrayCategory.INTERNAL,),
         description="Water flux at southern cell edge (previous timestep).",
@@ -296,7 +296,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ArrayDefinition(
         key="hmax",
         csdms_name="land_surface_water__max_of_depth",
-        cf_name="",
+        cf_name="flood_water_thickness",
         category=(ArrayCategory.INTERNAL, ArrayCategory.OUTPUT),
         description="Maximum water depth reached since the beginning of the simulation.",
         unit="m",
@@ -306,7 +306,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ArrayDefinition(
         key="v",
         csdms_name="land_surface_water_flow__speed",
-        cf_name="",
+        cf_name="flood_water_speed",
         category=(ArrayCategory.INTERNAL, ArrayCategory.OUTPUT),
         description="Overland flow speed (velocity’s magnitude).",
         unit="m s-1",
@@ -326,7 +326,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ArrayDefinition(
         key="vmax",
         csdms_name="land_surface_water_flow__max_of_speed",
-        cf_name="",
+        cf_name="flood_water_speed",
         category=(ArrayCategory.INTERNAL, ArrayCategory.OUTPUT),
         description="Maximum water speed reached since the beginning of the simulation.",
         unit="m s-1",
@@ -402,7 +402,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
     ArrayDefinition(
         key="rainfall_accum",
         csdms_name="atmosphere_water__time_integral_of_precipitation_leq-volume_flux",
-        cf_name="",
+        cf_name="thickness_of_rainfall_amount",
         category=(ArrayCategory.ACCUMULATION,),
         description="The total amount of water entering the domain due to rainfall.",
         unit="m",
@@ -460,8 +460,8 @@ _ACCUM_ARRAY_DEFINITIONS = [
 _OUTPUT_ARRAY_DEFINITIONS = [
     ArrayDefinition(
         key="water_surface_elevation",
-        csdms_name="land_surface_water__elevation",
-        cf_name="",
+        csdms_name="land_surface_water_surface__elevation",
+        cf_name="water_surface_height_above_reference_datum",
         category=(ArrayCategory.INPUT, ArrayCategory.OUTPUT),
         description="Water surface elevation. Terrain elevation + water depth",
         unit="m",
@@ -470,7 +470,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="qx",
-        csdms_name="land_surface_water__x_component_of_runoff_volume_flux",
+        csdms_name="land_surface_water__x_component_of_runoff_volume_flow_rate",
         cf_name="",
         category=(ArrayCategory.OUTPUT,),
         description="Surface water volumetric flow at the eastern edge of the cell.",
@@ -480,7 +480,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="qy",
-        csdms_name="land_surface_water__y_component_of_runoff_volume_flux",
+        csdms_name="land_surface_water__y_component_of_runoff_volume_flow_rate",
         cf_name="",
         category=(ArrayCategory.OUTPUT,),
         description="Surface water volumetric flow at the southern edge of the cell.",
@@ -561,7 +561,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
     ArrayDefinition(
         key="mean_rainfall",
         csdms_name="atmosphere_water__time_mean_of_precipitation_leq-volume_flux",
-        cf_name="",
+        cf_name="rainfall_rate",
         category=(ArrayCategory.OUTPUT,),
         description="Mean of rainfall rate",
         unit="m s-1",
