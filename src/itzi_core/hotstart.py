@@ -34,7 +34,6 @@ if TYPE_CHECKING:
     from itzi_core.domain_data import DomainData
 
 
-# Hotstart archive format constants
 HOTSTART_VERSION = 2
 METADATA_FILENAME = "metadata.json"
 RASTER_STATE_FILENAME = "raster_state.npz"
@@ -78,14 +77,11 @@ def create_hotstart_archive(
     with zipfile.ZipFile(
         zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED, compresslevel=8
     ) as zip_file:
-        # Write raster state
         zip_file.writestr(RASTER_STATE_FILENAME, raster_state_bytes)
 
-        # Write SWMM hotstart if present
         if swmm_hotstart_bytes is not None:
             zip_file.writestr(SWMM_HOTSTART_FILENAME, swmm_hotstart_bytes)
 
-        # Write metadata JSON using Pydantic serialization
         json_str = metadata.model_dump_json(indent=2)
         zip_file.writestr(METADATA_FILENAME, json_str)
 
@@ -131,21 +127,18 @@ class HotstartLoader:
         Raises:
             HotstartError: If the archive is invalid or corrupted
         """
-        # Convert to bytes if needed
         if isinstance(data, io.BytesIO):
             data.seek(0)
             archive_bytes = data.read()
         else:
             archive_bytes = data
 
-        # Open as zip archive
         try:
             zip_buffer = io.BytesIO(archive_bytes)
             zip_file = zipfile.ZipFile(zip_buffer, mode="r")
         except zipfile.BadZipFile as e:
             raise HotstartError("Invalid hotstart archive: not a valid ZIP file") from e
 
-        # Validate archive structure
         cls._validate_archive_structure(zip_file)
 
         # Reject unsupported versions before validating metadata.
@@ -170,20 +163,17 @@ class HotstartLoader:
         except Exception as e:
             raise HotstartError(f"Failed to validate metadata: {e}") from e
 
-        # Load raster state
         try:
             raster_state_bytes = zip_file.read(RASTER_STATE_FILENAME)
         except KeyError as e:
             raise HotstartError("Missing raster state in archive") from e
 
-        # Load optional SWMM hotstart
         swmm_hotstart_bytes = None
         if SWMM_HOTSTART_FILENAME in zip_file.namelist():
             swmm_hotstart_bytes = zip_file.read(SWMM_HOTSTART_FILENAME)
 
         zip_file.close()
 
-        # Validate hashes using the validated simulation_state
         cls._validate_hashes(metadata.simulation_state, raster_state_bytes, swmm_hotstart_bytes)
 
         return cls(metadata, raster_state_bytes, swmm_hotstart_bytes)
@@ -226,7 +216,6 @@ class HotstartLoader:
                 f"Expected {stored_raster_hash}, got {computed_raster_hash}"
             )
 
-        # Validate SWMM hotstart hash if present
         stored_swmm_hash = simulation_state.swmm_hotstart_hash
 
         if swmm_hotstart_bytes is not None:
