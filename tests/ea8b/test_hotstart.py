@@ -156,7 +156,7 @@ def test_ea8b_hotstart_archive_validity(ea8b_simulation):
         with zip_ref.open("metadata.json") as metadata_file:
             metadata_dict = json.load(metadata_file)
 
-        assert metadata_dict["hotstart_version"] == 1
+        assert metadata_dict["hotstart_version"] == 2
 
         assert "simulation_state" in metadata_dict
         sim_state = metadata_dict["simulation_state"]

@@ -53,28 +53,22 @@ def test_temporary_stop_limit_is_exception_safe_and_not_snapshotted(times) -> No
     assert schedule.select_step_end(start + timedelta(seconds=20)) == start + timedelta(seconds=10)
 
 
-def test_restore_uses_legacy_input_fallback_and_ignores_temp_end(times) -> None:
+def test_restore_rejects_missing_input_deadline(times) -> None:
     start, end = times
     restored_time = start + timedelta(seconds=10)
     schedule = SimulationSchedule(start, end, timedelta(seconds=10), has_drainage=False)
 
-    schedule.restore(
-        restored_time,
-        timedelta(seconds=0.2),
-        {
-            "end": end,
-            "hydrology": start + timedelta(seconds=20),
-            "drainage": end,
-            "record": start + timedelta(seconds=20),
-            "temp_end": start + timedelta(seconds=12),
-        },
-    )
-
-    assert schedule.now == restored_time
-    assert schedule.dt == timedelta(seconds=0.2)
-    assert schedule.deadline("input") == end
-    assert "temp_end" not in schedule.snapshot_deadlines()
-    assert schedule.nextstep == schedule.deadline("hydrology")
+    with pytest.raises(HotstartError, match="missing deadlines: input"):
+        schedule.restore(
+            restored_time,
+            timedelta(seconds=0.2),
+            {
+                "end": end,
+                "hydrology": start + timedelta(seconds=20),
+                "drainage": end,
+                "record": start + timedelta(seconds=20),
+            },
+        )
 
 
 def test_restore_rejects_unknown_or_stale_deadlines(times) -> None:
@@ -89,7 +83,7 @@ def test_restore_rejects_unknown_or_stale_deadlines(times) -> None:
     }
 
     with pytest.raises(HotstartError, match="unknown"):
-        schedule.restore(start, timedelta(seconds=1), {**deadlines, "other": end})
+        schedule.restore(start, timedelta(seconds=1), {**deadlines, "temp_end": end})
     with pytest.raises(HotstartError, match="precedes"):
         schedule.restore(
             start + timedelta(seconds=10),

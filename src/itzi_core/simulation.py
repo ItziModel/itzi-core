@@ -28,11 +28,15 @@ from itzi_core.compute import rastermetrics
 from itzi_core.data_containers import (
     ContinuityData,
     DrainageNodeCouplingData,
-    HotstartSimulationState,
     SimulationConfig,
     SimulationData,
 )
-from itzi_core.hotstart import HotstartWriter
+from itzi_core.hotstart import create_hotstart_archive
+from itzi_core.hotstart_models import (
+    HotstartResumeConfig,
+    HotstartSimulationState,
+    SurfaceFlowResumeConfig,
+)
 from itzi_core.itzi_error import DtError, MassBalanceError, NullError
 from itzi_core.simulation_schedule import SimulationSchedule
 from itzi_core.timed_inputs import TimedInputManager
@@ -461,7 +465,6 @@ class Simulation:
         raster_state: io.BytesIO = self.raster_domain.save_state()
         raster_state_bytes = raster_state.getvalue()
 
-        # Build simulation state using Pydantic model.
         swmm_elapsed_time = self.drainage_model.elapsed_time if self.drainage_model else None
         simulation_state = HotstartSimulationState(
             sim_time=self.sim_time,
@@ -472,11 +475,21 @@ class Simulation:
             old_domain_volume=self.old_domain_volume,
             swmm_elapsed_time=swmm_elapsed_time,
         )
+        resume_config = HotstartResumeConfig(
+            original_start_time=self.sim_config.start_time,
+            configured_end_time=self.sim_config.end_time,
+            record_step=self.sim_config.record_step,
+            input_sources=dict(self.sim_config.input_map_names),
+            surface_flow=SurfaceFlowResumeConfig(
+                g=self.sim_config.surface_flow_parameters.g,
+            ),
+            hydrology_step_seconds=self.sim_config.dtinf,
+            infiltration_model=self.sim_config.infiltration_model,
+        )
 
-        # Delegate archive creation to HotstartWriter
-        return HotstartWriter.create(
+        return create_hotstart_archive(
             domain_data=self.domain_data,
-            simulation_config=self.sim_config,
+            resume_config=resume_config,
             simulation_state=simulation_state,
             raster_state_bytes=raster_state_bytes,
             swmm_hotstart_bytes=swmm_hotstart_bytes,
@@ -489,9 +502,8 @@ class Simulation:
 
         Fixes two hotstart issues with the drainage coupling:
 
-        1. DrainageNode.coupling_flow is always initialised to 0.0 on object creation.
-           With RELAXATION_FACTOR=0.8 the first apply_coupling() call blends the new
-           flow with 0 instead of the saved previous flow, producing wrong inflow to SWMM
+        1. DrainageNode.coupling_flow is always initialised to 0.0 on object creation,
+            not taking into account the relaxation factor. This produces wrong inflow to SWMM
             and a wrong drainage_inflow value used by the surface-flow solver.
 
         2. SWMM's internal generated_inflow (set via pyswmm) is not persisted in the
@@ -524,14 +536,6 @@ class Simulation:
         has been loaded. It must be called after the simulation object exists
         and after raster domain state has been restored.
 
-        Args:
-            simulation_state: Validated hotstart simulation state containing
-                sim_time, dt, next_ts, counters, accum_update_time, and
-                old_domain_volume.
-
-        Returns:
-            Self for method chaining.
-
         This method does NOT restore raster state; use RasterDomain.load_state() for that purpose.
         """
         self.schedule.restore(
@@ -553,11 +557,13 @@ class Simulation:
 
         return self
 
-    def reconcile_hotstart_resume(self, hotstart_config: SimulationConfig) -> Self:
+    def reconcile_hotstart_resume(self, resume_config: HotstartResumeConfig) -> Self:
         """Apply resume-time config changes allowed after hotstart restoration.
+
         This method is called after `restore_state()`,
-        and reconciles the new user-provided config with the original config from the hotstart file."""
-        if self.end_time != hotstart_config.end_time:
+        and reconciles the new user-provided config with the archived resume settings.
+        """
+        if self.end_time != resume_config.configured_end_time:
             self.schedule.set_deadline("end", self.end_time)
             self.schedule.set_deadline(
                 "input", min(self.schedule.deadline("input"), self.end_time)
@@ -567,13 +573,13 @@ class Simulation:
 
         # Accumulators begin at the last archived report boundary, independently
         # of the cadence selected for the resumed run.
-        self.report.last_step = self.schedule.deadline("record") - hotstart_config.record_step
-        if self.report.dt != hotstart_config.record_step:
+        self.report.last_step = self.schedule.deadline("record") - resume_config.record_step
+        if self.report.dt != resume_config.record_step:
             self.schedule.set_deadline(
                 "record", min(self.end_time, self.sim_time + self.report.dt)
             )
 
-        if self.hydrology_model.dt != timedelta(seconds=hotstart_config.dtinf):
+        if self.hydrology_model.dt != timedelta(seconds=resume_config.hydrology_step_seconds):
             self.schedule.set_deadline(
                 "hydrology", min(self.end_time, self.sim_time + self.hydrology_model.dt)
             )

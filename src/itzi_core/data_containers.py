@@ -31,7 +31,6 @@ from pydantic import (
 )
 
 from itzi_core.const import DefaultValues, InfiltrationModelType, TemporalType
-from itzi_core.domain_data import DomainData
 
 if TYPE_CHECKING:
     from itzi_core.drainage import DrainageNode
@@ -257,41 +256,3 @@ class SimulationConfig(BaseModel):
         raw_dict["end_time"] = self.end_time.isoformat()
         raw_dict["record_step"] = self.record_step.total_seconds()
         return raw_dict
-
-
-class HotstartSimulationState(BaseModel):
-    """Runtime state to be restored from a hotstart file."""
-
-    model_config = ConfigDict(frozen=True)
-
-    sim_time: datetime
-    dt: float  # seconds
-    next_ts: dict[str, datetime]
-    time_steps_counters: dict[str, int]
-    accum_update_time: dict[str, datetime]
-    old_domain_volume: float
-    # Hashes are computed by HotstartWriter and injected before serialization;
-    # callers building the state before archive creation leave them as empty defaults.
-    raster_domain_hash: str = ""
-    swmm_hotstart_hash: str | None = None
-    # SWMM elapsed time in seconds at the hotstart point.
-    # Required to correctly initialise DrainageSimulation.elapsed_time so that
-    # the first swmm_step() after hotstart restoration computes the correct _dt.
-    swmm_elapsed_time: float | None = None
-
-
-class HotstartMetadata(BaseModel):
-    """Metadata schema for hotstart archive files.
-
-    Provides a single source of truth for hotstart metadata structure,
-    enabling validation during both creation and loading.
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    creation_date: datetime
-    itzi_version: str
-    hotstart_version: int
-    domain_data: DomainData
-    simulation_config: SimulationConfig
-    simulation_state: HotstartSimulationState
