@@ -52,7 +52,7 @@ def test_read_at_orders_dem_converts_rates_and_owns_arrays() -> None:
     manager = TimedInputManager(
         {
             "rain": StubTimedArray(rain, start, end),
-            "dem": StubTimedArray(dem, start, end),
+            "ground_elevation": StubTimedArray(dem, start, end),
         },
         input_wse=False,
         end_time=end,
@@ -61,7 +61,7 @@ def test_read_at_orders_dem_converts_rates_and_owns_arrays() -> None:
 
     updates, next_input = manager.read_at(start)
 
-    assert [key for key, _ in updates] == ["dem", "rain"]
+    assert [key for key, _ in updates] == ["ground_elevation", "rain"]
     assert next_input == end
     assert updates[0][1].flags.writeable
     assert updates[1][1].flags.writeable
@@ -78,7 +78,7 @@ def test_read_at_rolls_back_caches_when_a_later_input_fails() -> None:
     dem = StubTimedArray(np.ones((1, 1)), start, end)
     rain = FailOnceTimedArray(np.ones((1, 1)), start, end)
     manager = TimedInputManager(
-        {"dem": dem, "rain": rain},
+        {"ground_elevation": dem, "rain": rain},
         input_wse=False,
         end_time=end,
         mask=np.zeros((1, 1), dtype=bool),
@@ -92,7 +92,7 @@ def test_read_at_rolls_back_caches_when_a_later_input_fails() -> None:
 
     updates, next_input = manager.read_at(start)
 
-    assert [key for key, _ in updates] == ["dem", "rain"]
+    assert [key for key, _ in updates] == ["ground_elevation", "rain"]
     assert next_input == end
 
 
@@ -104,7 +104,7 @@ def test_prepare_resume_returns_only_changed_input_updates() -> None:
     friction = StubTimedArray(np.full((1, 1), 0.05, dtype=np.float32), start, end)
     rain = StubTimedArray(np.full((1, 1), 360.0, dtype=np.float32), start, rain_boundary)
     manager = TimedInputManager(
-        {"dem": dem, "friction": friction, "rain": rain},
+        {"ground_elevation": dem, "friction": friction, "rain": rain},
         input_wse=False,
         end_time=end,
         mask=np.zeros((1, 1), dtype=bool),
@@ -139,7 +139,7 @@ def test_read_at_selects_only_the_configured_stage_input(
         "water_surface_elevation": np.full((1, 1), 12.0, dtype=np.float32),
     }
     timed_arrays = {
-        "dem": StubTimedArray(np.full((1, 1), 10.0, dtype=np.float32), start, end),
+        "ground_elevation": StubTimedArray(np.full((1, 1), 10.0, dtype=np.float32), start, end),
         "water_depth": StubTimedArray(
             values["water_depth"],
             start,
@@ -161,7 +161,7 @@ def test_read_at_selects_only_the_configured_stage_input(
     updates, next_input = manager.read_at(start)
 
     update_map = dict(updates)
-    assert list(update_map) == ["dem", active_key]
+    assert list(update_map) == ["ground_elevation", active_key]
     np.testing.assert_allclose(update_map[active_key], values[active_key])
     assert timed_arrays[inactive_key].arr_start == timed_arrays[inactive_key].arr_end
     assert not timed_arrays[inactive_key].is_valid(start)
@@ -188,7 +188,7 @@ def test_read_at_converts_each_input_unit_family(
     end = start + timedelta(seconds=10)
     manager = TimedInputManager(
         {
-            "dem": StubTimedArray(np.ones((1, 1), dtype=np.float32), start, end),
+            "ground_elevation": StubTimedArray(np.ones((1, 1), dtype=np.float32), start, end),
             key: StubTimedArray(np.full((1, 1), source_value, dtype=np.float32), start, end),
         },
         input_wse=False,
@@ -215,11 +215,11 @@ def test_read_at_converts_each_input_unit_family(
             r"input map <rain> contains only NULL/NaN cells inside the active domain",
         ),
         (
-            "dem",
+            "ground_elevation",
             np.ones((2, 2), dtype=bool),
             np.ones((2, 2), dtype=np.float32),
             NullError,
-            r"active domain contains no cells for input map <dem>",
+            r"active domain contains no cells for input map <ground_elevation>",
         ),
         (
             "rain",
@@ -240,7 +240,7 @@ def test_validation_uses_active_cells_only(
     start = datetime(2000, 1, 1)
     end = start + timedelta(seconds=10)
     timed_arrays = {
-        "dem": StubTimedArray(np.ones((2, 2), dtype=np.float32), start, end),
+        "ground_elevation": StubTimedArray(np.ones((2, 2), dtype=np.float32), start, end),
     }
     timed_arrays[key] = StubTimedArray(source, start, end)
     manager = TimedInputManager(
@@ -268,7 +268,7 @@ def test_prime_at_aligns_caches_without_returning_updates() -> None:
     dem = StubTimedArray(np.ones((1, 1)), start, end)
     rain = StubTimedArray(np.ones((1, 1)), start, boundary)
     manager = TimedInputManager(
-        {"dem": dem, "rain": rain},
+        {"ground_elevation": dem, "rain": rain},
         input_wse=False,
         end_time=end,
         mask=np.zeros((1, 1), dtype=bool),

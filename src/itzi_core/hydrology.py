@@ -93,7 +93,7 @@ class Hydrology:
         """Apply the combined water-removal cap and update effective precipitation.
 
         The compute kernel replaces ``computed_infiltration`` and
-        ``capped_losses`` candidates with applied rates. ``eff_precip`` is rain
+        ``capped_losses`` candidates with applied rates. ``effective_precipitation`` is rain
         minus the applied infiltration and user-loss rates; drainage and user
         inflow are combined with it later when the surface solver's external-rate
         array is assembled.
@@ -103,7 +103,7 @@ class Hydrology:
             arr_inf=self.dom.get_array("computed_infiltration"),
             arr_capped_losses=self.dom.get_array("capped_losses"),
             arr_h=self.dom.get_array("water_depth"),
-            arr_eff_precip=self.dom.get_array("eff_precip"),
+            arr_eff_precip=self.dom.get_array("effective_precipitation"),
             dt=self._dt,
         )
         return self

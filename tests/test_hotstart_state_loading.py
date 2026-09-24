@@ -57,14 +57,14 @@ class TestRasterDomainLoadState:
         """Create a RasterDomain with all required arrays populated."""
         # Set input arrays
         raster_domain.update_array("water_depth", domain_5by5.arr_start_h.copy())
-        raster_domain.update_array("dem", domain_5by5.arr_dem_flat.copy())
+        raster_domain.update_array("ground_elevation", domain_5by5.arr_dem_flat.copy())
         raster_domain.update_array("friction", domain_5by5.arr_n.copy())
         # Set internal arrays (required for save_state)
-        # qe and qs are internal state arrays (flux at eastern/southern edges)
-        qe = np.full(raster_domain.shape, 1.1, dtype=np.float32)
-        qs = np.full(raster_domain.shape, 1.2, dtype=np.float32)
-        raster_domain.update_array("qe", qe)
-        raster_domain.update_array("qs", qs)
+        # Discharges at the eastern and southern cell edges from the previous step.
+        old_discharge_east = np.full(raster_domain.shape, 1.1, dtype=np.float32)
+        old_discharge_south = np.full(raster_domain.shape, 1.2, dtype=np.float32)
+        raster_domain.update_array("old_discharge_east", old_discharge_east)
+        raster_domain.update_array("old_discharge_south", old_discharge_south)
         return raster_domain
 
     def test_load_state_round_trip(self, populated_raster_domain: RasterDomain) -> None:
@@ -119,7 +119,7 @@ class TestRasterDomainLoadState:
             allow_pickle=False,
             mask=populated_raster_domain.mask.copy(),
             water_depth=np.zeros(populated_raster_domain.shape, dtype=np.float32),
-            # Missing qe and qs (internal arrays)
+            # Missing old-discharge internal arrays.
         )
         buffer.seek(0)
         with pytest.raises(HotstartError, match="missing required arrays"):
@@ -154,7 +154,7 @@ class TestSimulationBuilderHotstart:
             .with_vector_output_provider(MemoryVectorOutputProvider())
             .build()
         )
-        simulation.set_array("dem", domain_5by5.arr_dem_flat.copy())
+        simulation.set_array("ground_elevation", domain_5by5.arr_dem_flat.copy())
         simulation.set_array("friction", domain_5by5.arr_n.copy())
         simulation.set_array("water_depth", domain_5by5.arr_start_h.copy())
         simulation.initialize()
@@ -186,13 +186,13 @@ class TestSimulationBuilderHotstart:
             record_step=timedelta(seconds=30),
             temporal_type=TemporalType.RELATIVE,
             input_map_names=helpers.make_input_map_names(
-                dem="z",
+                ground_elevation="z",
                 friction="n",
                 water_depth="start_h",
             ),
             output_map_names=helpers.make_output_map_names(
                 "out_test",
-                ["water_depth", "qx", "qy"],
+                ["water_depth", "flow_rate_x", "flow_rate_y"],
             ),
             surface_flow_parameters=SurfaceFlowParameters(hmin=0.0001, dtmax=0.3, cfl=0.2),
             infiltration_model=InfiltrationModelType.NULL,

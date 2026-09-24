@@ -277,7 +277,7 @@ def ea_test8a_sim(ea_test8a_xarray_data, test_data_path, test_data_temp_path):
     input_config = XarrayRasterInputConfig(
         dataset=ds,
         input_map_names={
-            "dem": "dem",
+            "ground_elevation": "dem",
             "friction": "friction",
             "rain": "rainfall",
             "inflow": "inflow",
@@ -294,7 +294,7 @@ def ea_test8a_sim(ea_test8a_xarray_data, test_data_path, test_data_temp_path):
         record_step=timedelta(seconds=30),
         temporal_type=TemporalType.RELATIVE,
         input_map_names={
-            "dem": "dem",
+            "ground_elevation": "dem",
             "friction": "friction",
             "rain": "rainfall",
             "inflow": "inflow",
@@ -302,8 +302,8 @@ def ea_test8a_sim(ea_test8a_xarray_data, test_data_path, test_data_temp_path):
         output_map_names={
             "water_depth": "out_water_depth",
             "water_surface_elevation": "out_wse",
-            "qx": "out_qx",
-            "qy": "out_qy",
+            "flow_rate_x": "out_qx",
+            "flow_rate_y": "out_qy",
         },
         surface_flow_parameters=SurfaceFlowParameters(
             dtmax=5.0,

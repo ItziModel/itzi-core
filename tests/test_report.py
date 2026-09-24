@@ -37,7 +37,7 @@ CONTINUITY_DATA = ContinuityData(
 
 def test_get_output_arrays_returns_a_fresh_selection() -> None:
     start_time = datetime(2000, 1, 1, tzinfo=UTC)
-    out_map_names = {"water_depth": "depth", "hmax": "depth_max"}
+    out_map_names = {"water_depth": "depth", "max_water_depth": "depth_max"}
     raster_provider = MemoryRasterOutputProvider(out_map_names)
     report = Report(
         start_time=start_time,
@@ -55,7 +55,7 @@ def test_get_output_arrays_returns_a_fresh_selection() -> None:
         continuity_data=CONTINUITY_DATA,
         raw_arrays={
             "water_depth": np.array([[1.0]], dtype=np.float32),
-            "hmax": np.array([[2.0]], dtype=np.float32),
+            "max_water_depth": np.array([[2.0]], dtype=np.float32),
         },
         accumulation_arrays={},
         cell_dx=1.0,
@@ -68,12 +68,12 @@ def test_get_output_arrays_returns_a_fresh_selection() -> None:
     report.step(data)
 
     assert len(raster_provider.output_maps_dict["water_depth"]) == 1
-    assert len(raster_provider.output_maps_dict["hmax"]) == 2
+    assert len(raster_provider.output_maps_dict["max_water_depth"]) == 2
 
 
 def test_maxima_are_selected_independently_of_base_arrays() -> None:
     start_time = datetime(2000, 1, 1, tzinfo=UTC)
-    out_map_names = {"hmax": "depth_max", "vmax": "speed_max"}
+    out_map_names = {"max_water_depth": "depth_max", "max_flow_speed": "speed_max"}
     raster_provider = MemoryRasterOutputProvider(out_map_names)
     report = Report(
         start_time=start_time,
@@ -91,9 +91,9 @@ def test_maxima_are_selected_independently_of_base_arrays() -> None:
         continuity_data=CONTINUITY_DATA,
         raw_arrays={
             "water_depth": np.array([[1.0]], dtype=np.float32),
-            "hmax": np.array([[2.0]], dtype=np.float32),
-            "v": np.array([[3.0]], dtype=np.float32),
-            "vmax": np.array([[4.0]], dtype=np.float32),
+            "max_water_depth": np.array([[2.0]], dtype=np.float32),
+            "flow_speed": np.array([[3.0]], dtype=np.float32),
+            "max_flow_speed": np.array([[4.0]], dtype=np.float32),
         },
         accumulation_arrays={},
         cell_dx=1.0,
@@ -103,12 +103,14 @@ def test_maxima_are_selected_independently_of_base_arrays() -> None:
 
     report.step(data)
 
-    assert set(raster_provider.output_maps_dict) == {"hmax", "vmax"}
+    assert set(raster_provider.output_maps_dict) == {"max_water_depth", "max_flow_speed"}
     np.testing.assert_array_equal(
-        raster_provider.output_maps_dict["hmax"][0][1], data.raw_arrays["hmax"]
+        raster_provider.output_maps_dict["max_water_depth"][0][1],
+        data.raw_arrays["max_water_depth"],
     )
     np.testing.assert_array_equal(
-        raster_provider.output_maps_dict["vmax"][0][1], data.raw_arrays["vmax"]
+        raster_provider.output_maps_dict["max_flow_speed"][0][1],
+        data.raw_arrays["max_flow_speed"],
     )
 
 

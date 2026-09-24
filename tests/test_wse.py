@@ -47,7 +47,7 @@ def sim_5by5_wse(domain_5by5, helpers) -> Simulation:
         record_step=timedelta(seconds=30),
         temporal_type=TemporalType.RELATIVE,
         input_map_names=helpers.make_input_map_names(
-            dem="z_high",
+            ground_elevation="z_high",
             friction="n",
             water_surface_elevation="start_wse",  # This activates WSE input
         ),
@@ -73,7 +73,7 @@ def sim_5by5_wse(domain_5by5, helpers) -> Simulation:
     )
 
     # Set input arrays - use HIGH DEM and WSE
-    simulation.set_array("dem", domain_5by5.arr_dem_high)
+    simulation.set_array("ground_elevation", domain_5by5.arr_dem_high)
     simulation.set_array("friction", domain_5by5.arr_n)
     simulation.set_array("water_surface_elevation", domain_5by5.arr_start_wse)
 
@@ -149,13 +149,13 @@ def test_timed_memory_input_updates_water_depth_from_wse(domain_5by5) -> None:
         record_step=timedelta(seconds=10),
         temporal_type=TemporalType.RELATIVE,
         input_map_names={
-            "dem": "dem",
+            "ground_elevation": "dem",
             "friction": "friction",
             "water_surface_elevation": "water_surface_elevation",
         },
         output_map_names={
             "water_depth": "out_5by5_wse_timed_memory_water_depth",
-            "hmax": "out_5by5_wse_timed_memory_hmax",
+            "max_water_depth": "out_5by5_wse_timed_memory_hmax",
         },
         surface_flow_parameters=SurfaceFlowParameters(hmin=0.0001, dtmax=0.3, cfl=0.2),
         infiltration_model=InfiltrationModelType.NULL,
@@ -166,7 +166,7 @@ def test_timed_memory_input_updates_water_depth_from_wse(domain_5by5) -> None:
             "simulation_start_time": start_time,
             "simulation_end_time": end_time,
             "static_arrays": {
-                "dem": domain_5by5.arr_dem_high.copy(),
+                "ground_elevation": domain_5by5.arr_dem_high.copy(),
                 "friction": domain_5by5.arr_n.copy(),
             },
             "timed_arrays": {
@@ -202,7 +202,7 @@ def test_timed_memory_input_updates_water_depth_from_wse(domain_5by5) -> None:
         atol=1e-5,
     )
     np.testing.assert_allclose(
-        simulation.raster_domain.get_array("hmax"),
+        simulation.raster_domain.get_array("max_water_depth"),
         simulation.raster_domain.get_array("water_depth"),
     )
     first_window = simulation.get_input_window("water_surface_elevation")
@@ -222,11 +222,14 @@ def test_timed_memory_input_updates_water_depth_from_wse(domain_5by5) -> None:
         atol=1e-5,
     )
     np.testing.assert_allclose(
-        simulation.raster_domain.get_array("hmax"),
+        simulation.raster_domain.get_array("max_water_depth"),
         simulation.raster_domain.get_array("water_depth"),
     )
-    reported_hmax = raster_output.output_maps_dict["hmax"][-1][1]
-    np.testing.assert_allclose(reported_hmax, simulation.raster_domain.get_array("hmax"))
+    reported_hmax = raster_output.output_maps_dict["max_water_depth"][-1][1]
+    np.testing.assert_allclose(
+        reported_hmax,
+        simulation.raster_domain.get_array("max_water_depth"),
+    )
     second_window = simulation.get_input_window("water_surface_elevation")
     assert second_window is not None
     assert second_window.start == boundary_time

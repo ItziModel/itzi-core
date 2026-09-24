@@ -79,7 +79,7 @@ def test_ea8b_hotstart_roundtrip(
         end_time=sim_end_time,
         record_step=timedelta(seconds=30),
         temporal_type=TemporalType.RELATIVE,
-        input_map_names={"dem": "dem", "friction": "friction"},
+        input_map_names={"ground_elevation": "dem", "friction": "friction"},
         output_map_names={"water_depth": "test_water_depth"},
         drainage_output="out_drainage",
         swmm_inp=str(ea8b_simulation["swmm_inp"]),
@@ -121,7 +121,7 @@ def test_ea8b_hotstart_roundtrip(
 
     final_state = np.load(final_state_path, allow_pickle=False)
 
-    for key in ["water_depth", "qe", "qs"]:
+    for key in ["water_depth", "old_discharge_east", "old_discharge_south"]:
         arr_resumed = simulation.raster_domain.get_array(key)
         arr_uninterrupted = final_state[f"raster_{key}"]
         np.testing.assert_allclose(

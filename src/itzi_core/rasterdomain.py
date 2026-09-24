@@ -13,6 +13,7 @@ GNU Lesser General Public License for more details.
 """
 
 import io
+import warnings
 from typing import Self
 
 import numpy as np
@@ -21,6 +22,24 @@ from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi_core.itzi_error import HotstartError
 
 from .compute import rastermetrics
+
+_LEGACY_NPZ_MEMBER_NAMES = {
+    "dem": "ground_elevation",
+    "bcval": "boundary_value",
+    "bctype": "boundary_type",
+    "eff_precip": "effective_precipitation",
+    "hfe": "flow_depth_east",
+    "hfs": "flow_depth_south",
+    "qe": "old_discharge_east",
+    "qs": "old_discharge_south",
+    "qe_new": "new_discharge_east",
+    "qs_new": "new_discharge_south",
+    "hmax": "max_water_depth",
+    "v": "flow_speed",
+    "vdir": "flow_velocity_direction",
+    "vmax": "max_flow_speed",
+    "n_drain": "drainage_inflow",
+}
 
 
 class RasterDomain:
@@ -114,8 +133,8 @@ class RasterDomain:
         """
         rastermetrics.set_ext_array(
             self.arr["inflow"],
-            self.arr["n_drain"],
-            self.arr["eff_precip"],
+            self.arr["drainage_inflow"],
+            self.arr["effective_precipitation"],
             self.arr["ext"],
         )
         return self
@@ -132,25 +151,30 @@ class RasterDomain:
             raise ValueError(f"Updated values for array '{arr_key}' do not match domain size.")
         if arr_key == "water_surface_elevation":
             # Calculate actual depth and update the internal depth array
-            arr = rastermetrics.calculate_h_from_wse(arr_wse=arr, arr_dem=self.get_array("dem"))
+            arr = rastermetrics.calculate_h_from_wse(
+                arr_wse=arr,
+                arr_dem=self.get_array("ground_elevation"),
+            )
             arr_key = "water_depth"
-        elif arr_key == "bctype":
-            arr = self._prepare_bctype(arr)
+        elif arr_key == "boundary_type":
+            arr = self._prepare_boundary_type(arr)
         self.mask_array(arr, self.fill_values[arr_key])
         self.arr[arr_key][:], self.arrp[arr_key][:] = self.pad_array(arr)
         return self
 
-    def _prepare_bctype(self, arr: np.ndarray) -> np.ndarray:
+    def _prepare_boundary_type(self, arr: np.ndarray) -> np.ndarray:
         """Mask and validate boundary codes before assigning them to uint8 storage."""
         if not (np.issubdtype(arr.dtype, np.integer) or np.issubdtype(arr.dtype, np.floating)):
-            raise ValueError("Invalid values for 'bctype': expected an integer or floating array.")
+            raise ValueError(
+                "Invalid values for 'boundary_type': expected an integer or floating array."
+            )
 
         candidate = np.array(arr, copy=True)
-        self.mask_array(candidate, self.fill_values["bctype"])
+        self.mask_array(candidate, self.fill_values["boundary_type"])
         valid = np.isin(candidate, (0, 1, 2, 3, 4))
         if not np.all(valid):
             invalid_values = candidate[~valid].reshape(-1)[:5].tolist()
-            raise ValueError(f"Invalid values for 'bctype': {invalid_values}")
+            raise ValueError(f"Invalid values for 'boundary_type': {invalid_values}")
         return candidate
 
     def get_array(self, k: str) -> np.ndarray:
@@ -205,10 +229,30 @@ class RasterDomain:
 
         # Get the set of keys from the archive (excluding 'mask')
         archive_keys = set(npz.files) - {"mask"}
+        member_keys = {key: key for key in archive_keys}
+        migrated_members = {
+            legacy: current
+            for legacy, current in _LEGACY_NPZ_MEMBER_NAMES.items()
+            if legacy in archive_keys and current not in archive_keys
+        }
+        for legacy, current in migrated_members.items():
+            member_keys[current] = legacy
+        if migrated_members:
+            migrated_names = ", ".join(
+                f"{legacy!r} to {current!r}"
+                for legacy, current in sorted(migrated_members.items())
+            )
+            warnings.warn(
+                "Raster state uses deprecated NPZ member names; migrated "
+                f"{migrated_names}. Recreate the hotstart to use canonical names.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
         expected_keys = self.k_all
 
         # Verify required keys are present
-        missing_keys = expected_keys - archive_keys
+        missing_keys = expected_keys - member_keys.keys()
         if missing_keys:
             raise HotstartError(
                 f"Raster state missing required arrays: {', '.join(sorted(missing_keys))}"
@@ -244,7 +288,7 @@ class RasterDomain:
 
         # Verify all array shapes match the padded domain
         for key in expected_keys:
-            stored_arr = npz[key]
+            stored_arr = npz[member_keys[key]]
             if stored_arr.shape != padded_shape:
                 raise HotstartError(
                     f"Array '{key}' shape mismatch: archive has {stored_arr.shape}, "
@@ -252,12 +296,12 @@ class RasterDomain:
                 )
 
         # Verify dtype compatibility (allow safe casting), while accepting valid
-        # floating-point bctype arrays from legacy state archives.
+        # floating-point boundary-type arrays from legacy state archives.
         converted_arrays: dict[str, np.ndarray] = {}
         for key in expected_keys:
-            stored_arr = npz[key]
+            stored_arr = npz[member_keys[key]]
             target_dtype = self.dtypes[key]
-            if key == "bctype":
+            if key == "boundary_type":
                 if stored_arr.dtype != target_dtype and not np.issubdtype(
                     stored_arr.dtype, np.floating
                 ):
@@ -270,12 +314,12 @@ class RasterDomain:
                 masked = padded_mask
                 if np.issubdtype(stored_arr.dtype, np.floating):
                     masked = np.logical_or(np.isnan(candidate), masked)
-                candidate[masked] = self.fill_values["bctype"]
+                candidate[masked] = self.fill_values["boundary_type"]
                 valid = np.isin(candidate, (0, 1, 2, 3, 4))
                 if not np.all(valid):
                     invalid_values = candidate[~valid].reshape(-1)[:5].tolist()
                     raise HotstartError(
-                        f"Invalid values for 'bctype' in raster state: {invalid_values}"
+                        f"Invalid values for 'boundary_type' in raster state: {invalid_values}"
                     )
                 converted_arrays[key] = candidate.astype(target_dtype)
             elif not np.can_cast(stored_arr.dtype, target_dtype, casting="safe"):

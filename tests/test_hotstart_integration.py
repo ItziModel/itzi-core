@@ -67,14 +67,14 @@ def create_sim_config(
         record_step=timedelta(seconds=30),
         temporal_type=TemporalType.RELATIVE,
         input_map_names=helpers.make_input_map_names(
-            dem="z",
+            ground_elevation="z",
             friction="n",
             water_depth="start_h",
             rain="rain",
         ),
         output_map_names=helpers.make_output_map_names(
             "out_hotstart",
-            ["water_depth", "qx", "qy", "created_volume", "mean_rainfall"],
+            ["water_depth", "flow_rate_x", "flow_rate_y", "created_volume", "mean_rainfall"],
         ),
         surface_flow_parameters=SurfaceFlowParameters(hmin=0.0001, dtmax=0.3, cfl=0.2),
         infiltration_model=InfiltrationModelType.GREEN_AMPT,
@@ -114,7 +114,7 @@ def build_simulation(
     # Hotstart restores raster state, so we don't want to overwrite it
     if hotstart_bytes is None:
         # Set input arrays
-        simulation.set_array("dem", domain_5by5.arr_dem_flat)
+        simulation.set_array("ground_elevation", domain_5by5.arr_dem_flat)
         simulation.set_array("friction", domain_5by5.arr_n)
         simulation.set_array("water_depth", domain_5by5.arr_start_h)
         simulation.set_array("rain", domain_5by5.arr_rain)
@@ -170,7 +170,13 @@ def run_with_hotstart_checkpoints(
 
 
 def assert_final_state_matches(simulation: Simulation, reference: Simulation) -> None:
-    for key in ["water_depth", "hmax", "vmax", "qe", "qs"]:
+    for key in [
+        "water_depth",
+        "max_water_depth",
+        "max_flow_speed",
+        "old_discharge_east",
+        "old_discharge_south",
+    ]:
         arr_resumed = simulation.raster_domain.get_array(key)
         arr_reference = reference.raster_domain.get_array(key)
         np.testing.assert_allclose(arr_resumed, arr_reference, err_msg=f"Final {key} mismatch")
@@ -178,7 +184,7 @@ def assert_final_state_matches(simulation: Simulation, reference: Simulation) ->
 
 def assert_state_differs(simulation: Simulation, reference: Simulation) -> None:
     mismatch_found = False
-    for key in ["water_depth", "qe", "qs"]:
+    for key in ["water_depth", "old_discharge_east", "old_discharge_south"]:
         arr_resumed = simulation.raster_domain.get_array(key)
         arr_reference = reference.raster_domain.get_array(key)
         if not np.allclose(arr_resumed, arr_reference):
@@ -361,7 +367,7 @@ def test_roundtrip_state_restoration_and_match(
     )
 
     # Step 4: Verify final results match uninterrupted reference
-    # Use qe/qs (internal flow arrays) instead of qx/qy (output arrays computed on-the-fly)
+    # Use internal prior-step discharges instead of flow rates computed on demand.
     assert_final_state_matches(sim_b, uninterrupted_simulation)
 
     # Verify simulation reached end time
@@ -405,7 +411,7 @@ def test_resume_allows_output_map_name_change(
 
     resumed_output_map_names = helpers.make_output_map_names(
         "out_resume",
-        ["water_depth", "hmax", "qx", "qy", "created_volume"],
+        ["water_depth", "max_water_depth", "flow_rate_x", "flow_rate_y", "created_volume"],
     )
     sim_b_config = sim_a_config.model_copy(update={"output_map_names": resumed_output_map_names})
     resumed_output = MemoryRasterOutputProvider(resumed_output_map_names)
@@ -421,9 +427,10 @@ def test_resume_allows_output_map_name_change(
     assert sim_b.report.out_map_names == resumed_output_map_names
     assert resumed_output.out_map_names == resumed_output_map_names
     assert resumed_output.output_maps_dict["water_depth"]
-    assert resumed_output.output_maps_dict["hmax"]
+    assert resumed_output.output_maps_dict["max_water_depth"]
     np.testing.assert_allclose(
-        resumed_output.output_maps_dict["hmax"][-1][1], sim_b.get_array("hmax")
+        resumed_output.output_maps_dict["max_water_depth"][-1][1],
+        sim_b.get_array("max_water_depth"),
     )
     assert sim_a_config.output_map_names["water_depth"] != resumed_output_map_names["water_depth"]
     assert_final_state_matches(sim_b, uninterrupted_simulation)

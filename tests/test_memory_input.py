@@ -69,7 +69,9 @@ def test_provider_creation_with_empty_arrays(
 
     assert provider.get_domain_data() == domain_data
 
-    array, start_time, end_time = provider.get_array("dem", simulation_times["start_time"])
+    array, start_time, end_time = provider.get_array(
+        "ground_elevation", simulation_times["start_time"]
+    )
     assert array is None
     assert start_time == simulation_times["start_time"]
     assert end_time == simulation_times["end_time"]
@@ -80,11 +82,11 @@ def test_get_array_static_returns_copy_and_simulation_bounds(
 ) -> None:
     dem = np.full(domain_data.shape, 2.5, dtype=np.float32)
     provider = MemoryRasterInputProvider(
-        make_config(domain_data, simulation_times, static_arrays={"dem": dem})
+        make_config(domain_data, simulation_times, static_arrays={"ground_elevation": dem})
     )
 
     array, start_time, end_time = provider.get_array(
-        "dem", simulation_times["start_time"] + timedelta(hours=2)
+        "ground_elevation", simulation_times["start_time"] + timedelta(hours=2)
     )
 
     assert array is not None
@@ -93,7 +95,7 @@ def test_get_array_static_returns_copy_and_simulation_bounds(
     assert end_time == simulation_times["end_time"]
 
     array[0, 0] = 99.0
-    array_again, _, _ = provider.get_array("dem", simulation_times["start_time"])
+    array_again, _, _ = provider.get_array("ground_elevation", simulation_times["start_time"])
     assert array_again is not None
     assert array_again[0, 0] == pytest.approx(2.5)
 
@@ -103,12 +105,12 @@ def test_provider_copies_static_arrays_at_construction(
 ) -> None:
     dem = np.full(domain_data.shape, 1.0, dtype=np.float32)
     provider = MemoryRasterInputProvider(
-        make_config(domain_data, simulation_times, static_arrays={"dem": dem})
+        make_config(domain_data, simulation_times, static_arrays={"ground_elevation": dem})
     )
 
     dem[0, 0] = 77.0
 
-    array, _, _ = provider.get_array("dem", simulation_times["start_time"])
+    array, _, _ = provider.get_array("ground_elevation", simulation_times["start_time"])
     assert array is not None
     assert array[0, 0] == pytest.approx(1.0)
 
@@ -270,9 +272,9 @@ def test_rejects_duplicate_keys_across_static_and_timed_arrays(
             make_config(
                 domain_data,
                 simulation_times,
-                static_arrays={"dem": np.zeros(domain_data.shape, dtype=np.float32)},
+                static_arrays={"ground_elevation": np.zeros(domain_data.shape, dtype=np.float32)},
                 timed_arrays={
-                    "dem": [
+                    "ground_elevation": [
                         TimedRasterSlice(
                             start_time=simulation_times["start_time"],
                             end_time=simulation_times["end_time"],
@@ -296,9 +298,13 @@ def test_rejects_invalid_static_array_shape_or_dimensionality(
     simulation_times: dict[str, datetime],
     array: np.ndarray,
 ) -> None:
-    with pytest.raises(ValueError, match="input array 'dem'"):
+    with pytest.raises(ValueError, match="input array 'ground_elevation'"):
         MemoryRasterInputProvider(
-            make_config(domain_data, simulation_times, static_arrays={"dem": array})
+            make_config(
+                domain_data,
+                simulation_times,
+                static_arrays={"ground_elevation": array},
+            )
         )
 
 

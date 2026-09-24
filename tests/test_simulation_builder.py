@@ -30,7 +30,7 @@ def _simulation_config(helpers) -> SimulationConfig:
         record_step=timedelta(seconds=1),
         temporal_type=TemporalType.RELATIVE,
         input_map_names=helpers.make_input_map_names(
-            dem="dem",
+            ground_elevation="dem",
             friction="friction",
             water_depth="water_depth",
         ),

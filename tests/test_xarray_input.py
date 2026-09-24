@@ -36,6 +36,14 @@ from itzi_core.providers.xarray_input import (
 # Mark all tests in this module as cloud tests
 pytestmark = pytest.mark.xarray
 
+_INPUT_SOURCE_KEYS = {
+    "rain": "rainfall",
+    "ground_elevation": "dem",
+    "friction": "friction",
+    "boundary_value": "boundary_conditions",
+    "infiltration": "infiltration",
+}
+
 
 @pytest.fixture(scope="module")
 def input_maps_dict():
@@ -115,10 +123,11 @@ def xarray_input_data_relative_time(
         "x": coordinates["x_coords"],
     }
     for itzi_key, var_name in input_map_names.items():
-        if itzi_key in input_maps_dict:
-            base_data = input_maps_dict[itzi_key]
+        source_key = _INPUT_SOURCE_KEYS[itzi_key]
+        if source_key in input_maps_dict:
+            base_data = input_maps_dict[source_key]
             # Make some variables time-dependent, others static
-            if itzi_key in ["rainfall", "boundary_conditions"]:
+            if itzi_key in ["rain", "boundary_value"]:
                 # Time-dependent variables
                 time_data = np.stack([base_data * (1 + 0.1 * t) for t in range(time_len)])
                 data_vars[var_name] = (["time", "y", "x"], time_data)
@@ -141,19 +150,15 @@ def xarray_input_data_relative_time(
 
 
 @pytest.fixture(scope="module")
-def input_map_names(input_maps_dict: dict):
+def input_map_names():
     """Mapping from itzi internal names to dataset variable names"""
-    # Create a mapping where some keys map to different variable names in xarray.dataset
-    mapping = {}
-    keys = list(input_maps_dict.keys())
-    for i, key in enumerate(keys):
-        if i % 2 == 0:
-            # Some variables have the same name
-            mapping[key] = key
-        else:
-            # Some variables have different names in xarray
-            mapping[key] = f"xarray_{key}"
-    return mapping
+    return {
+        "rain": "rainfall",
+        "ground_elevation": "xarray_dem",
+        "friction": "friction",
+        "boundary_value": "xarray_boundary_conditions",
+        "infiltration": "infiltration",
+    }
 
 
 @pytest.fixture
@@ -175,11 +180,12 @@ def xarray_input_data(
     }
 
     for itzi_key, var_name in input_map_names.items():
-        if itzi_key in input_maps_dict:
-            base_data = input_maps_dict[itzi_key]
+        source_key = _INPUT_SOURCE_KEYS[itzi_key]
+        if source_key in input_maps_dict:
+            base_data = input_maps_dict[source_key]
 
             # Make some variables time-dependent, others static
-            if itzi_key in ["rainfall", "boundary_conditions"]:
+            if itzi_key in ["rain", "boundary_value"]:
                 # Time-dependent variables
                 time_data = np.stack([base_data * (1 + 0.1 * t) for t in range(time_len)])
                 data_vars[var_name] = (["time", "y", "x"], time_data)
@@ -320,7 +326,7 @@ def test_xarray_input_config_rejects_invalid_values(xarray_input_data: dict, def
         XarrayRasterInputConfig.model_validate(config_data | {"input_map_names": {}})
     with pytest.raises(ValidationError):
         XarrayRasterInputConfig.model_validate(
-            config_data | {"input_map_names": {"dem": "missing"}}
+            config_data | {"input_map_names": {"ground_elevation": "missing"}}
         )
     with pytest.raises(ValidationError):
         XarrayRasterInputConfig.model_validate(config_data | {"dimension_names": {"missing": {}}})
@@ -439,8 +445,8 @@ def test_xarray_input_provider_get_array_static_variable(
 
     provider = XarrayRasterInputProvider(config)
 
-    # Test with a static variable (e.g., 'dem')
-    test_key = "dem"
+    # Test with a static ground-elevation variable.
+    test_key = "ground_elevation"
     if test_key in xarray_input_data["input_map_names"]:
         current_time = datetime(2023, 1, 1, 12, 0, 0)
         result = provider.get_array(test_key, current_time)
@@ -453,7 +459,7 @@ def test_xarray_input_provider_get_array_static_variable(
 
         # Verify the array
         assert isinstance(array, np.ndarray)
-        expected_data = xarray_input_data["input_maps_dict"][test_key]
+        expected_data = xarray_input_data["input_maps_dict"][_INPUT_SOURCE_KEYS[test_key]]
         assert array.shape == expected_data.shape
         assert np.allclose(array, expected_data)
 
@@ -501,7 +507,7 @@ def test_xarray_input_provider_get_array_time_dependent_variable(
         # current_time = 2023-01-01 02:30:00 should correspond to time index 2
         # Expected data: base_data * (1 + 0.1 * 2) = base_data * 1.2
         expected_time_index = 2
-        base_data = xarray_input_data["input_maps_dict"][test_key]
+        base_data = xarray_input_data["input_maps_dict"][_INPUT_SOURCE_KEYS[test_key]]
         expected_array = base_data * (1 + 0.1 * expected_time_index)
         assert np.allclose(array, expected_array), (
             f"Array values don't match expected values for time index {expected_time_index}"
@@ -528,7 +534,7 @@ def test_xarray_input_provider_uses_half_open_windows_at_exact_boundary(
     provider = XarrayRasterInputProvider(config)
 
     current_time = datetime(2023, 1, 1, 2, 0, 0)
-    array, start_time, end_time = provider.get_array("rainfall", current_time)
+    array, start_time, end_time = provider.get_array("rain", current_time)
     assert array is not None
 
     expected_time_index = 2
@@ -554,7 +560,7 @@ def test_xarray_input_provider_extends_last_slice_to_simulation_end(
     provider = XarrayRasterInputProvider(config)
 
     current_time = datetime(2023, 1, 1, 4, 30, 0)
-    array, start_time, end_time = provider.get_array("rainfall", current_time)
+    array, start_time, end_time = provider.get_array("rain", current_time)
     assert array is not None
 
     expected_time_index = 4
@@ -669,7 +675,7 @@ def test_xarray_input_provider_data_consistency(xarray_input_data: dict, default
         assert actual == expected
 
 
-@pytest.mark.parametrize("map_key", ["dem", "friction", "rainfall"])
+@pytest.mark.parametrize("map_key", ["ground_elevation", "friction", "rain"])
 def test_xarray_input_provider_multiple_variables(
     xarray_input_data: dict, default_times: dict, map_key: str
 ):
@@ -748,7 +754,9 @@ def test_xarray_input_provider_get_array_time_dependent_variable_relative_time(
         # current_time should correspond to time index 1 (timedelta(hours=1))
         # Expected data: base_data * (1 + 0.1 * 1) = base_data * 1.1
         expected_time_index = 1
-        base_data = xarray_input_data_relative_time["input_maps_dict"][test_key]
+        base_data = xarray_input_data_relative_time["input_maps_dict"][
+            _INPUT_SOURCE_KEYS[test_key]
+        ]
         expected_array = base_data * (1 + 0.1 * expected_time_index)
         assert np.allclose(array, expected_array), (
             f"Array values don't match expected values for relative time index {expected_time_index}"
@@ -788,7 +796,7 @@ def unsorted_coordinates_data(input_maps_dict: dict, crs: pyproj.CRS):
 
     return {
         "dataset": ds,
-        "input_map_names": {"dem": "dem"},
+        "input_map_names": {"ground_elevation": "dem"},
     }
 
 
@@ -818,7 +826,7 @@ def unequal_spacing_data(input_maps_dict: dict, crs: pyproj.CRS):
 
     return {
         "dataset": ds,
-        "input_map_names": {"dem": "dem"},
+        "input_map_names": {"ground_elevation": "dem"},
     }
 
 
@@ -956,7 +964,7 @@ def test_wrong_time_dimension_name_causes_assertion_error(
     # Configure provider with default time dimension name "time" (which doesn't exist)
     config = XarrayRasterInputConfig(
         dataset=ds,
-        input_map_names={"rainfall": "rainfall"},
+        input_map_names={"rain": "rainfall"},
         simulation_start_time=default_times["start_time"],
         simulation_end_time=default_times["end_time"],
         # NOT providing dimension_names, so it defaults to looking for "time"
@@ -965,7 +973,7 @@ def test_wrong_time_dimension_name_causes_assertion_error(
     with pytest.raises(ValueError):
         provider = XarrayRasterInputProvider(config)
         current_time = datetime(2023, 1, 1, 2, 0, 0)
-        provider.get_array("rainfall", current_time)
+        provider.get_array("rain", current_time)
 
 
 def test_xarray_input_provider_2d_only_no_time_coordinate(
@@ -1003,7 +1011,7 @@ def test_xarray_input_provider_2d_only_no_time_coordinate(
 
     # Map names for the 2D-only variables
     input_map_names = {
-        "dem": "dem",
+        "ground_elevation": "dem",
         "friction": "friction",
     }
 
@@ -1032,13 +1040,13 @@ def test_xarray_input_provider_2d_only_no_time_coordinate(
     # Test that we can get arrays from the 2D variables
     current_time = datetime(2023, 1, 1, 12, 0, 0)
 
-    for key in ["dem", "friction"]:
+    for key in ["ground_elevation", "friction"]:
         array, start_time, end_time = provider.get_array(key, current_time)
 
         # Should return the array
         assert isinstance(array, np.ndarray)
         assert array.ndim == 2
-        assert np.allclose(array, input_maps_dict[key])
+        assert np.allclose(array, input_maps_dict[_INPUT_SOURCE_KEYS[key]])
 
         # For static variables, should return simulation start/end times
         assert start_time == default_times["start_time"]
@@ -1125,9 +1133,9 @@ def test_xarray_input_provider_mixed_dimensions(mixed_dimensions_data: dict, def
     """
     # Define the mapping from itzi keys to dataset variable names
     input_map_names = {
-        "dem": "elevation",
-        "rainfall": "precip",
-        "boundary_conditions": "boundary",
+        "ground_elevation": "elevation",
+        "rain": "precip",
+        "boundary_value": "boundary",
     }
 
     # Define the dimension names for each variable
@@ -1164,9 +1172,9 @@ def test_xarray_input_provider_mixed_dimensions(mixed_dimensions_data: dict, def
     assert provider.sim_end_time == default_times["end_time"]
     assert provider.input_map_names == input_map_names
 
-    # Test 1: Get static 2D array (elevation/dem)
+    # Test 1: Get static 2D ground-elevation array.
     current_time = datetime(2023, 1, 1, 12, 0, 0)
-    result = provider.get_array("dem", current_time)
+    result = provider.get_array("ground_elevation", current_time)
 
     assert isinstance(result, tuple)
     assert len(result) == 3
@@ -1184,12 +1192,12 @@ def test_xarray_input_provider_mixed_dimensions(mixed_dimensions_data: dict, def
     assert start_time == default_times["start_time"]
     assert end_time == default_times["end_time"]
 
-    # Test 2: Get 3D array with relative time (rainfall/precip)
+    # Test 2: Get 3D rainfall array with relative time.
     current_time = datetime(2023, 1, 1, 2, 30, 0)  # Should correspond to rel_time index 2
     expected_start_time = datetime(2023, 1, 1, 2, 0, 0)
     expected_end_time = datetime(2023, 1, 1, 3, 0, 0)
 
-    result = provider.get_array("rainfall", current_time)
+    result = provider.get_array("rain", current_time)
 
     assert isinstance(result, tuple)
     assert len(result) == 3
@@ -1215,12 +1223,12 @@ def test_xarray_input_provider_mixed_dimensions(mixed_dimensions_data: dict, def
     assert start_time == expected_start_time
     assert end_time == expected_end_time
 
-    # Test 3: Get 3D array with absolute time (boundary_conditions/boundary)
+    # Test 3: Get 3D boundary-value array with absolute time.
     current_time = datetime(2023, 1, 1, 3, 30, 0)  # Should correspond to abs_time index 3
     expected_start_time = datetime(2023, 1, 1, 3, 0, 0)
     expected_end_time = datetime(2023, 1, 1, 4, 0, 0)
 
-    result = provider.get_array("boundary_conditions", current_time)
+    result = provider.get_array("boundary_value", current_time)
 
     assert isinstance(result, tuple)
     assert len(result) == 3

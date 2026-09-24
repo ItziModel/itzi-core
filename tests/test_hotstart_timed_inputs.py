@@ -97,7 +97,7 @@ def _run_to_end(simulation: "Simulation", *, skip_initialize: bool = False) -> N
 
 
 def _assert_final_state_matches(resumed: "Simulation", reference: "Simulation") -> None:
-    for key in ["water_depth", "qe", "qs"]:
+    for key in ["water_depth", "old_discharge_east", "old_discharge_south"]:
         np.testing.assert_allclose(
             resumed.raster_domain.get_array(key),
             reference.raster_domain.get_array(key),
@@ -176,7 +176,7 @@ def _make_static_arrays(
     include_water_depth: bool = True,
 ) -> dict[str, np.ndarray]:
     static_arrays = {
-        "dem": domain_5by5.arr_dem_flat.copy() if dem is None else dem.copy(),
+        "ground_elevation": domain_5by5.arr_dem_flat.copy() if dem is None else dem.copy(),
         "friction": domain_5by5.arr_n.copy(),
     }
     if include_water_depth:
@@ -205,7 +205,7 @@ def _make_simulation_config(
         record_step=record_step,
         temporal_type=temporal_type,
         input_map_names={
-            "dem": "dem",
+            "ground_elevation": "dem",
             "friction": "friction",
             "water_depth": "water_depth",
             "rain": "rain",
@@ -404,7 +404,7 @@ def test_resume_applies_changed_input_sources_at_checkpoint(domain_5by5) -> None
     resumed_rain_boundary = start_time + timedelta(seconds=15)
     shape = domain_5by5.domain_data.shape
     archived_names = {
-        "dem": "dem_archive",
+        "ground_elevation": "dem_archive",
         "friction": "friction_archive",
         "water_depth": "depth_archive",
         "rain": "rain_archive",
@@ -437,7 +437,7 @@ def test_resume_applies_changed_input_sources_at_checkpoint(domain_5by5) -> None
     archived.update_until(checkpoint_target - start_time)
     assert archived.sim_time == checkpoint_target
     assert archived.next_ts["input"] == archived_rain_boundary
-    archived_dem = archived.raster_domain.get_array("dem").copy()
+    archived_ground_elevation = archived.raster_domain.get_array("ground_elevation").copy()
     hotstart_bytes = archived.create_hotstart().getvalue()
 
     resumed_names = {
@@ -480,7 +480,9 @@ def test_resume_applies_changed_input_sources_at_checkpoint(domain_5by5) -> None
         resumed.raster_domain.get_array("rain"),
         np.full(shape, 720.0 / (1000.0 * 3600.0), dtype=np.float32),
     )
-    np.testing.assert_array_equal(resumed.raster_domain.get_array("dem"), archived_dem)
+    np.testing.assert_array_equal(
+        resumed.raster_domain.get_array("ground_elevation"), archived_ground_elevation
+    )
     assert resumed.next_ts["hydrology"] == checkpoint_target
     assert resumed.next_ts["input"] == resumed_rain_boundary
     assert resumed.next_ts["input"] != archived_rain_boundary
@@ -646,7 +648,7 @@ def test_hotstart_priming_preserves_evolved_water_depth(
     ).model_copy(
         update={
             "input_map_names": {
-                "dem": "dem",
+                "ground_elevation": "dem",
                 "friction": "friction",
                 "rain": "rain",
                 source_key: source_key,
@@ -946,7 +948,7 @@ def test_timed_rain_and_inflow_close_old_rates_at_the_input_boundary(domain_5by5
     ).model_copy(
         update={
             "input_map_names": {
-                "dem": "dem",
+                "ground_elevation": "dem",
                 "friction": "friction",
                 "water_depth": "water_depth",
                 "rain": "rain",
@@ -1002,7 +1004,9 @@ def test_build_fails_when_dem_input_has_only_nan_cells(domain_5by5) -> None:
         temporal_type=TemporalType.ABSOLUTE,
     )
 
-    with pytest.raises(NullError, match=r"input map <dem> contains only NULL/NaN cells"):
+    with pytest.raises(
+        NullError, match=r"input map <ground_elevation> contains only NULL/NaN cells"
+    ):
         _build_provider_simulation(
             sim_config,
             domain_5by5,

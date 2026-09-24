@@ -50,7 +50,7 @@ def _build_diagnostic_simulation(
         record_step=timedelta(seconds=record_seconds),
         temporal_type=TemporalType.RELATIVE,
         input_map_names=helpers.make_input_map_names(
-            dem="z",
+            ground_elevation="z",
             friction="n",
             water_depth="start_h",
         ),
@@ -66,7 +66,7 @@ def _build_diagnostic_simulation(
         .with_vector_output_provider(MemoryVectorOutputProvider())
         .build()
     )
-    simulation.set_array("dem", domain_5by5.arr_dem_flat.copy())
+    simulation.set_array("ground_elevation", domain_5by5.arr_dem_flat.copy())
     simulation.set_array("friction", domain_5by5.arr_n.copy())
     simulation.set_array(
         "water_depth",
@@ -85,7 +85,7 @@ def _run_diagnostic_regression(
     simulation = _build_diagnostic_simulation(
         domain_5by5,
         helpers,
-        ["water_depth", "v", "vmax", "vdir", "froude"],
+        ["water_depth", "flow_speed", "max_flow_speed", "flow_velocity_direction", "froude"],
         end_seconds=1.0,
         record_seconds=0.4,
         dtmax=0.3,
@@ -109,11 +109,11 @@ def _run_diagnostic_regression(
     result = {
         "outputs": {
             key: [(time, array.copy()) for time, array in output_maps[key]]
-            for key in ("vdir", "froude")
+            for key in ("flow_velocity_direction", "froude")
         },
         "water_depth": simulation.get_array("water_depth").copy(),
-        "v": simulation.get_array("v").copy(),
-        "vmax": simulation.get_array("vmax").copy(),
+        "flow_speed": simulation.get_array("flow_speed").copy(),
+        "max_flow_speed": simulation.get_array("max_flow_speed").copy(),
         "steps": simulation.time_steps_counters["since_start"],
     }
     simulation.finalize()
@@ -149,7 +149,7 @@ def _run_center_pulse_simulation(
         record_step=timedelta(seconds=duration_s),
         temporal_type=TemporalType.RELATIVE,
         input_map_names=helpers.make_input_map_names(
-            dem="z",
+            ground_elevation="z",
             friction="n",
             water_depth="start_h",
         ),
@@ -170,7 +170,7 @@ def _run_center_pulse_simulation(
         .build()
     )
 
-    simulation.set_array("dem", domain_5by5.arr_dem_flat.copy())
+    simulation.set_array("ground_elevation", domain_5by5.arr_dem_flat.copy())
     simulation.set_array("friction", domain_5by5.arr_n.copy())
     simulation.set_array("water_depth", arr_start_h.copy())
 
@@ -186,11 +186,11 @@ def _run_center_pulse_simulation(
     ("diagnostic_keys", "report_flags"),
     [
         ([], (False, False)),
-        (["vdir"], (True, False)),
+        (["flow_velocity_direction"], (True, False)),
         (["froude"], (False, True)),
-        (["vdir", "froude"], (True, True)),
+        (["flow_velocity_direction", "froude"], (True, True)),
     ],
-    ids=["neither", "vdir", "froude", "both"],
+    ids=["neither", "flow_velocity_direction", "froude", "both"],
 )
 def test_scheduler_computes_only_requested_report_diagnostics(
     domain_5by5,
@@ -213,14 +213,16 @@ def test_scheduler_computes_only_requested_report_diagnostics(
 
     def tracked_step(*, compute_vdir: bool = True, compute_froude: bool = True):
         step_end = simulation.sim_time + simulation.dt
-        vdir_before = simulation.get_array("vdir").copy()
+        vdir_before = simulation.get_array("flow_velocity_direction").copy()
         froude_before = simulation.get_array("froude").copy()
         result = scheduled_step(
             compute_vdir=compute_vdir,
             compute_froude=compute_froude,
         )
         if not compute_vdir:
-            np.testing.assert_array_equal(simulation.get_array("vdir"), vdir_before)
+            np.testing.assert_array_equal(
+                simulation.get_array("flow_velocity_direction"), vdir_before
+            )
         if not compute_froude:
             np.testing.assert_array_equal(simulation.get_array("froude"), froude_before)
         calls.append(
@@ -233,7 +235,7 @@ def test_scheduler_computes_only_requested_report_diagnostics(
 
     monkeypatch.setattr(simulation.surface_flow, "step", tracked_step)
     simulation.initialize()
-    simulation.get_array("vdir").fill(-123.0)
+    simulation.get_array("flow_velocity_direction").fill(-123.0)
     simulation.get_array("froude").fill(-456.0)
     while simulation.sim_time < simulation.end_time:
         simulation.update()
@@ -257,7 +259,7 @@ def test_scheduler_computes_only_requested_report_diagnostics(
         timedelta(seconds=10),
     ]
     assert [time for time, _ in output_maps["water_depth"]] == expected_report_times
-    for key in ("vdir", "froude"):
+    for key in ("flow_velocity_direction", "froude"):
         expected_times = expected_report_times if key in diagnostic_keys else []
         assert [time for time, _ in output_maps.get(key, [])] == expected_times
 
@@ -271,9 +273,9 @@ def test_lazy_diagnostic_reports_match_always_compute_reference(
     reference = _run_diagnostic_regression(domain_5by5, helpers, monkeypatch, force_all=True)
 
     assert optimized["steps"] == reference["steps"]
-    for key in ("water_depth", "v", "vmax"):
+    for key in ("water_depth", "flow_speed", "max_flow_speed"):
         np.testing.assert_allclose(optimized[key], reference[key], rtol=1e-6, atol=1e-7)
-    for key in ("vdir", "froude"):
+    for key in ("flow_velocity_direction", "froude"):
         optimized_outputs = optimized["outputs"][key]
         reference_outputs = reference["outputs"][key]
         assert [time for time, _ in optimized_outputs] == [time for time, _ in reference_outputs]
@@ -287,7 +289,8 @@ def test_lazy_diagnostic_reports_match_always_compute_reference(
 def sim_5by5(domain_5by5, helpers) -> Simulation:
     """Run a 5x5 simulation for 60s with 30s record step.
 
-    Outputs: water_depth, water_surface_elevation, froude, v, vdir, qx, qy, created_volume
+    Outputs: water_depth, water_surface_elevation, froude, flow_speed,
+    flow_velocity_direction, flow_rate_x, flow_rate_y, created_volume
     """
     # Build SimulationConfig
     sim_config = SimulationConfig(
@@ -296,7 +299,7 @@ def sim_5by5(domain_5by5, helpers) -> Simulation:
         record_step=timedelta(seconds=30),
         temporal_type=TemporalType.RELATIVE,
         input_map_names=helpers.make_input_map_names(
-            dem="z",
+            ground_elevation="z",
             friction="n",
             water_depth="start_h",
         ),
@@ -306,10 +309,10 @@ def sim_5by5(domain_5by5, helpers) -> Simulation:
                 "water_depth",
                 "water_surface_elevation",
                 "froude",
-                "v",
-                "vdir",
-                "qx",
-                "qy",
+                "flow_speed",
+                "flow_velocity_direction",
+                "flow_rate_x",
+                "flow_rate_y",
                 "created_volume",
             ],
         ),
@@ -331,7 +334,7 @@ def sim_5by5(domain_5by5, helpers) -> Simulation:
     )
 
     # Set input arrays
-    simulation.set_array("dem", domain_5by5.arr_dem_flat)
+    simulation.set_array("ground_elevation", domain_5by5.arr_dem_flat)
     simulation.set_array("friction", domain_5by5.arr_n)
     simulation.set_array("water_depth", domain_5by5.arr_start_h)
 
@@ -366,24 +369,24 @@ class TestNumberOfOutput:
         assert len(output_dict["froude"]) == 3
 
     def test_v_count(self, sim_5by5):
-        """v (velocity) should have 3 outputs (initial + 2 record steps)."""
+        """flow_speed should have 3 outputs (initial + 2 record steps)."""
         output_dict = sim_5by5.report.raster_provider.output_maps_dict
-        assert len(output_dict["v"]) == 3
+        assert len(output_dict["flow_speed"]) == 3
 
     def test_vdir_count(self, sim_5by5):
-        """vdir (velocity direction) should have 3 outputs."""
+        """flow_velocity_direction should have 3 outputs."""
         output_dict = sim_5by5.report.raster_provider.output_maps_dict
-        assert len(output_dict["vdir"]) == 3
+        assert len(output_dict["flow_velocity_direction"]) == 3
 
     def test_qx_count(self, sim_5by5):
-        """qx should have 3 outputs."""
+        """flow_rate_x should have 3 outputs."""
         output_dict = sim_5by5.report.raster_provider.output_maps_dict
-        assert len(output_dict["qx"]) == 3
+        assert len(output_dict["flow_rate_x"]) == 3
 
     def test_qy_count(self, sim_5by5):
-        """qy should have 3 outputs."""
+        """flow_rate_y should have 3 outputs."""
         output_dict = sim_5by5.report.raster_provider.output_maps_dict
-        assert len(output_dict["qy"]) == 3
+        assert len(output_dict["flow_rate_y"]) == 3
 
     def test_created_volume_count(self, sim_5by5):
         """created_volume should have 3 outputs."""
