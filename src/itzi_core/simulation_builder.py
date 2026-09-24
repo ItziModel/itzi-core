@@ -399,50 +399,12 @@ class SimulationBuilder:
             report=report,
         )
 
-        # Apply hotstart restore if hotstart data is present
         if hotstart_loader is not None:
-            raster_state_buffer = hotstart_loader.get_raster_state_buffer()
-            raster_domain.load_state(raster_state_buffer)
-
-            simulation_state = hotstart_loader.get_simulation_state()
-            simulation.restore_state(simulation_state)
-            archived_resume_config = hotstart_loader.get_resume_config()
-            changed_input_keys = self._changed_input_keys(archived_resume_config)
-            restored_input_deadline = simulation.schedule.deadline("input")
-            restored_end_deadline = simulation.schedule.deadline("end")
-            end_time_changed = (
-                self.sim_config.end_time != archived_resume_config.configured_end_time
+            self._restore_hotstart(
+                hotstart_loader,
+                simulation,
+                timed_input_manager,
             )
-            simulation.reconcile_hotstart_resume(archived_resume_config)
-
-            if timed_input_manager is None:
-                if restored_input_deadline < restored_end_deadline:
-                    raise HotstartError(
-                        "Hotstart has a pending timed-input deadline but no input provider "
-                        "is configured for resume"
-                    )
-                simulation.schedule.set_deadline("input", simulation.end_time)
-            else:
-                updates, primed_input_deadline = timed_input_manager.prepare_resume_at(
-                    simulation.sim_time,
-                    changed_input_keys,
-                )
-                for array_key, array in updates:
-                    simulation.set_array(array_key, array, simulation.sim_time)
-                if changed_input_keys & self._HYDROLOGY_INPUT_KEYS:
-                    simulation.schedule.set_deadline("hydrology", simulation.sim_time)
-                if (
-                    not changed_input_keys
-                    and not end_time_changed
-                    and primed_input_deadline != restored_input_deadline
-                ):
-                    raise HotstartError(
-                        "Hotstart timed-input boundary conflicts with the restored schedule: "
-                        f"provider={primed_input_deadline}, restored={restored_input_deadline}"
-                    )
-                simulation.schedule.set_deadline("input", primed_input_deadline)
-
-            simulation.restore_drainage_coupling_state()
         elif timed_input_manager is not None:
             updates, next_input = timed_input_manager.read_at(self.sim_config.start_time)
             for array_key, array in updates:
@@ -450,6 +412,54 @@ class SimulationBuilder:
             schedule.set_deadline("input", next_input)
 
         return simulation
+
+    def _restore_hotstart(
+        self,
+        hotstart_loader: HotstartLoader,
+        simulation: Simulation,
+        timed_input_manager: TimedInputManager | None,
+    ) -> None:
+        """Restore archived state and reconcile it with the resume configuration."""
+        raster_state_buffer = hotstart_loader.get_raster_state_buffer()
+        simulation.raster_domain.load_state(raster_state_buffer)
+
+        simulation_state = hotstart_loader.get_simulation_state()
+        simulation.restore_state(simulation_state)
+        archived_resume_config = hotstart_loader.get_resume_config()
+        changed_input_keys = self._changed_input_keys(archived_resume_config)
+        restored_input_deadline = simulation.schedule.deadline("input")
+        restored_end_deadline = simulation.schedule.deadline("end")
+        end_time_changed = self.sim_config.end_time != archived_resume_config.configured_end_time
+        simulation.reconcile_hotstart_resume(archived_resume_config)
+
+        if timed_input_manager is None:
+            if restored_input_deadline < restored_end_deadline:
+                raise HotstartError(
+                    "Hotstart has a pending timed-input deadline but no input provider "
+                    "is configured for resume"
+                )
+            simulation.schedule.set_deadline("input", simulation.end_time)
+        else:
+            updates, primed_input_deadline = timed_input_manager.prepare_resume_at(
+                simulation.sim_time,
+                changed_input_keys,
+            )
+            for array_key, array in updates:
+                simulation.set_array(array_key, array, simulation.sim_time)
+            if changed_input_keys & self._HYDROLOGY_INPUT_KEYS:
+                simulation.schedule.set_deadline("hydrology", simulation.sim_time)
+            if (
+                not changed_input_keys
+                and not end_time_changed
+                and primed_input_deadline != restored_input_deadline
+            ):
+                raise HotstartError(
+                    "Hotstart timed-input boundary conflicts with the restored schedule: "
+                    f"provider={primed_input_deadline}, restored={restored_input_deadline}"
+                )
+            simulation.schedule.set_deadline("input", primed_input_deadline)
+
+        simulation.restore_drainage_coupling_state()
 
     def _create_timed_arrays(
         self,
