@@ -366,21 +366,14 @@ def _assert_resume_with_timed_memory_inputs(
     np.testing.assert_allclose(
         resumed.raster_domain.get_array("rainfall_rate"), checkpoint["rain"]
     )
-    np.testing.assert_allclose(
-        resumed.raster_domain.get_array("rainfall_rate"), expected_rain_arrays[10]
-    )
-
-    rain_window = resumed.get_input_window("rainfall_rate")
-    assert rain_window is not None
     assert second_slice_start <= resumed.sim_time < second_slice_end
-    assert rain_window.start == second_slice_start
-    assert rain_window.end == second_slice_end
     np.testing.assert_allclose(
         resumed.raster_domain.get_array("rainfall_rate"), expected_rain_arrays[10]
     )
     assert not np.allclose(
         resumed.raster_domain.get_array("rainfall_rate"), expected_rain_arrays[0]
     )
+    assert resumed.next_ts["input"] == second_slice_end
 
     resumed.update()
     assert second_slice_start <= resumed.sim_time < second_slice_end
@@ -707,10 +700,6 @@ def test_hotstart_priming_preserves_evolved_water_depth(
         hotstart_bytes=hotstart_bytes,
     )
 
-    source_window = resumed.get_input_window(source_key)
-    assert source_window is not None
-    assert source_window.start == start_time
-    assert source_window.end == end_time
     np.testing.assert_array_equal(resumed.raster_domain.get_array("water_depth"), archived_depth)
 
     _run_to_end(resumed, skip_initialize=True)
@@ -718,18 +707,18 @@ def test_hotstart_priming_preserves_evolved_water_depth(
 
 
 @pytest.mark.parametrize(
-    ("target_seconds", "expected_source_seconds", "expected_window"),
+    ("target_seconds", "expected_source_seconds", "expected_input_deadline_seconds"),
     [
-        (9, 0, (0, 10)),
-        (10, 10, (10, 20)),
-        (12, 10, (10, 20)),
+        (9, 0, 10),
+        (10, 10, 20),
+        (12, 10, 20),
     ],
 )
 def test_timed_memory_rain_switches_cleanly_around_boundary(
     domain_5by5,
     target_seconds: int,
     expected_source_seconds: int,
-    expected_window: tuple[int, int],
+    expected_input_deadline_seconds: int,
 ) -> None:
     start_time = datetime(2000, 1, 1, 0, 0, 0)
     end_time = start_time + timedelta(seconds=20)
@@ -757,16 +746,13 @@ def test_timed_memory_rain_switches_cleanly_around_boundary(
     simulation.initialize()
     simulation.update_until(timedelta(seconds=target_seconds))
 
-    rain_window = simulation.get_input_window("rainfall_rate")
-    assert rain_window is not None
     np.testing.assert_allclose(
         simulation.raster_domain.get_array("rainfall_rate"),
         expected_rain_arrays[expected_source_seconds],
     )
-    expected_start = start_time + timedelta(seconds=expected_window[0])
-    expected_end = start_time + timedelta(seconds=expected_window[1])
-    assert rain_window.start == expected_start
-    assert rain_window.end == expected_end
+    assert simulation.next_ts["input"] == start_time + timedelta(
+        seconds=expected_input_deadline_seconds
+    )
 
 
 def test_timed_memory_rain_is_applied_before_a_step_crosses_its_boundary(domain_5by5) -> None:

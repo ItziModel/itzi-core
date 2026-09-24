@@ -28,7 +28,6 @@ from itzi_core.simulation_builder import SimulationBuilder as SimulationBuilder
 from itzi_core.surfaceflow import (
     estimate_surface_flow_timestep as estimate_surface_flow_timestep,
 )
-from itzi_core.timed_inputs import InputWindow as InputWindow
 
 __all__ = [
     "ARRAY_DEFINITIONS",
@@ -37,7 +36,6 @@ __all__ = [
     "DomainData",
     "HotstartRunConfig",
     "InfiltrationModelType",
-    "InputWindow",
     "Simulation",
     "SimulationBuilder",
     "SimulationConfig",

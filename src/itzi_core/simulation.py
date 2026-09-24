@@ -35,7 +35,7 @@ from itzi_core.data_containers import (
 from itzi_core.hotstart import HotstartWriter
 from itzi_core.itzi_error import DtError, MassBalanceError, NullError
 from itzi_core.simulation_schedule import SimulationSchedule
-from itzi_core.timed_inputs import InputWindow, TimedInputManager
+from itzi_core.timed_inputs import TimedInputManager
 
 if TYPE_CHECKING:
     from itzi_core.data_containers import DrainageNodeCouplingData, SimulationConfig
@@ -140,12 +140,6 @@ class Simulation:
     @property
     def end_time(self) -> datetime:
         return self.schedule.end_time
-
-    def get_input_window(self, key: str) -> InputWindow | None:
-        """Return a snapshot of the current cached input validity window."""
-        if self.timed_input_manager is None:
-            return None
-        return self.timed_input_manager.get_window(key)
 
     def initialize(self) -> Self:
         """Record the initial stage of the simulation, before time-stepping."""
