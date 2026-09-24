@@ -46,7 +46,7 @@ def test_array_definitions():
 
 def test_maximum_arrays_are_internal_outputs():
     definitions = {arr_def.key: arr_def for arr_def in ARRAY_DEFINITIONS}
-    for key in ("hmax", "vmax"):
+    for key in ("max_water_depth", "max_flow_speed"):
         assert ArrayCategory.INTERNAL in definitions[key].category
         assert ArrayCategory.OUTPUT in definitions[key].category
 
