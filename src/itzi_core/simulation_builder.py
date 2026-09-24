@@ -87,11 +87,11 @@ class SimulationBuilder:
         self.dtype = dtype
 
         # Optional components (set via builder methods)
-        self.raster_input_provider: RasterInputProvider | None = None
-        self.domain_data: DomainData | None = None
-        self.raster_output_provider: RasterOutputProvider | None = None
-        self.vector_output_provider: VectorOutputProvider | None = None
-        self.mass_balance_output_provider: MassBalanceOutputProvider | None = None
+        self._raster_input_provider: RasterInputProvider | None = None
+        self._domain_data: DomainData | None = None
+        self._raster_output_provider: RasterOutputProvider | None = None
+        self._vector_output_provider: VectorOutputProvider | None = None
+        self._mass_balance_output_provider: MassBalanceOutputProvider | None = None
 
         # Hotstart data (set via with_hotstart)
         self.hotstart_loader: HotstartLoader | None = None
@@ -115,28 +115,28 @@ class SimulationBuilder:
         return self
 
     def with_input_provider(self, provider: RasterInputProvider) -> Self:
-        self.raster_input_provider = provider
-        self.domain_data = provider.get_domain_data()
+        self._raster_input_provider = provider
+        self._domain_data = provider.get_domain_data()
         return self
 
     def with_domain_data(self, domain_data: DomainData) -> Self:
         """Set domain data directly for simulations without input provider."""
-        self.domain_data = domain_data
+        self._domain_data = domain_data
         return self
 
     def with_raster_output_provider(self, provider: RasterOutputProvider) -> Self:
-        self.raster_output_provider = provider
+        self._raster_output_provider = provider
         return self
 
     def with_vector_output_provider(self, provider: VectorOutputProvider) -> Self:
-        self.vector_output_provider = provider
+        self._vector_output_provider = provider
         return self
 
     def with_mass_balance_output_provider(
         self,
         provider: MassBalanceOutputProvider,
     ) -> Self:
-        self.mass_balance_output_provider = provider
+        self._mass_balance_output_provider = provider
         return self
 
     def _validate_hotstart_congruence(self, hotstart_loader: HotstartLoader) -> None:
@@ -204,7 +204,7 @@ class SimulationBuilder:
                 "Hotstart input map changes are not supported for evolved stage inputs: "
                 f"{', '.join(sorted(changed_stage_keys))}"
             )
-        if changed_input_keys and self.raster_input_provider is None:
+        if changed_input_keys and self._raster_input_provider is None:
             raise HotstartError(
                 "Hotstart changed input map names require an input provider for resume"
             )
@@ -235,44 +235,44 @@ class SimulationBuilder:
 
     def _validate_domain_congruence(self, hotstart_domain: DomainData) -> None:
         """Validate that domain metadata matches between hotstart and builder."""
-        assert self.domain_data is not None  # Already validated in build()
+        assert self._domain_data is not None  # Already validated in build()
 
         # Check spatial bounds
-        if not np.isclose(self.domain_data.north, hotstart_domain.north):
+        if not np.isclose(self._domain_data.north, hotstart_domain.north):
             raise HotstartError(
-                f"Domain north mismatch: builder={self.domain_data.north}, "
+                f"Domain north mismatch: builder={self._domain_data.north}, "
                 f"hotstart={hotstart_domain.north}"
             )
-        if not np.isclose(self.domain_data.south, hotstart_domain.south):
+        if not np.isclose(self._domain_data.south, hotstart_domain.south):
             raise HotstartError(
-                f"Domain south mismatch: builder={self.domain_data.south}, "
+                f"Domain south mismatch: builder={self._domain_data.south}, "
                 f"hotstart={hotstart_domain.south}"
             )
-        if not np.isclose(self.domain_data.east, hotstart_domain.east):
+        if not np.isclose(self._domain_data.east, hotstart_domain.east):
             raise HotstartError(
-                f"Domain east mismatch: builder={self.domain_data.east}, "
+                f"Domain east mismatch: builder={self._domain_data.east}, "
                 f"hotstart={hotstart_domain.east}"
             )
-        if not np.isclose(self.domain_data.west, hotstart_domain.west):
+        if not np.isclose(self._domain_data.west, hotstart_domain.west):
             raise HotstartError(
-                f"Domain west mismatch: builder={self.domain_data.west}, "
+                f"Domain west mismatch: builder={self._domain_data.west}, "
                 f"hotstart={hotstart_domain.west}"
             )
 
         # Check dimensions
-        if self.domain_data.rows != hotstart_domain.rows:
+        if self._domain_data.rows != hotstart_domain.rows:
             raise HotstartError(
-                f"Domain rows mismatch: builder={self.domain_data.rows}, "
+                f"Domain rows mismatch: builder={self._domain_data.rows}, "
                 f"hotstart={hotstart_domain.rows}"
             )
-        if self.domain_data.cols != hotstart_domain.cols:
+        if self._domain_data.cols != hotstart_domain.cols:
             raise HotstartError(
-                f"Domain cols mismatch: builder={self.domain_data.cols}, "
+                f"Domain cols mismatch: builder={self._domain_data.cols}, "
                 f"hotstart={hotstart_domain.cols}"
             )
 
         # Check CRS
-        if self.domain_data.crs_wkt != hotstart_domain.crs_wkt:
+        if self._domain_data.crs_wkt != hotstart_domain.crs_wkt:
             raise HotstartError(
                 "Domain CRS mismatch: builder and hotstart have different coordinate reference systems."
             )
@@ -312,10 +312,10 @@ class SimulationBuilder:
 
     def build(self) -> Simulation:
         """Build a simulation and explicitly load or prime provider-backed inputs."""
-        domain_data = self.domain_data
-        raster_output_provider = self.raster_output_provider
-        vector_output_provider = self.vector_output_provider
-        input_provider = self.raster_input_provider
+        domain_data = self._domain_data
+        raster_output_provider = self._raster_output_provider
+        vector_output_provider = self._vector_output_provider
+        input_provider = self._raster_input_provider
         hotstart_loader = self.hotstart_loader
 
         if domain_data is None:
@@ -363,7 +363,7 @@ class SimulationBuilder:
             temporal_type=self.sim_config.temporal_type,
             raster_output_provider=raster_output_provider,
             vector_output_provider=vector_output_provider,
-            mass_balance_output_provider=self.mass_balance_output_provider,
+            mass_balance_output_provider=self._mass_balance_output_provider,
             out_map_names=self.sim_config.output_map_names,
             dt=self.sim_config.record_step,
         )
