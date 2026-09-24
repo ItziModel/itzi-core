@@ -19,6 +19,8 @@ from pydantic import ValidationError
 
 from itzi_core.const import TemporalType
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
+from itzi_core.domain_data import DomainData
+from itzi_core.providers.memory_input import MemoryRasterInputProvider
 from itzi_core.simulation_builder import SimulationBuilder
 
 
@@ -43,6 +45,36 @@ def _builder(domain_5by5, config: SimulationConfig) -> SimulationBuilder:
     return SimulationBuilder(config, domain_5by5.arr_mask).with_domain_data(
         domain_5by5.domain_data
     )
+
+
+def _input_provider(
+    domain_data: DomainData, config: SimulationConfig
+) -> MemoryRasterInputProvider:
+    return MemoryRasterInputProvider(
+        {
+            "domain_data": domain_data,
+            "simulation_start_time": config.start_time,
+            "simulation_end_time": config.end_time,
+        }
+    )
+
+
+def test_input_provider_cannot_overwrite_domain_data(domain_5by5, helpers) -> None:
+    config = _simulation_config(helpers)
+    builder = _builder(domain_5by5, config)
+    input_provider = _input_provider(domain_5by5.domain_data, config)
+
+    with pytest.raises(ValueError, match="DomainData is already set"):
+        builder.with_input_provider(input_provider)
+
+
+def test_domain_data_cannot_overwrite_input_provider_domain_data(domain_5by5, helpers) -> None:
+    config = _simulation_config(helpers)
+    input_provider = _input_provider(domain_5by5.domain_data, config)
+    builder = SimulationBuilder(config, domain_5by5.arr_mask).with_input_provider(input_provider)
+
+    with pytest.raises(ValueError, match="DomainData is already set"):
+        builder.with_domain_data(domain_5by5.domain_data)
 
 
 def test_configured_raster_outputs_require_a_provider(domain_5by5, helpers) -> None:
