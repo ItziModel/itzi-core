@@ -115,12 +115,16 @@ class SimulationBuilder:
         return self
 
     def with_input_provider(self, provider: RasterInputProvider) -> Self:
+        if self._domain_data is not None:
+            raise ValueError("Cannot add an input provider when DomainData is already set.")
         self._raster_input_provider = provider
         self._domain_data = provider.get_domain_data()
         return self
 
     def with_domain_data(self, domain_data: DomainData) -> Self:
         """Set domain data directly for simulations without input provider."""
+        if self._domain_data is not None:
+            raise ValueError("DomainData is already set.")
         self._domain_data = domain_data
         return self
 
