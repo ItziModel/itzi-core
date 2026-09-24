@@ -187,25 +187,19 @@ class RasterDomain:
         return npz_file
 
     def load_state(self, npz_data: io.BytesIO) -> Self:
-        """Restore domain arrays from an in-memory npz buffer.
-
-        This method validates the loaded state against the current domain
+        """This method validates the loaded state against the current domain
         configuration before mutating any state.
-
-        Args:
-            npz_data: BytesIO containing an npz archive from save_state().
 
         Raises:
             HotstartError: If the state is incompatible with the current domain.
         """
-        # Load the npz archive from the in-memory buffer
         npz_data.seek(0)
         try:
             npz = np.load(npz_data, allow_pickle=False)
         except Exception as e:
             raise HotstartError(f"Failed to load raster state: {e}") from e
 
-        # Every keys must be present. No more, no less..
+        # Every keys must be present. No more, no less.
         archive_keys = set(npz.files) - {"mask"}
         expected_keys = self.k_all
         missing_keys = expected_keys - archive_keys
@@ -219,10 +213,9 @@ class RasterDomain:
                 f"Raster state has unexpected arrays: {', '.join(sorted(extra_keys))}"
             )
 
-        # Verify mask is present
+        # Validate mask
         if "mask" not in npz.files:
             raise HotstartError("Raster state missing 'mask' array")
-        # Verify mask shape matches
         stored_mask = npz["mask"]
         if stored_mask.dtype != self.mask.dtype:
             raise HotstartError(
@@ -234,7 +227,6 @@ class RasterDomain:
                 f"Mask shape mismatch: archive has {stored_mask.shape}, "
                 f"domain expects {self.mask.shape}"
             )
-        # Verify mask content matches
         if not np.array_equal(stored_mask, self.mask):
             raise HotstartError(
                 "Mask content mismatch: the hotstart domain mask does not match "
@@ -243,7 +235,6 @@ class RasterDomain:
 
         # Padded shape is (rows+2, cols+2) due to 1-cell padding on all sides
         padded_shape = (self.shape[0] + 2, self.shape[1] + 2)
-
         # Verify all array shapes match the padded domain
         for key in expected_keys:
             stored_arr = npz[key]
@@ -253,7 +244,7 @@ class RasterDomain:
                     f"domain expects padded shape {padded_shape}"
                 )
 
-        # Version 2 requires each stored dtype to match the target domain exactly.
+        # Each stored dtype should match the target domain exactly.
         validated_arrays: dict[str, np.ndarray] = {}
         for key in expected_keys:
             stored_arr = npz[key]
