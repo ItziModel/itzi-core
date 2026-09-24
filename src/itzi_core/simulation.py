@@ -149,8 +149,8 @@ class Simulation:
             padded=True,
         )
 
-        self._update_maximum("water_depth", "hmax")
-        self._update_maximum("v", "vmax")
+        self._update_maximum("water_depth", "max_water_depth")
+        self._update_maximum("flow_speed", "max_flow_speed")
 
         for arr_key in self.accum_mapping:
             self._update_accum_array(arr_key, self.sim_time)
@@ -192,7 +192,7 @@ class Simulation:
         is_final_ts = step_end == self.end_time
         is_record_due = step_end == self.schedule.deadline("record")
         should_write_report = is_record_due or is_final_ts
-        is_vdir_requested = self.report.out_map_names.get("vdir") is not None
+        is_vdir_requested = self.report.out_map_names.get("flow_velocity_direction") is not None
         is_froude_requested = self.report.out_map_names.get("froude") is not None
         compute_vdir = should_write_report and is_vdir_requested
         compute_froude = should_write_report and is_froude_requested
@@ -312,12 +312,12 @@ class Simulation:
         assert self.drainage_model is not None
         surface_states = {}
         cell_area = self.raster_domain.cell_area
-        arr_z = self.raster_domain.get_array("dem")
+        arr_z = self.raster_domain.get_array("ground_elevation")
         arr_h = self.raster_domain.get_array("water_depth")
         for node_id, (row, col) in self.node_id_to_loc.items():
             surface_states[node_id] = {"z": arr_z[row, col], "h": arr_h[row, col]}
         coupling_flows = self.drainage_model.apply_coupling_to_nodes(surface_states, cell_area)
-        arr_qd = self.raster_domain.get_array("n_drain")
+        arr_qd = self.raster_domain.get_array("drainage_inflow")
         for node_id, coupling_flow in coupling_flows.items():
             row, col = self.node_id_to_loc[node_id]
             arr_qd[row, col] = coupling_flow / cell_area
@@ -360,22 +360,22 @@ class Simulation:
     ) -> Self:
         """Set an array of the simulation domain."""
         current_time = self.sim_time if sim_time is None else sim_time
-        if arr_id in ["inflow", "rain"]:
+        if arr_id in ["inflow", "rainfall_rate"]:
             self._update_accum_array(arr_id, current_time)
         self.raster_domain.update_array(arr_id, arr)
         if arr_id in {"water_depth", "water_surface_elevation"}:
-            self._update_maximum("water_depth", "hmax")
-        elif arr_id == "v":
-            self._update_maximum("v", "vmax")
-        if arr_id == "dem":
+            self._update_maximum("water_depth", "max_water_depth")
+        elif arr_id == "flow_speed":
+            self._update_maximum("flow_speed", "max_flow_speed")
+        if arr_id == "ground_elevation":
             self.surface_flow.update_flow_dir()
         return self
 
     def get_array(self, arr_id: str) -> np.ndarray:
         """Return an array through the BMI interface.
 
-        Between reports, ``vdir`` and ``froude`` contain their values from the
-        most recent report step when those outputs are enabled.
+        Between reports, ``flow_velocity_direction`` and ``froude`` contain their
+        values from the most recent report step when those outputs are enabled.
         """
         return self.raster_domain.get_array(arr_id)
 
@@ -483,7 +483,7 @@ class Simulation:
         )
 
     def restore_drainage_coupling_state(self) -> None:
-        """Restore DrainageNode.coupling_flow and SWMM generated_inflow from n_drain.
+        """Restore DrainageNode.coupling_flow and SWMM generated_inflow from drainage_inflow.
 
         Must be called after raster domain state is restored from hotstart.
 
@@ -492,19 +492,19 @@ class Simulation:
         1. DrainageNode.coupling_flow is always initialised to 0.0 on object creation.
            With RELAXATION_FACTOR=0.8 the first apply_coupling() call blends the new
            flow with 0 instead of the saved previous flow, producing wrong inflow to SWMM
-           and a wrong n_drain value used by the surface-flow solver.
+            and a wrong drainage_inflow value used by the surface-flow solver.
 
         2. SWMM's internal generated_inflow (set via pyswmm) is not persisted in the
            SWMM hotstart binary, so without this restoration the first swmm_step()
            runs with zero lateral inflow at each coupled junction.
 
-        Both problems are fixed by reading the saved n_drain raster (restored from
+        Both problems are fixed by reading the saved drainage_inflow raster (restored from
         the hotstart zip) and using those values to initialise coupling_flow and to
         pre-inject the inflows into SWMM before the first drainage step.
         """
         if not self.drainage_model or not self.drainage_nodes_list:
             return
-        arr_qd = self.raster_domain.get_array("n_drain")
+        arr_qd = self.raster_domain.get_array("drainage_inflow")
         cell_area = self.raster_domain.cell_area
         for node_data in self.drainage_nodes_list:
             if node_data.row is None or node_data.col is None:

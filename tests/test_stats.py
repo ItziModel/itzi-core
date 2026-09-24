@@ -79,10 +79,10 @@ def sim_5by5_stats(domain_5by5, helpers, tmp_path_factory):
         dtinf=1.0,
         temporal_type=TemporalType.RELATIVE,
         input_map_names=helpers.make_input_map_names(
-            dem="z",
+            ground_elevation="z",
             friction="n",
             water_depth="start_h",
-            rain="rainfall",
+            rainfall_rate="rainfall",
             infiltration="infiltration_rate",
             losses="loss_rate",
             inflow="inflow_rate",
@@ -117,10 +117,10 @@ def sim_5by5_stats(domain_5by5, helpers, tmp_path_factory):
     )
 
     # Set input arrays
-    simulation.set_array("dem", domain_5by5.arr_dem_flat)
+    simulation.set_array("ground_elevation", domain_5by5.arr_dem_flat)
     simulation.set_array("friction", domain_5by5.arr_n)
     simulation.set_array("water_depth", domain_5by5.arr_start_h)
-    simulation.set_array("rain", domain_5by5.arr_rain)
+    simulation.set_array("rainfall_rate", domain_5by5.arr_rain)
     simulation.set_array("infiltration", domain_5by5.arr_inf)
     simulation.set_array("losses", domain_5by5.arr_loss)
     simulation.set_array("inflow", domain_5by5.arr_inflow)
@@ -265,7 +265,7 @@ def _run_timed_stats_simulation(
         record_step=timedelta(seconds=10),
         temporal_type=TemporalType.RELATIVE,
         input_map_names={
-            "dem": "dem",
+            "ground_elevation": "dem",
             "friction": "friction",
             "water_depth": "water_depth",
             forcing_key: forcing_key,
@@ -283,7 +283,7 @@ def _run_timed_stats_simulation(
             "simulation_start_time": sim_config.start_time,
             "simulation_end_time": sim_config.end_time,
             "static_arrays": {
-                "dem": domain_5by5.arr_dem_flat.copy(),
+                "ground_elevation": domain_5by5.arr_dem_flat.copy(),
                 "friction": domain_5by5.arr_n.copy(),
                 "water_depth": (
                     np.zeros(domain_5by5.domain_data.shape, dtype=np.float32)
@@ -329,7 +329,7 @@ def _run_timed_stats_simulation(
             None,
         ),
         (
-            "rain",
+            "rainfall_rate",
             {0: 0.0, 3: 360.0, 20: 360.0},
             "rainfall_volume",
             1.75,

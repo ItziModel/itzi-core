@@ -97,7 +97,7 @@ def _run_to_end(simulation: "Simulation", *, skip_initialize: bool = False) -> N
 
 
 def _assert_final_state_matches(resumed: "Simulation", reference: "Simulation") -> None:
-    for key in ["water_depth", "qe", "qs"]:
+    for key in ["water_depth", "old_discharge_east", "old_discharge_south"]:
         np.testing.assert_allclose(
             resumed.raster_domain.get_array(key),
             reference.raster_domain.get_array(key),
@@ -176,7 +176,7 @@ def _make_static_arrays(
     include_water_depth: bool = True,
 ) -> dict[str, np.ndarray]:
     static_arrays = {
-        "dem": domain_5by5.arr_dem_flat.copy() if dem is None else dem.copy(),
+        "ground_elevation": domain_5by5.arr_dem_flat.copy() if dem is None else dem.copy(),
         "friction": domain_5by5.arr_n.copy(),
     }
     if include_water_depth:
@@ -184,7 +184,7 @@ def _make_static_arrays(
             domain_5by5.arr_start_h.copy() if water_depth is None else water_depth.copy()
         )
     if rain is not None:
-        static_arrays["rain"] = rain.copy()
+        static_arrays["rainfall_rate"] = rain.copy()
     return static_arrays
 
 
@@ -205,10 +205,10 @@ def _make_simulation_config(
         record_step=record_step,
         temporal_type=temporal_type,
         input_map_names={
-            "dem": "dem",
+            "ground_elevation": "dem",
             "friction": "friction",
             "water_depth": "water_depth",
-            "rain": "rain",
+            "rainfall_rate": "rain",
         },
         output_map_names={"water_depth": "out_hotstart_timed_inputs_water_depth"},
         surface_flow_parameters=surface_flow_parameters,
@@ -311,7 +311,7 @@ def _run_reference_with_hotstart_checkpoint(
 
     checkpoint: HotstartCheckpoint = {
         "sim_time": simulation.sim_time,
-        "rain": simulation.raster_domain.get_array("rain").copy(),
+        "rain": simulation.raster_domain.get_array("rainfall_rate").copy(),
         "water_depth": simulation.raster_domain.get_array("water_depth").copy(),
     }
     hotstart_bytes = simulation.create_hotstart().getvalue()
@@ -345,7 +345,7 @@ def _assert_resume_with_timed_memory_inputs(
         sim_config,
         domain_5by5,
         static_arrays=static_arrays,
-        timed_arrays={"rain": timed_rain_slices},
+        timed_arrays={"rainfall_rate": timed_rain_slices},
         split_target_time=split_target_time,
     )
 
@@ -358,21 +358,28 @@ def _assert_resume_with_timed_memory_inputs(
         sim_config,
         domain_5by5,
         static_arrays=static_arrays,
-        timed_arrays={"rain": timed_rain_slices},
+        timed_arrays={"rainfall_rate": timed_rain_slices},
         hotstart_bytes=hotstart_bytes,
     )
 
     assert resumed.sim_time == saved_sim_time
-    np.testing.assert_allclose(resumed.raster_domain.get_array("rain"), checkpoint["rain"])
-
+    np.testing.assert_allclose(
+        resumed.raster_domain.get_array("rainfall_rate"), checkpoint["rain"]
+    )
     assert second_slice_start <= resumed.sim_time < second_slice_end
-    np.testing.assert_allclose(resumed.raster_domain.get_array("rain"), expected_rain_arrays[10])
-    assert not np.allclose(resumed.raster_domain.get_array("rain"), expected_rain_arrays[0])
+    np.testing.assert_allclose(
+        resumed.raster_domain.get_array("rainfall_rate"), expected_rain_arrays[10]
+    )
+    assert not np.allclose(
+        resumed.raster_domain.get_array("rainfall_rate"), expected_rain_arrays[0]
+    )
     assert resumed.next_ts["input"] == second_slice_end
 
     resumed.update()
     assert second_slice_start <= resumed.sim_time < second_slice_end
-    np.testing.assert_allclose(resumed.raster_domain.get_array("rain"), expected_rain_arrays[10])
+    np.testing.assert_allclose(
+        resumed.raster_domain.get_array("rainfall_rate"), expected_rain_arrays[10]
+    )
 
     _run_to_end(resumed, skip_initialize=True)
     _assert_final_state_matches(resumed, reference)
@@ -400,10 +407,10 @@ def test_resume_applies_changed_input_sources_at_checkpoint(domain_5by5) -> None
     resumed_rain_boundary = start_time + timedelta(seconds=15)
     shape = domain_5by5.domain_data.shape
     archived_names = {
-        "dem": "dem_archive",
+        "ground_elevation": "dem_archive",
         "friction": "friction_archive",
         "water_depth": "depth_archive",
-        "rain": "rain_archive",
+        "rainfall_rate": "rain_archive",
     }
     archived_config = _make_map_config(start_time, end_time, archived_names)
     archived_sources = {
@@ -433,13 +440,13 @@ def test_resume_applies_changed_input_sources_at_checkpoint(domain_5by5) -> None
     archived.update_until(checkpoint_target - start_time)
     assert archived.sim_time == checkpoint_target
     assert archived.next_ts["input"] == archived_rain_boundary
-    archived_dem = archived.raster_domain.get_array("dem").copy()
+    archived_ground_elevation = archived.raster_domain.get_array("ground_elevation").copy()
     hotstart_bytes = archived.create_hotstart().getvalue()
 
     resumed_names = {
         **archived_names,
         "friction": "friction_resumed",
-        "rain": "rain_resumed",
+        "rainfall_rate": "rain_resumed",
     }
     resumed_config = _make_map_config(start_time, end_time, resumed_names)
     resumed_sources = {
@@ -467,16 +474,18 @@ def test_resume_applies_changed_input_sources_at_checkpoint(domain_5by5) -> None
     )
 
     assert ("friction", "friction_resumed", checkpoint_target) in provider.requests
-    assert ("rain", "rain_resumed", checkpoint_target) in provider.requests
+    assert ("rainfall_rate", "rain_resumed", checkpoint_target) in provider.requests
     np.testing.assert_allclose(
         resumed.raster_domain.get_array("friction"),
         np.full(shape, 0.08, dtype=np.float32),
     )
     np.testing.assert_allclose(
-        resumed.raster_domain.get_array("rain"),
+        resumed.raster_domain.get_array("rainfall_rate"),
         np.full(shape, 720.0 / (1000.0 * 3600.0), dtype=np.float32),
     )
-    np.testing.assert_array_equal(resumed.raster_domain.get_array("dem"), archived_dem)
+    np.testing.assert_array_equal(
+        resumed.raster_domain.get_array("ground_elevation"), archived_ground_elevation
+    )
     assert resumed.next_ts["hydrology"] == checkpoint_target
     assert resumed.next_ts["input"] == resumed_rain_boundary
     assert resumed.next_ts["input"] != archived_rain_boundary
@@ -530,7 +539,7 @@ def test_resume_rejects_changed_input_map_without_provider(domain_5by5) -> None:
         split_target_time=start_time + timedelta(seconds=12),
     )
     changed_config = sim_config.model_copy(
-        update={"input_map_names": {**sim_config.input_map_names, "rain": "other_rain"}}
+        update={"input_map_names": {**sim_config.input_map_names, "rainfall_rate": "other_rain"}}
     )
     builder = (
         SimulationBuilder(changed_config, domain_5by5.arr_mask, np.float32)
@@ -559,7 +568,7 @@ def test_resume_rejects_conflicting_timed_input_boundary(domain_5by5) -> None:
         sim_config,
         domain_5by5,
         static_arrays=_make_static_arrays(domain_5by5),
-        timed_arrays={"rain": timed_rain_slices},
+        timed_arrays={"rainfall_rate": timed_rain_slices},
         split_target_time=start_time + timedelta(seconds=12),
     )
     changed_slices = [
@@ -581,7 +590,7 @@ def test_resume_rejects_conflicting_timed_input_boundary(domain_5by5) -> None:
             sim_config,
             domain_5by5,
             static_arrays=_make_static_arrays(domain_5by5),
-            timed_arrays={"rain": changed_slices},
+            timed_arrays={"rainfall_rate": changed_slices},
             hotstart_bytes=hotstart_bytes,
         )
 
@@ -601,7 +610,7 @@ def test_resume_rejects_pending_timed_input_without_provider(domain_5by5) -> Non
         sim_config,
         domain_5by5,
         static_arrays=_make_static_arrays(domain_5by5),
-        timed_arrays={"rain": timed_rain_slices},
+        timed_arrays={"rainfall_rate": timed_rain_slices},
         split_target_time=start_time + timedelta(seconds=12),
     )
     builder = (
@@ -642,9 +651,9 @@ def test_hotstart_priming_preserves_evolved_water_depth(
     ).model_copy(
         update={
             "input_map_names": {
-                "dem": "dem",
+                "ground_elevation": "dem",
                 "friction": "friction",
-                "rain": "rain",
+                "rainfall_rate": "rain",
                 source_key: source_key,
             }
         }
@@ -655,7 +664,7 @@ def test_hotstart_priming_preserves_evolved_water_depth(
         include_water_depth=False,
     )
     timed_arrays = {
-        "rain": timed_rain_slices,
+        "rainfall_rate": timed_rain_slices,
         source_key: [
             TimedRasterSlice(
                 start_time=start_time,
@@ -731,14 +740,14 @@ def test_timed_memory_rain_switches_cleanly_around_boundary(
             domain_5by5,
             water_depth=np.zeros(domain_5by5.domain_data.shape, dtype=np.float32),
         ),
-        timed_arrays={"rain": timed_rain_slices},
+        timed_arrays={"rainfall_rate": timed_rain_slices},
     )
 
     simulation.initialize()
     simulation.update_until(timedelta(seconds=target_seconds))
 
     np.testing.assert_allclose(
-        simulation.raster_domain.get_array("rain"),
+        simulation.raster_domain.get_array("rainfall_rate"),
         expected_rain_arrays[expected_source_seconds],
     )
     assert simulation.next_ts["input"] == start_time + timedelta(
@@ -767,7 +776,7 @@ def test_timed_memory_rain_is_applied_before_a_step_crosses_its_boundary(domain_
             domain_5by5,
             water_depth=np.zeros(domain_5by5.domain_data.shape, dtype=np.float32),
         ),
-        timed_arrays={"rain": timed_rain_slices},
+        timed_arrays={"rainfall_rate": timed_rain_slices},
     )
 
     simulation.initialize()
@@ -780,7 +789,7 @@ def test_timed_memory_rain_is_applied_before_a_step_crosses_its_boundary(domain_
     )
     assert domain_volume == pytest.approx(0.0, abs=1e-6)
     np.testing.assert_allclose(
-        simulation.raster_domain.get_array("rain"),
+        simulation.raster_domain.get_array("rainfall_rate"),
         np.full(domain_5by5.domain_data.shape, 360.0 / (1000 * 3600), dtype=np.float32),
     )
 
@@ -935,10 +944,10 @@ def test_timed_rain_and_inflow_close_old_rates_at_the_input_boundary(domain_5by5
     ).model_copy(
         update={
             "input_map_names": {
-                "dem": "dem",
+                "ground_elevation": "dem",
                 "friction": "friction",
                 "water_depth": "water_depth",
-                "rain": "rain",
+                "rainfall_rate": "rain",
                 "inflow": "inflow",
             }
         }
@@ -951,7 +960,7 @@ def test_timed_rain_and_inflow_close_old_rates_at_the_input_boundary(domain_5by5
             water_depth=np.zeros(shape, dtype=np.float32),
         ),
         timed_arrays={
-            "rain": two_slices(old_rain_mm_per_hour, new_rain_mm_per_hour),
+            "rainfall_rate": two_slices(old_rain_mm_per_hour, new_rain_mm_per_hour),
             "inflow": two_slices(old_inflow_rate, new_inflow_rate),
         },
     )
@@ -961,7 +970,7 @@ def test_timed_rain_and_inflow_close_old_rates_at_the_input_boundary(domain_5by5
 
     assert simulation.sim_time == input_boundary
     np.testing.assert_allclose(
-        simulation.raster_domain.get_array("rain"),
+        simulation.raster_domain.get_array("rainfall_rate"),
         np.full(shape, new_rain_rate, dtype=np.float32),
     )
     np.testing.assert_allclose(
@@ -991,7 +1000,9 @@ def test_build_fails_when_dem_input_has_only_nan_cells(domain_5by5) -> None:
         temporal_type=TemporalType.ABSOLUTE,
     )
 
-    with pytest.raises(NullError, match=r"input map <dem> contains only NULL/NaN cells"):
+    with pytest.raises(
+        NullError, match=r"input map <ground_elevation> contains only NULL/NaN cells"
+    ):
         _build_provider_simulation(
             sim_config,
             domain_5by5,
@@ -1011,7 +1022,9 @@ def test_build_raises_when_non_dem_input_has_only_nan_cells(domain_5by5) -> None
         temporal_type=TemporalType.ABSOLUTE,
     )
 
-    with pytest.raises(RuntimeWarning, match=r"input map <rain> contains only NULL/NaN cells"):
+    with pytest.raises(
+        RuntimeWarning, match=r"input map <rainfall_rate> contains only NULL/NaN cells"
+    ):
         _build_provider_simulation(
             sim_config,
             domain_5by5,

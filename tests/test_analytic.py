@@ -144,13 +144,14 @@ def mcdo_norain_sim(test_data_path, test_data_temp_path):
         record_step=timedelta(minutes=5),
         temporal_type=TemporalType.RELATIVE,
         input_map_names={
-            "dem": "dem@mcdo_norain",
-            "bctype": "bctype@mcdo_norain",
+            "ground_elevation": "dem@mcdo_norain",
+            "boundary_type": "bctype@mcdo_norain",
             "inflow": "inflow@mcdo_norain",
             "friction": "n@mcdo_norain",
         },
         output_map_names=output_map_names(
-            "out_mcdo_norain", ["water_depth", "water_surface_elevation", "qx", "qy"]
+            "out_mcdo_norain",
+            ["water_depth", "water_surface_elevation", "flow_rate_x", "flow_rate_y"],
         ),
         surface_flow_parameters=SurfaceFlowParameters(dtmax=2, cfl=0.5),
     )
@@ -166,8 +167,8 @@ def mcdo_norain_sim(test_data_path, test_data_temp_path):
         .build()
     )
     # Set the input arrays
-    simulation.set_array("dem", arr_dem)
-    simulation.set_array("bctype", arr_bctype)
+    simulation.set_array("ground_elevation", arr_dem)
+    simulation.set_array("boundary_type", arr_bctype)
     simulation.set_array("inflow", arr_inflow)
     simulation.set_array("friction", arr_n)
     # run the simulation
@@ -192,12 +193,12 @@ class TestMcdo_norain:
     def test_flow_is_unidimensional(self, mcdo_norain_sim):
         simulation, _ = mcdo_norain_sim
         """In the MacDonald 1D test, flow should be unidimensional in the X dimension"""
-        qy_array_list = simulation.report.raster_provider.output_maps_dict["qy"]
-        for _, qy_array in qy_array_list:
-            print(qy_array)
+        flow_rate_y_arrays = simulation.report.raster_provider.output_maps_dict["flow_rate_y"]
+        for _, flow_rate_y_array in flow_rate_y_arrays:
+            print(flow_rate_y_array)
             # univar = gscript.parse_command("r.univar", map=raster, flags="g")
-            assert np.min(qy_array) == 0
-            assert np.max(qy_array) == 0
+            assert np.min(flow_rate_y_array) == 0
+            assert np.max(flow_rate_y_array) == 0
 
     def test_stat_file_is_coherent(self, test_data_temp_path):
         stat_file_path = Path(test_data_temp_path) / Path("stats_mcdo_norain.csv")
@@ -272,11 +273,11 @@ def mcdo_rain_sim(test_data_path, test_data_temp_path):
         record_step=timedelta(minutes=10),
         temporal_type=TemporalType.ABSOLUTE,
         input_map_names={
-            "dem": "dem@mcdo_rain",
-            "bctype": "bctype@mcdo_rain",
+            "ground_elevation": "dem@mcdo_rain",
+            "boundary_type": "bctype@mcdo_rain",
             "inflow": "inflow@mcdo_rain",
             "friction": "n@mcdo_rain",
-            "rain": "rain@mcdo_rain",
+            "rainfall_rate": "rain@mcdo_rain",
         },
         output_map_names=output_map_names(
             "out_mcdo_rain", ["water_depth", "water_surface_elevation"]
@@ -296,11 +297,11 @@ def mcdo_rain_sim(test_data_path, test_data_temp_path):
         .build()
     )
     # Set the input arrays
-    simulation.set_array("dem", arr_dem)
-    simulation.set_array("bctype", arr_bctype)
+    simulation.set_array("ground_elevation", arr_dem)
+    simulation.set_array("boundary_type", arr_bctype)
     simulation.set_array("inflow", arr_inflow)
     simulation.set_array("friction", arr_n)
-    simulation.set_array("rain", arr_rain)
+    simulation.set_array("rainfall_rate", arr_rain)
     # run the simulation
     simulation.initialize()
     while simulation.sim_time < simulation.end_time:

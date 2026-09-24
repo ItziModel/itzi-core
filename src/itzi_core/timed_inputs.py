@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_RATE_INPUTS = frozenset({"rain", "hydraulic_conductivity", "infiltration", "losses"})
+_RATE_INPUTS = frozenset({"rainfall_rate", "hydraulic_conductivity", "infiltration", "losses"})
 _LENGTH_INPUTS = frozenset({"capillary_pressure"})
 
 
@@ -78,10 +78,10 @@ class TimedInputManager:
         }
         try:
             updates: list[tuple[str, np.ndarray]] = []
-            # WSE conversion depends on the DEM at the same time label.
-            self._prepare_array("dem", sim_time, updates, update_keys)
+            # WSE conversion depends on ground elevation at the same time label.
+            self._prepare_array("ground_elevation", sim_time, updates, update_keys)
             for key in self._timed_arrays:
-                if key == "dem" or not self._is_active(key):
+                if key == "ground_elevation" or not self._is_active(key):
                     continue
                 self._prepare_array(key, sim_time, updates, update_keys)
 
@@ -138,6 +138,6 @@ class TimedInputManager:
             message = f"{sim_time}: active domain contains no cells for input map <{key}>"
         else:
             message = f"{sim_time}: input map <{key}> contains only NULL/NaN cells inside the active domain"
-        if key == "dem":
+        if key == "ground_elevation":
             raise NullError(message)
         raise RuntimeWarning(message)

@@ -79,10 +79,10 @@ def _run_steep_plane(max_slope: float, stats_file: Path):
 
     # The one-metre drop between columns is steeper than slope_threshold.
     arr_dem = np.tile(-np.arange(cols, dtype=np.float32), (rows, 1))
-    simulation.set_array("dem", arr_dem)
+    simulation.set_array("ground_elevation", arr_dem)
     simulation.set_array("friction", np.full((rows, cols), 0.05, dtype=np.float32))
-    simulation.set_array("rain", np.full((rows, cols), RAIN_RATE, dtype=np.float32))
-    simulation.set_array("bctype", np.zeros((rows, cols), dtype=np.float32))
+    simulation.set_array("rainfall_rate", np.full((rows, cols), RAIN_RATE, dtype=np.float32))
+    simulation.set_array("boundary_type", np.zeros((rows, cols), dtype=np.float32))
 
     simulation.initialize()
     while simulation.sim_time < simulation.end_time:
@@ -107,8 +107,8 @@ def test_rain_on_steep_plane_uses_capped_downhill_flow(tmp_path):
         (high_cap, tmp_path / "high_cap.csv"),
     ]:
         water_depth = simulation.get_array("water_depth")
-        eastward_flow = simulation.get_array("qe")
-        southward_flow = simulation.get_array("qs")
+        eastward_flow = simulation.get_array("old_discharge_east")
+        southward_flow = simulation.get_array("old_discharge_south")
 
         assert simulation.sim_time == simulation.end_time
         assert np.all(np.isfinite(water_depth))
@@ -120,7 +120,7 @@ def test_rain_on_steep_plane_uses_capped_downhill_flow(tmp_path):
 
     # Both runs solve the same first wet face, so the GMS flux differs only by sqrt(max_slope).
     center = (4, 4)
-    low_flux = low_cap.get_array("qe")[center]
-    high_flux = high_cap.get_array("qe")[center]
+    low_flux = low_cap.get_array("old_discharge_east")[center]
+    high_flux = high_cap.get_array("old_discharge_east")[center]
     assert low_flux > 0
     assert high_flux / low_flux == pytest.approx(np.sqrt(0.8 / 0.2), rel=1e-5)

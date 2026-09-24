@@ -88,7 +88,7 @@ def setup_eggbox_simulation(num_cells=10_000, cell_size=5):
     raster_domain = RasterDomain(
         dtype=np.float32, arr_mask=mask, cell_shape=(cell_size, cell_size)
     )
-    raster_domain.update_array("dem", egg_box)
+    raster_domain.update_array("ground_elevation", egg_box)
     raster_domain.update_array("friction", manning)
     raster_domain.update_array("water_depth", water_depth)
     surface_flow = SurfaceFlowSimulation(raster_domain, sim_param)

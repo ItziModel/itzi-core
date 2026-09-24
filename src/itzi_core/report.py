@@ -146,7 +146,14 @@ class Report:
                 continue
 
             # --- Direct raw arrays ---
-            if arr_key in ["water_depth", "v", "vdir", "froude", "hmax", "vmax"]:
+            if arr_key in [
+                "water_depth",
+                "flow_speed",
+                "flow_velocity_direction",
+                "froude",
+                "max_water_depth",
+                "max_flow_speed",
+            ]:
                 if arr_key in raw:
                     output_arrays[arr_key] = raw[arr_key]
                 continue  # go to next key
@@ -154,12 +161,16 @@ class Report:
             # --- Calculated arrays ---
             if arr_key == "water_surface_elevation":
                 output_arrays[arr_key] = rastermetrics.calculate_wse(
-                    raw["water_depth"], raw["dem"]
+                    raw["water_depth"], raw["ground_elevation"]
                 )
-            elif arr_key == "qx":
-                output_arrays[arr_key] = rastermetrics.calculate_flux(raw["qe_new"], cell_dy)
-            elif arr_key == "qy":
-                output_arrays[arr_key] = rastermetrics.calculate_flux(raw["qs_new"], cell_dx)
+            elif arr_key == "flow_rate_x":
+                output_arrays[arr_key] = rastermetrics.calculate_flux(
+                    raw["new_discharge_east"], cell_dy
+                )
+            elif arr_key == "flow_rate_y":
+                output_arrays[arr_key] = rastermetrics.calculate_flux(
+                    raw["new_discharge_south"], cell_dx
+                )
             elif arr_key == "created_volume":
                 output_arrays[arr_key] = accum_arrays["error_depth_accum"] * cell_area
 

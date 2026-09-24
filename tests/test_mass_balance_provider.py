@@ -58,7 +58,7 @@ def _build_simulation(
         record_step=timedelta(seconds=1),
         temporal_type=TemporalType.RELATIVE,
         input_map_names=helpers.make_input_map_names(
-            dem="dem",
+            ground_elevation="dem",
             friction="friction",
             water_depth="water_depth",
         ),
@@ -72,7 +72,7 @@ def _build_simulation(
         assert builder.with_mass_balance_output_provider(provider) is builder
 
     simulation = builder.build()
-    simulation.set_array("dem", domain_5by5.arr_dem_flat)
+    simulation.set_array("ground_elevation", domain_5by5.arr_dem_flat)
     simulation.set_array("friction", domain_5by5.arr_n)
     simulation.set_array("water_depth", domain_5by5.arr_start_h)
     return simulation

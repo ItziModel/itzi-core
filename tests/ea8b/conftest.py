@@ -157,7 +157,7 @@ def ea8b_simulation(ea8b_data, test_data_path, ea8b_temp_path):
         end_time=sim_end_time,
         record_step=timedelta(seconds=30),
         temporal_type=TemporalType.RELATIVE,
-        input_map_names={"dem": "dem", "friction": "friction"},
+        input_map_names={"ground_elevation": "dem", "friction": "friction"},
         output_map_names={"water_depth": "test_water_depth"},
         drainage_output="out_drainage",
         swmm_inp=str(inp_file),

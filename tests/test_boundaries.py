@@ -42,10 +42,10 @@ def sim_5by5_open_boundaries(domain_5by5, helpers):
         record_step=timedelta(seconds=60),
         temporal_type=TemporalType.RELATIVE,
         input_map_names=helpers.make_input_map_names(
-            dem="z",
+            ground_elevation="z",
             friction="n",
             water_depth="start_h",
-            bctype="open_boundaries",
+            boundary_type="open_boundaries",
         ),
         output_map_names=helpers.make_output_map_names(
             "out_5by5_open_boundaries",
@@ -69,10 +69,10 @@ def sim_5by5_open_boundaries(domain_5by5, helpers):
     )
 
     # Set input arrays
-    simulation.set_array("dem", domain_5by5.arr_dem_flat)
+    simulation.set_array("ground_elevation", domain_5by5.arr_dem_flat)
     simulation.set_array("friction", domain_5by5.arr_n)
     simulation.set_array("water_depth", domain_5by5.arr_start_h)
-    simulation.set_array("bctype", domain_5by5.arr_bctype)
+    simulation.set_array("boundary_type", domain_5by5.arr_bctype)
 
     # Run simulation
     simulation.initialize()
