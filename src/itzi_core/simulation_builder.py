@@ -115,23 +115,20 @@ class SimulationBuilder:
         return self
 
     def with_input_provider(self, provider: RasterInputProvider) -> Self:
-        """Set the raster input provider."""
         self.raster_input_provider = provider
         self.domain_data = provider.get_domain_data()
         return self
 
     def with_domain_data(self, domain_data: DomainData) -> Self:
-        """Set domain data directly (for memory simulations without input provider)."""
+        """Set domain data directly for simulations without input provider."""
         self.domain_data = domain_data
         return self
 
     def with_raster_output_provider(self, provider: RasterOutputProvider) -> Self:
-        """Set the raster output provider."""
         self.raster_output_provider = provider
         return self
 
     def with_vector_output_provider(self, provider: VectorOutputProvider) -> Self:
-        """Set the vector output provider."""
         self.vector_output_provider = provider
         return self
 
@@ -139,14 +136,11 @@ class SimulationBuilder:
         self,
         provider: MassBalanceOutputProvider,
     ) -> Self:
-        """Set the provider used to persist mass-balance reports."""
         self.mass_balance_output_provider = provider
         return self
 
     def _validate_hotstart_congruence(self, hotstart_loader: HotstartLoader) -> None:
-        """Validate hotstart data against builder configuration.
-
-        This method performs congruence checks between the hotstart metadata
+        """This method performs congruence checks between the hotstart metadata
         and the current builder configuration. It must be called after all
         providers are attached but before any state mutation.
 
@@ -158,16 +152,9 @@ class SimulationBuilder:
         resume_config = hotstart_loader.get_resume_config()
         hotstart_state = hotstart_loader.get_simulation_state()
 
-        # Validate domain metadata
         self._validate_domain_congruence(hotstart_domain)
-
-        # Validate mask compatibility
         self._validate_mask_congruence(hotstart_domain)
-
-        # Validate drainage expectations
         self._validate_drainage_congruence(hotstart_loader)
-
-        # Validate resume-time configuration compatibility
         self._validate_resume_config_congruence(resume_config, hotstart_state)
 
     def _validate_resume_config_congruence(
@@ -338,19 +325,15 @@ class SimulationBuilder:
         if self.sim_config.drainage_output is not None and vector_output_provider is None:
             raise ValueError("A vector output provider is required for configured drainage output")
 
-        # Validate hotstart congruence before building
         if hotstart_loader is not None:
             self._validate_hotstart_congruence(hotstart_loader)
 
-        # Create timed arrays if input provider exists
         timed_arrays = None
         if input_provider is not None:
             timed_arrays = self._create_timed_arrays(input_provider, domain_data)
 
-        # Create raster domain
         raster_domain = self._create_raster_domain(domain_data.cell_shape)
 
-        # Create models
         infiltration_model = self._create_infiltration_model(raster_domain)
         hydrology_model = Hydrology(raster_domain, self.sim_config.dtinf, infiltration_model)
         surface_flow = SurfaceFlowSimulation(
@@ -359,6 +342,7 @@ class SimulationBuilder:
 
         # Create drainage with optional SWMM hotstart injection
         nodes_list, drainage_sim = self._create_drainage_simulation(domain_data)
+
         schedule = SimulationSchedule(
             self.sim_config.start_time,
             self.sim_config.end_time,
@@ -374,7 +358,6 @@ class SimulationBuilder:
                 mask=raster_domain.mask,
             )
 
-        # Create report
         report = Report(
             start_time=self.sim_config.start_time,
             temporal_type=self.sim_config.temporal_type,
@@ -385,7 +368,6 @@ class SimulationBuilder:
             dt=self.sim_config.record_step,
         )
 
-        # Create simulation
         simulation = Simulation(
             self.sim_config,
             domain_data,
