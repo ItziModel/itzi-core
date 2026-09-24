@@ -70,7 +70,7 @@ def create_sim_config(
             ground_elevation="z",
             friction="n",
             water_depth="start_h",
-            rain="rain",
+            rainfall_rate="rain",
         ),
         output_map_names=helpers.make_output_map_names(
             "out_hotstart",
@@ -117,7 +117,7 @@ def build_simulation(
         simulation.set_array("ground_elevation", domain_5by5.arr_dem_flat)
         simulation.set_array("friction", domain_5by5.arr_n)
         simulation.set_array("water_depth", domain_5by5.arr_start_h)
-        simulation.set_array("rain", domain_5by5.arr_rain)
+        simulation.set_array("rainfall_rate", domain_5by5.arr_rain)
 
         # Set Green-Ampt infiltration parameters
         simulation.set_array("hydraulic_conductivity", domain_5by5.arr_inf)

@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_RATE_INPUTS = frozenset({"rain", "hydraulic_conductivity", "infiltration", "losses"})
+_RATE_INPUTS = frozenset({"rainfall_rate", "hydraulic_conductivity", "infiltration", "losses"})
 _LENGTH_INPUTS = frozenset({"capillary_pressure"})
 
 

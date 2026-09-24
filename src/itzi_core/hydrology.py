@@ -99,7 +99,7 @@ class Hydrology:
         array is assembled.
         """
         apply_hydrology(
-            arr_rain=self.dom.get_array("rain"),
+            arr_rain=self.dom.get_array("rainfall_rate"),
             arr_inf=self.dom.get_array("computed_infiltration"),
             arr_capped_losses=self.dom.get_array("capped_losses"),
             arr_h=self.dom.get_array("water_depth"),

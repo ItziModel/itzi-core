@@ -37,7 +37,7 @@ from itzi_core.providers.xarray_input import (
 pytestmark = pytest.mark.xarray
 
 _INPUT_SOURCE_KEYS = {
-    "rain": "rainfall",
+    "rainfall_rate": "rainfall",
     "ground_elevation": "dem",
     "friction": "friction",
     "boundary_value": "boundary_conditions",
@@ -127,7 +127,7 @@ def xarray_input_data_relative_time(
         if source_key in input_maps_dict:
             base_data = input_maps_dict[source_key]
             # Make some variables time-dependent, others static
-            if itzi_key in ["rain", "boundary_value"]:
+            if itzi_key in ["rainfall_rate", "boundary_value"]:
                 # Time-dependent variables
                 time_data = np.stack([base_data * (1 + 0.1 * t) for t in range(time_len)])
                 data_vars[var_name] = (["time", "y", "x"], time_data)
@@ -153,7 +153,7 @@ def xarray_input_data_relative_time(
 def input_map_names():
     """Mapping from itzi internal names to dataset variable names"""
     return {
-        "rain": "rainfall",
+        "rainfall_rate": "rainfall",
         "ground_elevation": "xarray_dem",
         "friction": "friction",
         "boundary_value": "xarray_boundary_conditions",
@@ -185,7 +185,7 @@ def xarray_input_data(
             base_data = input_maps_dict[source_key]
 
             # Make some variables time-dependent, others static
-            if itzi_key in ["rain", "boundary_value"]:
+            if itzi_key in ["rainfall_rate", "boundary_value"]:
                 # Time-dependent variables
                 time_data = np.stack([base_data * (1 + 0.1 * t) for t in range(time_len)])
                 data_vars[var_name] = (["time", "y", "x"], time_data)
@@ -482,7 +482,7 @@ def test_xarray_input_provider_get_array_time_dependent_variable(
     provider = XarrayRasterInputProvider(config)
 
     # Test with a time-dependent variable (e.g., 'rainfall')
-    test_key = "rainfall"
+    test_key = "rainfall_rate"
     if test_key in xarray_input_data["input_map_names"]:
         # start_time = datetime(2023, 1, 1, 0, 0, 0)
         # time_step_hours = 1
@@ -534,7 +534,7 @@ def test_xarray_input_provider_uses_half_open_windows_at_exact_boundary(
     provider = XarrayRasterInputProvider(config)
 
     current_time = datetime(2023, 1, 1, 2, 0, 0)
-    array, start_time, end_time = provider.get_array("rain", current_time)
+    array, start_time, end_time = provider.get_array("rainfall_rate", current_time)
     assert array is not None
 
     expected_time_index = 2
@@ -560,7 +560,7 @@ def test_xarray_input_provider_extends_last_slice_to_simulation_end(
     provider = XarrayRasterInputProvider(config)
 
     current_time = datetime(2023, 1, 1, 4, 30, 0)
-    array, start_time, end_time = provider.get_array("rain", current_time)
+    array, start_time, end_time = provider.get_array("rainfall_rate", current_time)
     assert array is not None
 
     expected_time_index = 4
@@ -675,7 +675,7 @@ def test_xarray_input_provider_data_consistency(xarray_input_data: dict, default
         assert actual == expected
 
 
-@pytest.mark.parametrize("map_key", ["ground_elevation", "friction", "rain"])
+@pytest.mark.parametrize("map_key", ["ground_elevation", "friction", "rainfall_rate"])
 def test_xarray_input_provider_multiple_variables(
     xarray_input_data: dict, default_times: dict, map_key: str
 ):
@@ -728,7 +728,7 @@ def test_xarray_input_provider_get_array_time_dependent_variable_relative_time(
     provider = XarrayRasterInputProvider(config)
 
     # Test with a time-dependent variable (e.g., 'rainfall')
-    test_key = "rainfall"
+    test_key = "rainfall_rate"
     if test_key in xarray_input_data_relative_time["input_map_names"]:
         # For relative time, we need to provide a current_time that can be mapped to the relative coordinates
         # Since the relative time coordinates start at timedelta(hours=0), timedelta(hours=1), etc.
@@ -964,7 +964,7 @@ def test_wrong_time_dimension_name_causes_assertion_error(
     # Configure provider with default time dimension name "time" (which doesn't exist)
     config = XarrayRasterInputConfig(
         dataset=ds,
-        input_map_names={"rain": "rainfall"},
+        input_map_names={"rainfall_rate": "rainfall"},
         simulation_start_time=default_times["start_time"],
         simulation_end_time=default_times["end_time"],
         # NOT providing dimension_names, so it defaults to looking for "time"
@@ -973,7 +973,7 @@ def test_wrong_time_dimension_name_causes_assertion_error(
     with pytest.raises(ValueError):
         provider = XarrayRasterInputProvider(config)
         current_time = datetime(2023, 1, 1, 2, 0, 0)
-        provider.get_array("rain", current_time)
+        provider.get_array("rainfall_rate", current_time)
 
 
 def test_xarray_input_provider_2d_only_no_time_coordinate(
@@ -1134,7 +1134,7 @@ def test_xarray_input_provider_mixed_dimensions(mixed_dimensions_data: dict, def
     # Define the mapping from itzi keys to dataset variable names
     input_map_names = {
         "ground_elevation": "elevation",
-        "rain": "precip",
+        "rainfall_rate": "precip",
         "boundary_value": "boundary",
     }
 
@@ -1197,7 +1197,7 @@ def test_xarray_input_provider_mixed_dimensions(mixed_dimensions_data: dict, def
     expected_start_time = datetime(2023, 1, 1, 2, 0, 0)
     expected_end_time = datetime(2023, 1, 1, 3, 0, 0)
 
-    result = provider.get_array("rain", current_time)
+    result = provider.get_array("rainfall_rate", current_time)
 
     assert isinstance(result, tuple)
     assert len(result) == 3

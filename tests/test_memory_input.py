@@ -127,7 +127,7 @@ def test_get_array_timed_returns_matching_slice_and_copy(
             domain_data,
             simulation_times,
             timed_arrays={
-                "rain": [
+                "rainfall_rate": [
                     TimedRasterSlice(
                         start_time=start_time,
                         end_time=start_time + timedelta(hours=1),
@@ -144,10 +144,10 @@ def test_get_array_timed_returns_matching_slice_and_copy(
     )
 
     first_array, first_start, first_end = provider.get_array(
-        "rain", start_time + timedelta(minutes=30)
+        "rainfall_rate", start_time + timedelta(minutes=30)
     )
     second_array, second_start, second_end = provider.get_array(
-        "rain", start_time + timedelta(hours=1)
+        "rainfall_rate", start_time + timedelta(hours=1)
     )
 
     assert first_array is not None
@@ -160,7 +160,7 @@ def test_get_array_timed_returns_matching_slice_and_copy(
     assert second_end == start_time + timedelta(hours=3)
 
     second_array[0, 0] = 123.0
-    second_array_again, _, _ = provider.get_array("rain", start_time + timedelta(hours=1))
+    second_array_again, _, _ = provider.get_array("rainfall_rate", start_time + timedelta(hours=1))
     assert second_array_again is not None
     assert second_array_again[0, 0] == pytest.approx(20.0)
 
@@ -176,7 +176,7 @@ def test_provider_copies_timed_arrays_at_construction(
             domain_data,
             simulation_times,
             timed_arrays={
-                "rain": [
+                "rainfall_rate": [
                     TimedRasterSlice(
                         start_time=start_time,
                         end_time=start_time + timedelta(hours=1),
@@ -189,7 +189,7 @@ def test_provider_copies_timed_arrays_at_construction(
 
     rain[0, 0] = 42.0
 
-    array, _, _ = provider.get_array("rain", start_time + timedelta(minutes=30))
+    array, _, _ = provider.get_array("rainfall_rate", start_time + timedelta(minutes=30))
     assert array is not None
     assert array[0, 0] == pytest.approx(3.0)
 
@@ -203,7 +203,7 @@ def test_get_array_returns_none_when_time_is_not_covered(
             domain_data,
             simulation_times,
             timed_arrays={
-                "rain": [
+                "rainfall_rate": [
                     TimedRasterSlice(
                         start_time=start_time,
                         end_time=start_time + timedelta(hours=1),
@@ -214,7 +214,9 @@ def test_get_array_returns_none_when_time_is_not_covered(
         )
     )
 
-    array, slice_start, slice_end = provider.get_array("rain", start_time + timedelta(hours=4))
+    array, slice_start, slice_end = provider.get_array(
+        "rainfall_rate", start_time + timedelta(hours=4)
+    )
 
     assert array is None
     assert slice_start == start_time + timedelta(hours=1)
@@ -311,13 +313,13 @@ def test_rejects_invalid_static_array_shape_or_dimensionality(
 def test_rejects_invalid_timed_array_shape(
     domain_data: DomainData, simulation_times: dict[str, datetime]
 ) -> None:
-    with pytest.raises(ValueError, match="input array 'rain'"):
+    with pytest.raises(ValueError, match="input array 'rainfall_rate'"):
         MemoryRasterInputProvider(
             make_config(
                 domain_data,
                 simulation_times,
                 timed_arrays={
-                    "rain": [
+                    "rainfall_rate": [
                         TimedRasterSlice(
                             start_time=simulation_times["start_time"],
                             end_time=simulation_times["end_time"],
@@ -340,7 +342,7 @@ def test_rejects_unsorted_timed_slices(
                 domain_data,
                 simulation_times,
                 timed_arrays={
-                    "rain": [
+                    "rainfall_rate": [
                         TimedRasterSlice(
                             start_time=start_time + timedelta(hours=2),
                             end_time=start_time + timedelta(hours=3),
@@ -368,7 +370,7 @@ def test_rejects_overlapping_timed_slices(
                 domain_data,
                 simulation_times,
                 timed_arrays={
-                    "rain": [
+                    "rainfall_rate": [
                         TimedRasterSlice(
                             start_time=start_time,
                             end_time=start_time + timedelta(hours=2),
@@ -394,7 +396,7 @@ def test_rejects_timed_slice_with_reversed_bounds(
                 domain_data,
                 simulation_times,
                 timed_arrays={
-                    "rain": [
+                    "rainfall_rate": [
                         TimedRasterSlice(
                             start_time=simulation_times["end_time"],
                             end_time=simulation_times["start_time"],
@@ -417,7 +419,7 @@ def test_rejects_zero_length_timed_slice(
                 domain_data,
                 simulation_times,
                 timed_arrays={
-                    "rain": [
+                    "rainfall_rate": [
                         TimedRasterSlice(
                             start_time=start_time,
                             end_time=start_time,

@@ -8,6 +8,7 @@ import pytest
 from itzi_core.rasterdomain import RasterDomain
 
 LEGACY_MEMBER_NAMES = {
+    "rainfall_rate": "rain",
     "ground_elevation": "dem",
     "boundary_value": "bcval",
     "boundary_type": "bctype",

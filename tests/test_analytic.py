@@ -277,7 +277,7 @@ def mcdo_rain_sim(test_data_path, test_data_temp_path):
             "boundary_type": "bctype@mcdo_rain",
             "inflow": "inflow@mcdo_rain",
             "friction": "n@mcdo_rain",
-            "rain": "rain@mcdo_rain",
+            "rainfall_rate": "rain@mcdo_rain",
         },
         output_map_names=output_map_names(
             "out_mcdo_rain", ["water_depth", "water_surface_elevation"]
@@ -301,7 +301,7 @@ def mcdo_rain_sim(test_data_path, test_data_temp_path):
     simulation.set_array("boundary_type", arr_bctype)
     simulation.set_array("inflow", arr_inflow)
     simulation.set_array("friction", arr_n)
-    simulation.set_array("rain", arr_rain)
+    simulation.set_array("rainfall_rate", arr_rain)
     # run the simulation
     simulation.initialize()
     while simulation.sim_time < simulation.end_time:

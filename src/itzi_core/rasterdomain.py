@@ -24,6 +24,7 @@ from itzi_core.itzi_error import HotstartError
 from .compute import rastermetrics
 
 _LEGACY_NPZ_MEMBER_NAMES = {
+    "rain": "rainfall_rate",
     "dem": "ground_elevation",
     "bcval": "boundary_value",
     "bctype": "boundary_type",

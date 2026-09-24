@@ -134,7 +134,7 @@ def _run_rain_only_simulation(
     simulation.set_array("ground_elevation", np.zeros(shape, dtype=dtype))
     simulation.set_array("friction", np.full(shape, 0.03, dtype=dtype))
     simulation.set_array("water_depth", np.full(shape, initial_depth, dtype=dtype))
-    simulation.set_array("rain", np.full(shape, RAIN_RATE, dtype=dtype))
+    simulation.set_array("rainfall_rate", np.full(shape, RAIN_RATE, dtype=dtype))
 
     simulation.initialize()
     while simulation.sim_time < simulation.end_time:

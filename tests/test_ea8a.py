@@ -279,7 +279,7 @@ def ea_test8a_sim(ea_test8a_xarray_data, test_data_path, test_data_temp_path):
         input_map_names={
             "ground_elevation": "dem",
             "friction": "friction",
-            "rain": "rainfall",
+            "rainfall_rate": "rainfall",
             "inflow": "inflow",
         },
         simulation_start_time=sim_start_time,
@@ -296,7 +296,7 @@ def ea_test8a_sim(ea_test8a_xarray_data, test_data_path, test_data_temp_path):
         input_map_names={
             "ground_elevation": "dem",
             "friction": "friction",
-            "rain": "rainfall",
+            "rainfall_rate": "rainfall",
             "inflow": "inflow",
         },
         output_map_names={

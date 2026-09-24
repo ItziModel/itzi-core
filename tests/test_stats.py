@@ -82,7 +82,7 @@ def sim_5by5_stats(domain_5by5, helpers, tmp_path_factory):
             ground_elevation="z",
             friction="n",
             water_depth="start_h",
-            rain="rainfall",
+            rainfall_rate="rainfall",
             infiltration="infiltration_rate",
             losses="loss_rate",
             inflow="inflow_rate",
@@ -120,7 +120,7 @@ def sim_5by5_stats(domain_5by5, helpers, tmp_path_factory):
     simulation.set_array("ground_elevation", domain_5by5.arr_dem_flat)
     simulation.set_array("friction", domain_5by5.arr_n)
     simulation.set_array("water_depth", domain_5by5.arr_start_h)
-    simulation.set_array("rain", domain_5by5.arr_rain)
+    simulation.set_array("rainfall_rate", domain_5by5.arr_rain)
     simulation.set_array("infiltration", domain_5by5.arr_inf)
     simulation.set_array("losses", domain_5by5.arr_loss)
     simulation.set_array("inflow", domain_5by5.arr_inflow)
@@ -329,7 +329,7 @@ def _run_timed_stats_simulation(
             None,
         ),
         (
-            "rain",
+            "rainfall_rate",
             {0: 0.0, 3: 360.0, 20: 360.0},
             "rainfall_volume",
             1.75,

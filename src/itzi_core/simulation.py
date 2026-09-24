@@ -366,7 +366,7 @@ class Simulation:
     ) -> Self:
         """Set an array of the simulation domain."""
         current_time = self.sim_time if sim_time is None else sim_time
-        if arr_id in ["inflow", "rain"]:
+        if arr_id in ["inflow", "rainfall_rate"]:
             self._update_accum_array(arr_id, current_time)
         self.raster_domain.update_array(arr_id, arr)
         if arr_id in {"water_depth", "water_surface_elevation"}:

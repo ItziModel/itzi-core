@@ -81,7 +81,7 @@ def _run_steep_plane(max_slope: float, stats_file: Path):
     arr_dem = np.tile(-np.arange(cols, dtype=np.float32), (rows, 1))
     simulation.set_array("ground_elevation", arr_dem)
     simulation.set_array("friction", np.full((rows, cols), 0.05, dtype=np.float32))
-    simulation.set_array("rain", np.full((rows, cols), RAIN_RATE, dtype=np.float32))
+    simulation.set_array("rainfall_rate", np.full((rows, cols), RAIN_RATE, dtype=np.float32))
     simulation.set_array("boundary_type", np.zeros((rows, cols), dtype=np.float32))
 
     simulation.initialize()

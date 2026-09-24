@@ -63,7 +63,7 @@ class SimulationBuilder:
     _STAGE_INPUT_KEYS = frozenset({"water_depth", "water_surface_elevation"})
     _HYDROLOGY_INPUT_KEYS = frozenset(
         {
-            "rain",
+            "rainfall_rate",
             "losses",
             "infiltration",
             "effective_porosity",

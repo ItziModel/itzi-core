@@ -156,7 +156,7 @@ _INPUT_ARRAY_DEFINITIONS = [
         fill_value=0.0,
     ),
     ArrayDefinition(
-        key="rain",
+        key="rainfall_rate",
         csdms_name="atmosphere_water__precipitation_leq-volume_flux",
         cf_name="rainfall_rate",
         category=(ArrayCategory.INPUT,),
@@ -416,7 +416,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         unit="m",
         cf_unit="",
         var_loc="face",
-        computes_from="rain",
+        computes_from="rainfall_rate",
         cf_cell_methods="time: sum",
     ),
     ArrayDefinition(
