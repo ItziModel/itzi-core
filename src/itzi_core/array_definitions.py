@@ -388,7 +388,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         csdms_name="land_surface_water__time_integral_of_boundary_volume_flux",
         cf_name="",
         category=(ArrayCategory.ACCUMULATION,),
-        description="The total amount of water entering the domain due to boundary conditions. "
+        description="Total amount of water entering the domain due to boundary conditions. "
         "Negative if water is leaving the domain",
         unit="m",
         cf_unit="",
@@ -412,7 +412,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         csdms_name="atmosphere_water__time_integral_of_precipitation_leq-volume_flux",
         cf_name="thickness_of_rainfall_amount",
         category=(ArrayCategory.ACCUMULATION,),
-        description="The total amount of water entering the domain due to rainfall.",
+        description="Total amount of water entering the domain due to rainfall.",
         unit="m",
         cf_unit="",
         var_loc="face",
@@ -424,7 +424,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         csdms_name="land_surface_water__time_integral_of_inflow_volume_flux",
         cf_name="",
         category=(ArrayCategory.ACCUMULATION,),
-        description="The total amount of water entering the domain due to user-defined inflow.",
+        description="Total amount of water entering the domain due to user-defined inflow.",
         unit="m",
         cf_unit="",
         var_loc="face",
@@ -448,7 +448,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         csdms_name="land_surface_water__time_integral_of_drainage_network_inflow_volume_flux",
         cf_name="",
         category=(ArrayCategory.ACCUMULATION,),
-        description="The total amount of water entering the domain due to drainage network overflow. "
+        description="Total amount of water entering the domain due to drainage network overflow. "
         "Negative if the water leaves teh domain due to inflow into the drainage network.",
         unit="m",
         cf_unit="",
@@ -461,7 +461,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         csdms_name="land_surface_water__time_integral_of_error_volume_flux",
         cf_name="",
         category=(ArrayCategory.ACCUMULATION,),
-        description="The total amount of water created due to numerical instabilities.",
+        description="Total amount of water created due to numerical instabilities.",
         unit="m",
         cf_unit="",
         var_loc="face",
@@ -557,7 +557,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         cf_name="",
         category=(ArrayCategory.OUTPUT,),
         description="Mean of volumetric flow entering the surface domain due to "
-        "network drainage overflow since the last record."
+        "network drainage overflow since the last record. "
         "Negative when the water leaves the surface domain due to inflow into the drainage network.",
         unit="m s-1",
         cf_unit="",
