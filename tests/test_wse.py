@@ -61,7 +61,7 @@ def sim_5by5_wse(domain_5by5, helpers) -> Simulation:
     )
 
     # Create output provider
-    raster_output = MemoryRasterOutputProvider(sim_config.output_map_names)
+    raster_output = MemoryRasterOutputProvider()
 
     # Build simulation
     simulation = (
@@ -185,7 +185,7 @@ def test_timed_memory_input_updates_water_depth_from_wse(domain_5by5) -> None:
             },
         }
     )
-    raster_output = MemoryRasterOutputProvider(sim_config.output_map_names)
+    raster_output = MemoryRasterOutputProvider()
     simulation = (
         SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
         .with_input_provider(input_provider)

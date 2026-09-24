@@ -61,7 +61,7 @@ def sim_5by5_max_values(domain_5by5, helpers) -> Simulation:
     )
 
     # Create output provider
-    raster_output = MemoryRasterOutputProvider(sim_config.output_map_names)
+    raster_output = MemoryRasterOutputProvider()
 
     # Build simulation
     simulation = (

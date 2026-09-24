@@ -94,9 +94,7 @@ def build_simulation(
         domain_5by5: Domain fixture
         hotstart_bytes: Optional hotstart archive bytes
     """
-    raster_output = raster_output_provider or MemoryRasterOutputProvider(
-        sim_config.output_map_names
-    )
+    raster_output = raster_output_provider or MemoryRasterOutputProvider()
 
     builder = (
         SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
@@ -384,7 +382,7 @@ def test_resume_allows_output_provider_change(
     sim_config = baseline_hotstart_run["sim_config"]
     hotstart_bytes = baseline_hotstart_run["checkpoints"]["split_30"]["hotstart_bytes"]
 
-    resumed_output = MemoryRasterOutputProvider(sim_config.output_map_names)
+    resumed_output = MemoryRasterOutputProvider()
     sim_b = build_simulation(
         sim_config,
         domain_5by5,
@@ -414,7 +412,7 @@ def test_resume_allows_output_map_name_change(
         ["water_depth", "max_water_depth", "flow_rate_x", "flow_rate_y", "created_volume"],
     )
     sim_b_config = sim_a_config.model_copy(update={"output_map_names": resumed_output_map_names})
-    resumed_output = MemoryRasterOutputProvider(resumed_output_map_names)
+    resumed_output = MemoryRasterOutputProvider()
     sim_b = build_simulation(
         sim_b_config,
         domain_5by5,
@@ -425,7 +423,6 @@ def test_resume_allows_output_map_name_change(
     run_simulation_to_end(sim_b, skip_initialize=True)
 
     assert sim_b.report.out_map_names == resumed_output_map_names
-    assert resumed_output.out_map_names == resumed_output_map_names
     assert resumed_output.output_maps_dict["water_depth"]
     assert resumed_output.output_maps_dict["max_water_depth"]
     np.testing.assert_allclose(
@@ -466,7 +463,7 @@ def test_resume_applies_new_record_step_cadence(
 
     resumed_record_step = timedelta(seconds=10)
     resumed_config = original_config.model_copy(update={"record_step": resumed_record_step})
-    resumed_output = MemoryRasterOutputProvider(resumed_config.output_map_names)
+    resumed_output = MemoryRasterOutputProvider()
     sim_b = build_simulation(
         resumed_config,
         domain_5by5,

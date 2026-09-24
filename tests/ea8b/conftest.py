@@ -173,7 +173,7 @@ def ea8b_simulation(ea8b_data, test_data_path, ea8b_temp_path):
             simulation_end_time=sim_config.end_time,
         )
     )
-    raster_output_provider = MemoryRasterOutputProvider(sim_config.output_map_names)
+    raster_output_provider = MemoryRasterOutputProvider()
     vector_output_provider = MemoryVectorOutputProvider()
 
     simulation = (

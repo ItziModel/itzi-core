@@ -38,7 +38,7 @@ CONTINUITY_DATA = ContinuityData(
 def test_get_output_arrays_returns_a_fresh_selection() -> None:
     start_time = datetime(2000, 1, 1, tzinfo=UTC)
     out_map_names = {"water_depth": "depth", "max_water_depth": "depth_max"}
-    raster_provider = MemoryRasterOutputProvider(out_map_names)
+    raster_provider = MemoryRasterOutputProvider()
     report = Report(
         start_time=start_time,
         temporal_type=TemporalType.ABSOLUTE,
@@ -74,7 +74,7 @@ def test_get_output_arrays_returns_a_fresh_selection() -> None:
 def test_maxima_are_selected_independently_of_base_arrays() -> None:
     start_time = datetime(2000, 1, 1, tzinfo=UTC)
     out_map_names = {"max_water_depth": "depth_max", "max_flow_speed": "speed_max"}
-    raster_provider = MemoryRasterOutputProvider(out_map_names)
+    raster_provider = MemoryRasterOutputProvider()
     report = Report(
         start_time=start_time,
         temporal_type=TemporalType.ABSOLUTE,
@@ -117,7 +117,7 @@ def test_maxima_are_selected_independently_of_base_arrays() -> None:
 def test_flow_rate_outputs_use_committed_discharges() -> None:
     start_time = datetime(2000, 1, 1, tzinfo=UTC)
     out_map_names = {"flow_rate_x": "flow_x", "flow_rate_y": "flow_y"}
-    raster_provider = MemoryRasterOutputProvider(out_map_names)
+    raster_provider = MemoryRasterOutputProvider()
     report = Report(
         start_time=start_time,
         temporal_type=TemporalType.ABSOLUTE,
@@ -158,7 +158,7 @@ def test_flow_rate_outputs_use_committed_discharges() -> None:
 
 def test_drainage_topology_is_written_before_attributes() -> None:
     start_time = datetime(2000, 1, 1, tzinfo=UTC)
-    raster_provider = MemoryRasterOutputProvider({})
+    raster_provider = MemoryRasterOutputProvider()
     vector_provider = MemoryVectorOutputProvider()
     report = Report(
         start_time=start_time,
