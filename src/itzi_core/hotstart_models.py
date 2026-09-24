@@ -39,7 +39,7 @@ class SurfaceFlowResumeConfig(BaseModel):
 
 
 class HotstartResumeConfig(BaseModel):
-    """The launch settings required to validate and reconcile a resume."""
+    """Subset of SimulationConfig required to validate and reconcile a resume."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
