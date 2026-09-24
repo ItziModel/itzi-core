@@ -27,7 +27,6 @@ from pydantic import (
     NonNegativeFloat,
     NonNegativeInt,
     PositiveFloat,
-    ValidationInfo,
     field_validator,
 )
 
@@ -245,7 +244,7 @@ class SimulationConfig(BaseModel):
 
     @field_validator("input_map_names", "output_map_names", mode="before")
     @classmethod
-    def remove_inactive_map_names(cls, value: object, info: ValidationInfo) -> object:
+    def remove_inactive_map_names(cls, value: object) -> object:
         """Normalize legacy null-valued map entries to omitted inactive entries."""
         if isinstance(value, dict):
             return {key: map_name for key, map_name in value.items() if map_name is not None}
