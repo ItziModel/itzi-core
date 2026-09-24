@@ -121,7 +121,7 @@ def test_ea8b_hotstart_roundtrip(
 
     final_state = np.load(final_state_path, allow_pickle=False)
 
-    for key in ["water_depth", "old_discharge_east", "old_discharge_south"]:
+    for key in ["water_depth", "discharge_east", "discharge_south"]:
         arr_resumed = simulation.raster_domain.get_array(key)
         arr_uninterrupted = final_state[f"raster_{key}"]
         np.testing.assert_allclose(

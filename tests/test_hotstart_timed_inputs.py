@@ -97,7 +97,7 @@ def _run_to_end(simulation: "Simulation", *, skip_initialize: bool = False) -> N
 
 
 def _assert_final_state_matches(resumed: "Simulation", reference: "Simulation") -> None:
-    for key in ["water_depth", "old_discharge_east", "old_discharge_south"]:
+    for key in ["water_depth", "discharge_east", "discharge_south"]:
         np.testing.assert_allclose(
             resumed.raster_domain.get_array(key),
             reference.raster_domain.get_array(key),

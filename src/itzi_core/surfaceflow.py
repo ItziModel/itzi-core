@@ -87,7 +87,7 @@ class SurfaceFlowSimulation:
         self.arr_err = np.isnan(self.dom.get_array("water_depth"))
         if np.any(self.arr_err):
             raise NullError
-        self.swap_flow_arrays()
+        self._commit_discharge_buffers()
         return self
 
     def solve_dt(self):
@@ -133,8 +133,8 @@ class SurfaceFlowSimulation:
         """Calculate new water depth, average velocity and Froude number"""
         solve_h(
             arr_ext=self.dom.get_padded("ext"),
-            arr_qe=self.dom.get_padded("new_discharge_east"),
-            arr_qs=self.dom.get_padded("new_discharge_south"),
+            arr_qe=self.dom.get_padded("discharge_east_work"),
+            arr_qs=self.dom.get_padded("discharge_south_work"),
             arr_bct=self.dom.get_padded("boundary_type"),
             arr_bcv=self.dom.get_padded("boundary_value"),
             arr_h=self.dom.get_padded("water_depth"),
@@ -159,20 +159,20 @@ class SurfaceFlowSimulation:
 
     def solve_q(self):
         """Solve flow inside the domain using C/Cython function"""
-        arr_qe_new = self.dom.get_padded("new_discharge_east")
-        arr_qs_new = self.dom.get_padded("new_discharge_south")
+        arr_qe_work = self.dom.get_padded("discharge_east_work")
+        arr_qs_work = self.dom.get_padded("discharge_south_work")
         arr_boundaries_accum = self.dom.get_padded("boundaries_accum")
         solve_q(
             arr_z=self.dom.get_padded("ground_elevation"),
             arr_n=self.dom.get_padded("friction"),
             arr_h=self.dom.get_padded("water_depth"),
-            arr_qe=self.dom.get_padded("old_discharge_east"),
-            arr_qs=self.dom.get_padded("old_discharge_south"),
+            arr_qe=self.dom.get_padded("discharge_east"),
+            arr_qs=self.dom.get_padded("discharge_south"),
             arr_hfe=self.dom.get_padded("flow_depth_east"),
             arr_hfs=self.dom.get_padded("flow_depth_south"),
             arr_bctype=self.dom.get_padded("boundary_type"),
-            arr_qe_new=arr_qe_new,
-            arr_qs_new=arr_qs_new,
+            arr_qe_new=arr_qe_work,
+            arr_qs_new=arr_qs_work,
             dt=self._dt,
             dx=self.dx,
             dy=self.dy,
@@ -183,8 +183,8 @@ class SurfaceFlowSimulation:
             max_slope=self.max_slope,
         )
         accumulate_boundary_fluxes(
-            arr_qe_new=arr_qe_new,
-            arr_qs_new=arr_qs_new,
+            arr_qe_new=arr_qe_work,
+            arr_qs_new=arr_qs_work,
             arr_bcaccum=arr_boundaries_accum,
             dt=self._dt,
             dx=self.dx,
@@ -192,8 +192,8 @@ class SurfaceFlowSimulation:
         )
         return self
 
-    def swap_flow_arrays(self):
-        """Swap flow arrays from calculated to input"""
-        self.dom.swap_arrays("old_discharge_east", "new_discharge_east")
-        self.dom.swap_arrays("old_discharge_south", "new_discharge_south")
+    def _commit_discharge_buffers(self):
+        """Promote solver work buffers to the committed discharge state."""
+        self.dom.swap_arrays("discharge_east", "discharge_east_work")
+        self.dom.swap_arrays("discharge_south", "discharge_south_work")
         return self

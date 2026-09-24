@@ -174,8 +174,8 @@ def assert_final_state_matches(simulation: Simulation, reference: Simulation) ->
         "water_depth",
         "max_water_depth",
         "max_flow_speed",
-        "old_discharge_east",
-        "old_discharge_south",
+        "discharge_east",
+        "discharge_south",
     ]:
         arr_resumed = simulation.raster_domain.get_array(key)
         arr_reference = reference.raster_domain.get_array(key)
@@ -184,7 +184,7 @@ def assert_final_state_matches(simulation: Simulation, reference: Simulation) ->
 
 def assert_state_differs(simulation: Simulation, reference: Simulation) -> None:
     mismatch_found = False
-    for key in ["water_depth", "old_discharge_east", "old_discharge_south"]:
+    for key in ["water_depth", "discharge_east", "discharge_south"]:
         arr_resumed = simulation.raster_domain.get_array(key)
         arr_reference = reference.raster_domain.get_array(key)
         if not np.allclose(arr_resumed, arr_reference):
