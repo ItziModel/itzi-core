@@ -114,6 +114,48 @@ def test_maxima_are_selected_independently_of_base_arrays() -> None:
     )
 
 
+def test_flow_rate_outputs_use_committed_discharges() -> None:
+    start_time = datetime(2000, 1, 1, tzinfo=UTC)
+    out_map_names = {"flow_rate_x": "flow_x", "flow_rate_y": "flow_y"}
+    raster_provider = MemoryRasterOutputProvider(out_map_names)
+    report = Report(
+        start_time=start_time,
+        temporal_type=TemporalType.ABSOLUTE,
+        raster_output_provider=raster_provider,
+        vector_output_provider=MemoryVectorOutputProvider(),
+        mass_balance_output_provider=None,
+        out_map_names=out_map_names,
+        dt=timedelta(seconds=1),
+    )
+    data = SimulationData(
+        sim_time=start_time,
+        time_step=1.0,
+        time_steps_counter=1,
+        continuity_data=CONTINUITY_DATA,
+        raw_arrays={
+            "discharge_east": np.array([[2.0]], dtype=np.float32),
+            "discharge_south": np.array([[3.0]], dtype=np.float32),
+            "discharge_east_work": np.array([[11.0]], dtype=np.float32),
+            "discharge_south_work": np.array([[13.0]], dtype=np.float32),
+        },
+        accumulation_arrays={},
+        cell_dx=4.0,
+        cell_dy=5.0,
+        drainage_network_attributes=None,
+    )
+
+    report.step(data)
+
+    np.testing.assert_array_equal(
+        raster_provider.output_maps_dict["flow_rate_x"][0][1],
+        np.array([[10.0]], dtype=np.float32),
+    )
+    np.testing.assert_array_equal(
+        raster_provider.output_maps_dict["flow_rate_y"][0][1],
+        np.array([[12.0]], dtype=np.float32),
+    )
+
+
 def test_drainage_topology_is_written_before_attributes() -> None:
     start_time = datetime(2000, 1, 1, tzinfo=UTC)
     raster_provider = MemoryRasterOutputProvider({})

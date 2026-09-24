@@ -165,11 +165,11 @@ class Report:
                 )
             elif arr_key == "flow_rate_x":
                 output_arrays[arr_key] = rastermetrics.calculate_flux(
-                    raw["discharge_east_work"], cell_dy
+                    raw["discharge_east"], cell_dy
                 )
             elif arr_key == "flow_rate_y":
                 output_arrays[arr_key] = rastermetrics.calculate_flux(
-                    raw["discharge_south_work"], cell_dx
+                    raw["discharge_south"], cell_dx
                 )
             elif arr_key == "created_volume":
                 output_arrays[arr_key] = accum_arrays["error_depth_accum"] * cell_area
