@@ -25,20 +25,17 @@ from itzi_core.providers.base import RasterOutputProvider, VectorOutputProvider
 class MemoryRasterOutputProvider(RasterOutputProvider):
     """Save rasters in memory as numpy arrays."""
 
-    def __init__(self, out_map_names: Mapping[str, str]) -> None:
-        """Initialize output provider with simulation configuration."""
-        # user-selected map names.
-        self.out_map_names = out_map_names
-        self.output_maps_dict: dict[str, list[tuple[datetime | timedelta, np.ndarray]]] = {
-            key: [] for key in self.out_map_names
-        }
+    def __init__(self) -> None:
+        self.output_maps_dict: dict[str, list[tuple[datetime | timedelta, np.ndarray]]] = {}
 
     def write_arrays(
         self, array_dict: Mapping[str, np.ndarray], sim_time: datetime | timedelta
     ) -> None:
         for arr_key, arr in array_dict.items():
             if isinstance(arr, np.ndarray):
-                self.output_maps_dict[arr_key].append((deepcopy(sim_time), arr.copy()))
+                self.output_maps_dict.setdefault(arr_key, []).append(
+                    (deepcopy(sim_time), arr.copy())
+                )
 
 
 class MemoryVectorOutputProvider(VectorOutputProvider):

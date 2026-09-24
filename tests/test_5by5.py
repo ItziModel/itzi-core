@@ -58,7 +58,7 @@ def _build_diagnostic_simulation(
         surface_flow_parameters=SurfaceFlowParameters(hmin=0.0001, dtmax=dtmax, cfl=0.2),
         infiltration_model=InfiltrationModelType.NULL,
     )
-    raster_output = MemoryRasterOutputProvider(sim_config.output_map_names)
+    raster_output = MemoryRasterOutputProvider()
     simulation = (
         SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
         .with_domain_data(domain_5by5.domain_data)
@@ -161,7 +161,7 @@ def _run_center_pulse_simulation(
         infiltration_model=InfiltrationModelType.NULL,
     )
 
-    raster_output = MemoryRasterOutputProvider(sim_config.output_map_names)
+    raster_output = MemoryRasterOutputProvider()
     simulation = (
         SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
         .with_domain_data(domain_data)
@@ -322,7 +322,7 @@ def sim_5by5(domain_5by5, helpers) -> Simulation:
     )
 
     # Create output provider
-    raster_output = MemoryRasterOutputProvider(sim_config.output_map_names)
+    raster_output = MemoryRasterOutputProvider()
 
     # Build simulation
     simulation = (

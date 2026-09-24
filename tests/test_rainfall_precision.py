@@ -126,7 +126,7 @@ def _run_rain_only_simulation(
     simulation = (
         SimulationBuilder(config, np.zeros(shape, dtype=np.bool_), dtype)
         .with_domain_data(domain_data)
-        .with_raster_output_provider(MemoryRasterOutputProvider(config.output_map_names))
+        .with_raster_output_provider(MemoryRasterOutputProvider())
         .with_vector_output_provider(MemoryVectorOutputProvider())
         .with_mass_balance_output_provider(mass_balance_output)
         .build()
@@ -175,7 +175,7 @@ def _run_combined_removal_simulation(
         infiltration_model=infiltration_model,
     )
     mass_balance_output = CaptureMassBalanceOutputProvider()
-    raster_output = MemoryRasterOutputProvider(output_map_names)
+    raster_output = MemoryRasterOutputProvider()
     dtype = np.float32
     simulation = (
         SimulationBuilder(config, np.zeros(shape, dtype=np.bool_), dtype)

@@ -196,7 +196,7 @@ class TestSimulationBuilderHotstart:
 
     @staticmethod
     def _create_hotstart_bytes(domain_5by5, sim_config: SimulationConfig) -> io.BytesIO:
-        raster_output = MemoryRasterOutputProvider(sim_config.output_map_names)
+        raster_output = MemoryRasterOutputProvider()
         simulation = (
             SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
             .with_domain_data(domain_5by5.domain_data)
@@ -217,7 +217,7 @@ class TestSimulationBuilderHotstart:
         hotstart_bytes: io.BytesIO,
         domain_data: DomainData | None = None,
     ):
-        raster_output = MemoryRasterOutputProvider(sim_config.output_map_names)
+        raster_output = MemoryRasterOutputProvider()
         builder = (
             SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
             .with_domain_data(domain_data or domain_5by5.domain_data)
@@ -274,7 +274,7 @@ class TestSimulationBuilderHotstart:
         valid_hotstart_bytes: io.BytesIO,
     ) -> None:
         """Builder should store HotstartLoader from BytesIO."""
-        raster_output = MemoryRasterOutputProvider(sim_config.output_map_names)
+        raster_output = MemoryRasterOutputProvider()
         builder = (
             SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
             .with_domain_data(domain_5by5.domain_data)
@@ -298,7 +298,7 @@ class TestSimulationBuilderHotstart:
         valid_hotstart_bytes.seek(0)
         hotstart_file.write_bytes(valid_hotstart_bytes.read())
 
-        raster_output = MemoryRasterOutputProvider(sim_config.output_map_names)
+        raster_output = MemoryRasterOutputProvider()
         builder = (
             SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
             .with_domain_data(domain_5by5.domain_data)
@@ -607,7 +607,7 @@ class TestSimulationBuilderHotstart:
             swmm_inp=None,  # No drainage
         )
 
-        raster_output = MemoryRasterOutputProvider(config_no_drainage.output_map_names)
+        raster_output = MemoryRasterOutputProvider()
 
         with pytest.raises(
             HotstartError, match="Hotstart contains drainage state but current configuration"
@@ -672,7 +672,7 @@ class TestSimulationBuilderHotstart:
             swmm_inp="fake.inp",  # Has drainage
         )
 
-        raster_output = MemoryRasterOutputProvider(config_with_drainage.output_map_names)
+        raster_output = MemoryRasterOutputProvider()
 
         with pytest.raises(
             HotstartError, match="Hotstart has no drainage state but current configuration"

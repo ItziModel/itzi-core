@@ -155,7 +155,7 @@ def mcdo_norain_sim(test_data_path, test_data_temp_path):
         ),
         surface_flow_parameters=SurfaceFlowParameters(dtmax=2, cfl=0.5),
     )
-    raster_output = MemoryRasterOutputProvider(config.output_map_names)
+    raster_output = MemoryRasterOutputProvider()
     simulation = (
         SimulationBuilder(config, array_mask, np.float32)
         .with_domain_data(domain_data)
@@ -285,7 +285,7 @@ def mcdo_rain_sim(test_data_path, test_data_temp_path):
         surface_flow_parameters=SurfaceFlowParameters(dtmax=2, cfl=0.5),
         dtinf=1,
     )
-    raster_output = MemoryRasterOutputProvider(config.output_map_names)
+    raster_output = MemoryRasterOutputProvider()
     simulation = (
         SimulationBuilder(config, array_mask, np.float32)
         .with_domain_data(domain_data)

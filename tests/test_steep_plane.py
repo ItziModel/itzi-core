@@ -70,7 +70,7 @@ def _run_steep_plane(max_slope: float, stats_file: Path):
         infiltration_model=InfiltrationModelType.NULL,
     )
     array_mask = np.zeros((rows, cols), dtype=np.bool_)
-    raster_output = MemoryRasterOutputProvider(config.output_map_names)
+    raster_output = MemoryRasterOutputProvider()
     simulation = (
         SimulationBuilder(config, array_mask, np.float32)
         .with_domain_data(domain_data)
@@ -142,7 +142,7 @@ def _build_regime_switch_simulation(
         cols=cols,
         crs_wkt="",
     )
-    raster_output = MemoryRasterOutputProvider(config.output_map_names)
+    raster_output = MemoryRasterOutputProvider()
     builder = (
         SimulationBuilder(config, np.zeros((rows, cols), dtype=np.bool_), np.float32)
         .with_domain_data(domain_data)
