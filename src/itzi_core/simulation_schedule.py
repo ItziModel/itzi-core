@@ -120,17 +120,14 @@ class SimulationSchedule:
         dt: timedelta,
         deadlines: Mapping[str, datetime],
     ) -> None:
-        """Restore persistent scheduler state from a version 1 hotstart payload."""
+        """Restore persistent scheduler state from a hotstart payload."""
         restored = dict(deadlines)
-        restored.pop("temp_end", None)
-        required = {"end", "hydrology", "drainage", "record"}
+        required = set(self._EVENTS)
         missing = required - restored.keys()
         if missing:
             raise HotstartError(
                 f"Hotstart schedule missing deadlines: {', '.join(sorted(missing))}"
             )
-        restored.setdefault("input", restored["end"])
-
         unknown = set(restored) - self._EVENTS
         if unknown:
             raise HotstartError(

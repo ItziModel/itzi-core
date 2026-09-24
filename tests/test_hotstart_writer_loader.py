@@ -1,4 +1,4 @@
-"""Unit tests for HotstartWriter and HotstartLoader classes.
+"""Unit tests for hotstart archive creation and HotstartLoader.
 
 Tests for the hotstart archive format and validation logic.
 
@@ -28,19 +28,19 @@ import numpy as np
 import pytest
 
 from itzi_core import DomainData
-from itzi_core.const import TemporalType
-from itzi_core.data_containers import (
-    HotstartSimulationState,
-    SimulationConfig,
-    SurfaceFlowParameters,
-)
+from itzi_core.const import InfiltrationModelType
 from itzi_core.hotstart import (
     HOTSTART_VERSION,
     METADATA_FILENAME,
     RASTER_STATE_FILENAME,
     SWMM_HOTSTART_FILENAME,
     HotstartLoader,
-    HotstartWriter,
+    create_hotstart_archive,
+)
+from itzi_core.hotstart_models import (
+    HotstartResumeConfig,
+    HotstartSimulationState,
+    SurfaceFlowResumeConfig,
 )
 from itzi_core.itzi_error import HotstartError
 
@@ -60,16 +60,16 @@ def minimal_domain_data() -> DomainData:
 
 
 @pytest.fixture
-def minimal_simulation_config() -> SimulationConfig:
-    """Create minimal SimulationConfig for testing."""
-    return SimulationConfig(
-        start_time=datetime(2000, 1, 1, 0, 0, 0),
-        end_time=datetime(2000, 1, 1, 0, 1, 0),
+def minimal_resume_config() -> HotstartResumeConfig:
+    """Create minimal hotstart resume settings for testing."""
+    return HotstartResumeConfig(
+        original_start_time=datetime(2000, 1, 1, 0, 0, 0),
+        configured_end_time=datetime(2000, 1, 1, 0, 1, 0),
         record_step=timedelta(seconds=30),
-        temporal_type=TemporalType.RELATIVE,
-        input_map_names={},
-        output_map_names={},
-        surface_flow_parameters=SurfaceFlowParameters(),
+        input_sources={},
+        surface_flow=SurfaceFlowResumeConfig(g=9.80665),
+        hydrology_step_seconds=60.0,
+        infiltration_model=InfiltrationModelType.NULL,
     )
 
 
@@ -106,21 +106,21 @@ def swmm_hotstart_bytes() -> bytes:
     return b"fake swmm hotstart content"
 
 
-class TestHotstartWriter:
-    """Tests for HotstartWriter.create() method."""
+class TestCreateHotstartArchive:
+    """Tests for create_hotstart_archive()."""
 
     def test_writer_creates_valid_archive(
         self,
         minimal_domain_data: DomainData,
-        minimal_simulation_config: SimulationConfig,
+        minimal_resume_config: HotstartResumeConfig,
         minimal_simulation_state: HotstartSimulationState,
         raster_state_bytes: bytes,
     ) -> None:
         """Create archive with minimal valid inputs, verify ZIP structure and required members."""
         # Create archive
-        archive_buffer = HotstartWriter.create(
+        archive_buffer = create_hotstart_archive(
             domain_data=minimal_domain_data,
-            simulation_config=minimal_simulation_config,
+            resume_config=minimal_resume_config,
             simulation_state=minimal_simulation_state,
             raster_state_bytes=raster_state_bytes,
         )
@@ -140,25 +140,26 @@ class TestHotstartWriter:
             # Check metadata is valid JSON
             metadata_bytes = zf.read(METADATA_FILENAME)
             metadata_dict = json.loads(metadata_bytes.decode("utf-8"))
-            assert "hotstart_version" in metadata_dict
+            assert metadata_dict["hotstart_version"] == HOTSTART_VERSION
             assert "creation_date" in metadata_dict
             assert "itzi_version" in metadata_dict
             assert "domain_data" in metadata_dict
-            assert "simulation_config" in metadata_dict
+            assert "resume_config" in metadata_dict
+            assert "simulation_config" not in metadata_dict
             assert "simulation_state" in metadata_dict
 
     def test_writer_creates_valid_archive_with_swmm(
         self,
         minimal_domain_data: DomainData,
-        minimal_simulation_config: SimulationConfig,
+        minimal_resume_config: HotstartResumeConfig,
         minimal_simulation_state: HotstartSimulationState,
         raster_state_bytes: bytes,
         swmm_hotstart_bytes: bytes,
     ) -> None:
         """Create archive with SWMM hotstart, verify SWMM file is included."""
-        archive_buffer = HotstartWriter.create(
+        archive_buffer = create_hotstart_archive(
             domain_data=minimal_domain_data,
-            simulation_config=minimal_simulation_config,
+            resume_config=minimal_resume_config,
             simulation_state=minimal_simulation_state,
             raster_state_bytes=raster_state_bytes,
             swmm_hotstart_bytes=swmm_hotstart_bytes,
@@ -178,7 +179,7 @@ class TestHotstartWriter:
     def test_writer_hash_computation(
         self,
         minimal_domain_data: DomainData,
-        minimal_simulation_config: SimulationConfig,
+        minimal_resume_config: HotstartResumeConfig,
         minimal_simulation_state: HotstartSimulationState,
         raster_state_bytes: bytes,
     ) -> None:
@@ -187,9 +188,9 @@ class TestHotstartWriter:
         expected_raster_hash = hashlib.blake2b(raster_state_bytes).hexdigest()
 
         # Create archive
-        archive_buffer = HotstartWriter.create(
+        archive_buffer = create_hotstart_archive(
             domain_data=minimal_domain_data,
-            simulation_config=minimal_simulation_config,
+            resume_config=minimal_resume_config,
             simulation_state=minimal_simulation_state,
             raster_state_bytes=raster_state_bytes,
         )
@@ -205,7 +206,7 @@ class TestHotstartWriter:
     def test_writer_hash_computation_with_swmm(
         self,
         minimal_domain_data: DomainData,
-        minimal_simulation_config: SimulationConfig,
+        minimal_resume_config: HotstartResumeConfig,
         minimal_simulation_state: HotstartSimulationState,
         raster_state_bytes: bytes,
         swmm_hotstart_bytes: bytes,
@@ -216,9 +217,9 @@ class TestHotstartWriter:
         expected_swmm_hash = hashlib.blake2b(swmm_hotstart_bytes).hexdigest()
 
         # Create archive
-        archive_buffer = HotstartWriter.create(
+        archive_buffer = create_hotstart_archive(
             domain_data=minimal_domain_data,
-            simulation_config=minimal_simulation_config,
+            resume_config=minimal_resume_config,
             simulation_state=minimal_simulation_state,
             raster_state_bytes=raster_state_bytes,
             swmm_hotstart_bytes=swmm_hotstart_bytes,
@@ -242,14 +243,14 @@ class TestHotstartLoaderFromFileAndBytes:
     def valid_archive_buffer(
         self,
         minimal_domain_data: DomainData,
-        minimal_simulation_config: SimulationConfig,
+        minimal_resume_config: HotstartResumeConfig,
         minimal_simulation_state: HotstartSimulationState,
         raster_state_bytes: bytes,
     ) -> io.BytesIO:
         """Create a valid hotstart archive for testing."""
-        return HotstartWriter.create(
+        return create_hotstart_archive(
             domain_data=minimal_domain_data,
-            simulation_config=minimal_simulation_config,
+            resume_config=minimal_resume_config,
             simulation_state=minimal_simulation_state,
             raster_state_bytes=raster_state_bytes,
         )
@@ -346,18 +347,18 @@ class TestHotstartLoaderRejectsInvalidArchive:
 class TestHotstartLoaderRejectsVersionMismatch:
     """Tests for HotstartLoader rejecting version mismatches."""
 
-    def test_loader_rejects_version_mismatch(
+    def test_loader_rejects_v1_before_v2_validation(
         self,
         minimal_domain_data: DomainData,
-        minimal_simulation_config: SimulationConfig,
+        minimal_resume_config: HotstartResumeConfig,
         minimal_simulation_state: HotstartSimulationState,
         raster_state_bytes: bytes,
     ) -> None:
-        """Reject archive with wrong hotstart_version."""
+        """Reject a v1 archive before attempting v2 metadata validation."""
         # Create archive with current version
-        archive_buffer = HotstartWriter.create(
+        archive_buffer = create_hotstart_archive(
             domain_data=minimal_domain_data,
-            simulation_config=minimal_simulation_config,
+            resume_config=minimal_resume_config,
             simulation_state=minimal_simulation_state,
             raster_state_bytes=raster_state_bytes,
         )
@@ -368,8 +369,9 @@ class TestHotstartLoaderRejectsVersionMismatch:
             metadata_bytes = zf_in.read(METADATA_FILENAME)
             metadata_dict = json.loads(metadata_bytes.decode("utf-8"))
 
-        # Change version to invalid value
-        metadata_dict["hotstart_version"] = 999
+        metadata_dict["hotstart_version"] = 1
+        del metadata_dict["resume_config"]
+        metadata_dict["simulation_config"] = {"stats_file": "removed.csv"}
 
         # Rebuild archive with modified metadata
         archive_buffer.seek(0)
@@ -382,7 +384,7 @@ class TestHotstartLoaderRejectsVersionMismatch:
             zf_out.writestr(RASTER_STATE_FILENAME, raster_bytes)
         new_buffer.seek(0)
 
-        with pytest.raises(HotstartError, match="Unsupported hotstart version"):
+        with pytest.raises(HotstartError, match="Unsupported hotstart version 1"):
             HotstartLoader.from_bytes(new_buffer)
 
 
@@ -392,15 +394,15 @@ class TestHotstartLoaderRejectsHashMismatch:
     def test_loader_rejects_corrupted_raster_bytes(
         self,
         minimal_domain_data: DomainData,
-        minimal_simulation_config: SimulationConfig,
+        minimal_resume_config: HotstartResumeConfig,
         minimal_simulation_state: HotstartSimulationState,
         raster_state_bytes: bytes,
     ) -> None:
         """Reject archive with corrupted raster bytes (hash mismatch)."""
         # Create valid archive
-        archive_buffer = HotstartWriter.create(
+        archive_buffer = create_hotstart_archive(
             domain_data=minimal_domain_data,
-            simulation_config=minimal_simulation_config,
+            resume_config=minimal_resume_config,
             simulation_state=minimal_simulation_state,
             raster_state_bytes=raster_state_bytes,
         )
@@ -423,16 +425,16 @@ class TestHotstartLoaderRejectsHashMismatch:
     def test_loader_rejects_corrupted_swmm_bytes(
         self,
         minimal_domain_data: DomainData,
-        minimal_simulation_config: SimulationConfig,
+        minimal_resume_config: HotstartResumeConfig,
         minimal_simulation_state: HotstartSimulationState,
         raster_state_bytes: bytes,
         swmm_hotstart_bytes: bytes,
     ) -> None:
         """Reject archive with corrupted SWMM bytes (hash mismatch)."""
         # Create valid archive with SWMM
-        archive_buffer = HotstartWriter.create(
+        archive_buffer = create_hotstart_archive(
             domain_data=minimal_domain_data,
-            simulation_config=minimal_simulation_config,
+            resume_config=minimal_resume_config,
             simulation_state=minimal_simulation_state,
             raster_state_bytes=raster_state_bytes,
             swmm_hotstart_bytes=swmm_hotstart_bytes,
@@ -462,16 +464,16 @@ class TestHotstartLoaderRejectsSwmmMismatch:
     def test_loader_rejects_swmm_present_but_metadata_says_none(
         self,
         minimal_domain_data: DomainData,
-        minimal_simulation_config: SimulationConfig,
+        minimal_resume_config: HotstartResumeConfig,
         minimal_simulation_state: HotstartSimulationState,
         raster_state_bytes: bytes,
         swmm_hotstart_bytes: bytes,
     ) -> None:
         """Reject when SWMM file present but metadata says none."""
         # Create archive WITHOUT SWMM
-        archive_buffer = HotstartWriter.create(
+        archive_buffer = create_hotstart_archive(
             domain_data=minimal_domain_data,
-            simulation_config=minimal_simulation_config,
+            resume_config=minimal_resume_config,
             simulation_state=minimal_simulation_state,
             raster_state_bytes=raster_state_bytes,
         )
@@ -495,16 +497,16 @@ class TestHotstartLoaderRejectsSwmmMismatch:
     def test_loader_rejects_metadata_says_swmm_but_file_missing(
         self,
         minimal_domain_data: DomainData,
-        minimal_simulation_config: SimulationConfig,
+        minimal_resume_config: HotstartResumeConfig,
         minimal_simulation_state: HotstartSimulationState,
         raster_state_bytes: bytes,
         swmm_hotstart_bytes: bytes,
     ) -> None:
         """Reject when metadata says SWMM present but file is missing."""
         # Create archive WITH SWMM
-        archive_buffer = HotstartWriter.create(
+        archive_buffer = create_hotstart_archive(
             domain_data=minimal_domain_data,
-            simulation_config=minimal_simulation_config,
+            resume_config=minimal_resume_config,
             simulation_state=minimal_simulation_state,
             raster_state_bytes=raster_state_bytes,
             swmm_hotstart_bytes=swmm_hotstart_bytes,

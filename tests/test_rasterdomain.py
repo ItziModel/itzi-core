@@ -1,11 +1,8 @@
 """Tests for RasterDomain storage dtypes and boundary-type validation."""
 
-import io
-
 import numpy as np
 import pytest
 
-from itzi_core.itzi_error import HotstartError
 from itzi_core.rasterdomain import RasterDomain
 
 
@@ -68,53 +65,3 @@ def test_invalid_boundary_type_update_does_not_mutate_state(invalid_value):
 
     np.testing.assert_array_equal(domain.get_array("boundary_type"), before)
     np.testing.assert_array_equal(domain.get_padded("boundary_type"), before_padded)
-
-
-def make_legacy_bctype_archive(domain: RasterDomain, bctype: np.ndarray) -> io.BytesIO:
-    saved = domain.save_state()
-    saved.seek(0)
-    npz = np.load(saved, allow_pickle=False)
-    arrays = {key: npz[key] for key in npz.files}
-    del arrays["boundary_type"]
-    arrays["bctype"] = bctype
-    buffer = io.BytesIO()
-    np.savez(buffer, allow_pickle=False, **arrays)
-    buffer.seek(0)
-    return buffer
-
-
-def test_load_state_migrates_legacy_float_bctype_and_restores_uint8():
-    source = make_domain(np.float32)
-    source.update_array("boundary_type", np.arange(9, dtype=np.uint8).reshape(3, 3) % 5)
-    saved = source.save_state()
-    saved.seek(0)
-    npz = np.load(saved, allow_pickle=False)
-    legacy_bctype = npz["boundary_type"].astype(np.float64)
-
-    restored = make_domain(np.float32)
-    with pytest.warns(DeprecationWarning, match="deprecated NPZ member names"):
-        restored.load_state(make_legacy_bctype_archive(source, legacy_bctype))
-
-    np.testing.assert_array_equal(restored.get_padded("boundary_type"), npz["boundary_type"])
-    assert restored.get_array("boundary_type").dtype == np.dtype(np.uint8)
-
-
-def test_invalid_legacy_bctype_does_not_partially_restore_state():
-    source = make_domain(np.float32)
-    source.update_array("boundary_type", np.zeros(source.shape, dtype=np.uint8))
-    invalid = source.get_padded("boundary_type").astype(np.float32)
-    invalid[2, 2] = 2.5
-
-    restored = make_domain(np.float32)
-    restored.update_array("water_depth", np.full(restored.shape, 7, dtype=np.float32))
-    before_boundary_type = restored.get_padded("boundary_type").copy()
-    before_depth = restored.get_padded("water_depth").copy()
-
-    with (
-        pytest.warns(DeprecationWarning, match="deprecated NPZ member names"),
-        pytest.raises(HotstartError, match="boundary_type"),
-    ):
-        restored.load_state(make_legacy_bctype_archive(source, invalid))
-
-    np.testing.assert_array_equal(restored.get_padded("boundary_type"), before_boundary_type)
-    np.testing.assert_array_equal(restored.get_padded("water_depth"), before_depth)

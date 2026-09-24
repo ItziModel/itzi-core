@@ -19,7 +19,7 @@ import tempfile
 from collections.abc import Iterable
 from datetime import timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, Self
 
 import numpy as np
 import pyswmm
@@ -31,6 +31,11 @@ from itzi_core.const import InfiltrationModelType
 from itzi_core.data_containers import DrainageNodeCouplingData
 from itzi_core.drainage import CouplingTypes, DrainageLink, DrainageNode, DrainageSimulation
 from itzi_core.hotstart import HotstartLoader
+from itzi_core.hotstart_models import (
+    HotstartResumeConfig,
+    HotstartSimulationState,
+    SurfaceFlowResumeConfig,
+)
 from itzi_core.hydrology import Hydrology
 from itzi_core.itzi_error import HotstartError
 from itzi_core.rasterdomain import RasterDomain
@@ -44,9 +49,7 @@ from itzi_core.timed_inputs import TimedInputManager
 
 if TYPE_CHECKING:
     from itzi_core.data_containers import (
-        HotstartSimulationState,
         SimulationConfig,
-        SurfaceFlowParameters,
     )
     from itzi_core.domain_data import DomainData
     from itzi_core.providers.base import (
@@ -72,14 +75,6 @@ class SimulationBuilder:
             "soil_water_content",
         }
     )
-    _ALLOWED_RESUME_SURFACE_FLOW_CHANGES: ClassVar[set[str]] = {
-        "cfl",
-        "theta",
-        "dtmax",
-        "slope_threshold",
-        "max_slope",
-        "max_error",
-    }
 
     def __init__(
         self,
@@ -110,13 +105,6 @@ class SimulationBuilder:
         congruence checks against providers. Congruence validation happens during
         build() when all providers are available.
 
-        Args:
-            hotstart_path_or_bytes: Path to hotstart file, or hotstart data as
-                BytesIO/bytes.
-
-        Returns:
-            self for method chaining.
-
         Raises:
             HotstartError: If the hotstart archive is invalid or corrupted.
         """
@@ -126,39 +114,33 @@ class SimulationBuilder:
             self.hotstart_loader = HotstartLoader.from_bytes(hotstart_path_or_bytes)
         return self
 
-    def with_input_provider(self, provider: RasterInputProvider) -> SimulationBuilder:
-        """Set the raster input provider."""
+    def with_input_provider(self, provider: RasterInputProvider) -> Self:
         self.raster_input_provider = provider
         self.domain_data = provider.get_domain_data()
         return self
 
-    def with_domain_data(self, domain_data: DomainData) -> SimulationBuilder:
-        """Set domain data directly (for memory simulations without input provider)."""
+    def with_domain_data(self, domain_data: DomainData) -> Self:
+        """Set domain data directly for simulations without input provider."""
         self.domain_data = domain_data
         return self
 
-    def with_raster_output_provider(self, provider: RasterOutputProvider) -> SimulationBuilder:
-        """Set the raster output provider."""
+    def with_raster_output_provider(self, provider: RasterOutputProvider) -> Self:
         self.raster_output_provider = provider
         return self
 
-    def with_vector_output_provider(self, provider: VectorOutputProvider) -> SimulationBuilder:
-        """Set the vector output provider."""
+    def with_vector_output_provider(self, provider: VectorOutputProvider) -> Self:
         self.vector_output_provider = provider
         return self
 
     def with_mass_balance_output_provider(
         self,
         provider: MassBalanceOutputProvider,
-    ) -> SimulationBuilder:
-        """Set the provider used to persist mass-balance reports."""
+    ) -> Self:
         self.mass_balance_output_provider = provider
         return self
 
     def _validate_hotstart_congruence(self, hotstart_loader: HotstartLoader) -> None:
-        """Validate hotstart data against builder configuration.
-
-        This method performs congruence checks between the hotstart metadata
+        """This method performs congruence checks between the hotstart metadata
         and the current builder configuration. It must be called after all
         providers are attached but before any state mutation.
 
@@ -167,34 +149,27 @@ class SimulationBuilder:
         """
 
         hotstart_domain = hotstart_loader.get_domain_data()
-        hotstart_config = hotstart_loader.get_simulation_config()
+        resume_config = hotstart_loader.get_resume_config()
         hotstart_state = hotstart_loader.get_simulation_state()
 
-        # Validate domain metadata
         self._validate_domain_congruence(hotstart_domain)
-
-        # Validate mask compatibility
         self._validate_mask_congruence(hotstart_domain)
-
-        # Validate drainage expectations
-        self._validate_drainage_congruence(hotstart_config, hotstart_loader)
-
-        # Validate resume-time configuration compatibility
-        self._validate_resume_config_congruence(hotstart_config, hotstart_state)
+        self._validate_drainage_congruence(hotstart_loader)
+        self._validate_resume_config_congruence(resume_config, hotstart_state)
 
     def _validate_resume_config_congruence(
         self,
-        hotstart_config: SimulationConfig,
+        resume_config: HotstartResumeConfig,
         hotstart_state: HotstartSimulationState,
     ) -> None:
         """Validate which runtime settings may change across a hotstart resume."""
         hotstart_sim_time = hotstart_state.sim_time
 
-        if self.sim_config.start_time != hotstart_config.start_time:
+        if self.sim_config.start_time != resume_config.original_start_time:
             raise HotstartError(
                 "Hotstart start_time mismatch: "
                 f"current={self.sim_config.start_time}, "
-                f"hotstart={hotstart_config.start_time}. "
+                f"hotstart={resume_config.original_start_time}. "
                 "Resume must keep the archived start_time unchanged."
             )
 
@@ -207,7 +182,7 @@ class SimulationBuilder:
             )
 
         if (
-            self.sim_config.end_time != hotstart_config.end_time
+            self.sim_config.end_time != resume_config.configured_end_time
             and self.sim_config.end_time <= hotstart_sim_time
         ):
             raise HotstartError(
@@ -215,14 +190,14 @@ class SimulationBuilder:
                 f"end_time={self.sim_config.end_time}, hotstart_sim_time={hotstart_sim_time}"
             )
 
-        if self.sim_config.infiltration_model != hotstart_config.infiltration_model:
+        if self.sim_config.infiltration_model != resume_config.infiltration_model:
             raise HotstartError(
                 "Hotstart infiltration model mismatch: "
                 f"current={self.sim_config.infiltration_model}, "
-                f"hotstart={hotstart_config.infiltration_model}"
+                f"hotstart={resume_config.infiltration_model}"
             )
 
-        changed_input_keys = self._changed_input_keys(hotstart_config)
+        changed_input_keys = self._changed_input_keys(resume_config)
         changed_stage_keys = changed_input_keys & self._STAGE_INPUT_KEYS
         if changed_stage_keys:
             raise HotstartError(
@@ -234,11 +209,11 @@ class SimulationBuilder:
                 "Hotstart changed input map names require an input provider for resume"
             )
 
-        self._validate_surface_flow_parameter_congruence(hotstart_config.surface_flow_parameters)
+        self._validate_surface_flow_parameter_congruence(resume_config.surface_flow)
 
-    def _changed_input_keys(self, hotstart_config: SimulationConfig) -> set[str]:
+    def _changed_input_keys(self, resume_config: HotstartResumeConfig) -> set[str]:
         """Return canonical inputs whose configured external source changed on resume."""
-        archived_names = hotstart_config.input_map_names
+        archived_names = resume_config.input_sources
         resumed_names = self.sim_config.input_map_names
         return {
             key
@@ -248,23 +223,15 @@ class SimulationBuilder:
 
     def _validate_surface_flow_parameter_congruence(
         self,
-        hotstart_surface_flow_parameters: SurfaceFlowParameters,
+        hotstart_surface_flow: SurfaceFlowResumeConfig,
     ) -> None:
         """Validate the subset of surface-flow parameters that must not change."""
-        current_surface_flow_parameters = self.sim_config.surface_flow_parameters
-
-        for field_name in type(current_surface_flow_parameters).model_fields:
-            if field_name in self._ALLOWED_RESUME_SURFACE_FLOW_CHANGES:
-                continue
-
-            current_value = getattr(current_surface_flow_parameters, field_name)
-            hotstart_value = getattr(hotstart_surface_flow_parameters, field_name)
-
-            if not np.isclose(current_value, hotstart_value):
-                raise HotstartError(
-                    "Surface flow parameter mismatch for "
-                    f"{field_name}: current={current_value}, hotstart={hotstart_value}"
-                )
+        current_g = self.sim_config.surface_flow_parameters.g
+        if not np.isclose(current_g, hotstart_surface_flow.g):
+            raise HotstartError(
+                "Surface flow parameter mismatch for "
+                f"g: current={current_g}, hotstart={hotstart_surface_flow.g}"
+            )
 
     def _validate_domain_congruence(self, hotstart_domain: DomainData) -> None:
         """Validate that domain metadata matches between hotstart and builder."""
@@ -327,11 +294,10 @@ class SimulationBuilder:
 
     def _validate_drainage_congruence(
         self,
-        hotstart_config: SimulationConfig,
         hotstart_loader: HotstartLoader,
     ) -> None:
         """Validate drainage expectations match between hotstart and current config."""
-        hotstart_has_drainage = hotstart_config.swmm_inp is not None
+        hotstart_has_drainage = hotstart_loader.has_swmm_hotstart()
         builder_has_drainage = self.sim_config.swmm_inp is not None
 
         if hotstart_has_drainage and not builder_has_drainage:
@@ -342,12 +308,6 @@ class SimulationBuilder:
         if not hotstart_has_drainage and builder_has_drainage:
             raise HotstartError(
                 "Hotstart has no drainage state but current configuration includes a drainage model"
-            )
-
-        # If both have drainage, check that SWMM hotstart bytes are present
-        if hotstart_has_drainage and not hotstart_loader.has_swmm_hotstart():
-            raise HotstartError(
-                "Hotstart metadata indicates drainage but SWMM hotstart file is missing from archive"
             )
 
     def build(self) -> Simulation:
@@ -365,19 +325,15 @@ class SimulationBuilder:
         if self.sim_config.drainage_output is not None and vector_output_provider is None:
             raise ValueError("A vector output provider is required for configured drainage output")
 
-        # Validate hotstart congruence before building
         if hotstart_loader is not None:
             self._validate_hotstart_congruence(hotstart_loader)
 
-        # Create timed arrays if input provider exists
         timed_arrays = None
         if input_provider is not None:
             timed_arrays = self._create_timed_arrays(input_provider, domain_data)
 
-        # Create raster domain
         raster_domain = self._create_raster_domain(domain_data.cell_shape)
 
-        # Create models
         infiltration_model = self._create_infiltration_model(raster_domain)
         hydrology_model = Hydrology(raster_domain, self.sim_config.dtinf, infiltration_model)
         surface_flow = SurfaceFlowSimulation(
@@ -386,6 +342,7 @@ class SimulationBuilder:
 
         # Create drainage with optional SWMM hotstart injection
         nodes_list, drainage_sim = self._create_drainage_simulation(domain_data)
+
         schedule = SimulationSchedule(
             self.sim_config.start_time,
             self.sim_config.end_time,
@@ -401,7 +358,6 @@ class SimulationBuilder:
                 mask=raster_domain.mask,
             )
 
-        # Create report
         report = Report(
             start_time=self.sim_config.start_time,
             temporal_type=self.sim_config.temporal_type,
@@ -412,7 +368,6 @@ class SimulationBuilder:
             dt=self.sim_config.record_step,
         )
 
-        # Create simulation
         simulation = Simulation(
             self.sim_config,
             domain_data,
@@ -426,48 +381,12 @@ class SimulationBuilder:
             report=report,
         )
 
-        # Apply hotstart restore if hotstart data is present
         if hotstart_loader is not None:
-            raster_state_buffer = hotstart_loader.get_raster_state_buffer()
-            raster_domain.load_state(raster_state_buffer)
-
-            simulation_state = hotstart_loader.get_simulation_state()
-            simulation.restore_state(simulation_state)
-            hotstart_config = hotstart_loader.get_simulation_config()
-            changed_input_keys = self._changed_input_keys(hotstart_config)
-            restored_input_deadline = simulation.schedule.deadline("input")
-            restored_end_deadline = simulation.schedule.deadline("end")
-            end_time_changed = self.sim_config.end_time != hotstart_config.end_time
-            simulation.reconcile_hotstart_resume(hotstart_config)
-
-            if timed_input_manager is None:
-                if restored_input_deadline < restored_end_deadline:
-                    raise HotstartError(
-                        "Hotstart has a pending timed-input deadline but no input provider "
-                        "is configured for resume"
-                    )
-                simulation.schedule.set_deadline("input", simulation.end_time)
-            else:
-                updates, primed_input_deadline = timed_input_manager.prepare_resume_at(
-                    simulation.sim_time,
-                    changed_input_keys,
-                )
-                for array_key, array in updates:
-                    simulation.set_array(array_key, array, simulation.sim_time)
-                if changed_input_keys & self._HYDROLOGY_INPUT_KEYS:
-                    simulation.schedule.set_deadline("hydrology", simulation.sim_time)
-                if (
-                    not changed_input_keys
-                    and not end_time_changed
-                    and primed_input_deadline != restored_input_deadline
-                ):
-                    raise HotstartError(
-                        "Hotstart timed-input boundary conflicts with the restored schedule: "
-                        f"provider={primed_input_deadline}, restored={restored_input_deadline}"
-                    )
-                simulation.schedule.set_deadline("input", primed_input_deadline)
-
-            simulation.restore_drainage_coupling_state()
+            self._restore_hotstart(
+                hotstart_loader,
+                simulation,
+                timed_input_manager,
+            )
         elif timed_input_manager is not None:
             updates, next_input = timed_input_manager.read_at(self.sim_config.start_time)
             for array_key, array in updates:
@@ -475,6 +394,54 @@ class SimulationBuilder:
             schedule.set_deadline("input", next_input)
 
         return simulation
+
+    def _restore_hotstart(
+        self,
+        hotstart_loader: HotstartLoader,
+        simulation: Simulation,
+        timed_input_manager: TimedInputManager | None,
+    ) -> None:
+        """Restore archived state and reconcile it with the resume configuration."""
+        raster_state_buffer = hotstart_loader.get_raster_state_buffer()
+        simulation.raster_domain.load_state(raster_state_buffer)
+
+        simulation_state = hotstart_loader.get_simulation_state()
+        simulation.restore_state(simulation_state)
+        archived_resume_config = hotstart_loader.get_resume_config()
+        changed_input_keys = self._changed_input_keys(archived_resume_config)
+        restored_input_deadline = simulation.schedule.deadline("input")
+        restored_end_deadline = simulation.schedule.deadline("end")
+        end_time_changed = self.sim_config.end_time != archived_resume_config.configured_end_time
+        simulation.reconcile_hotstart_resume(archived_resume_config)
+
+        if timed_input_manager is None:
+            if restored_input_deadline < restored_end_deadline:
+                raise HotstartError(
+                    "Hotstart has a pending timed-input deadline but no input provider "
+                    "is configured for resume"
+                )
+            simulation.schedule.set_deadline("input", simulation.end_time)
+        else:
+            updates, primed_input_deadline = timed_input_manager.prepare_resume_at(
+                simulation.sim_time,
+                changed_input_keys,
+            )
+            for array_key, array in updates:
+                simulation.set_array(array_key, array, simulation.sim_time)
+            if changed_input_keys & self._HYDROLOGY_INPUT_KEYS:
+                simulation.schedule.set_deadline("hydrology", simulation.sim_time)
+            if (
+                not changed_input_keys
+                and not end_time_changed
+                and primed_input_deadline != restored_input_deadline
+            ):
+                raise HotstartError(
+                    "Hotstart timed-input boundary conflicts with the restored schedule: "
+                    f"provider={primed_input_deadline}, restored={restored_input_deadline}"
+                )
+            simulation.schedule.set_deadline("input", primed_input_deadline)
+
+        simulation.restore_drainage_coupling_state()
 
     def _create_timed_arrays(
         self,

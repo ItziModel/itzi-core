@@ -26,11 +26,15 @@ import pytest
 from itzi_core import DomainData
 from itzi_core.const import InfiltrationModelType, TemporalType
 from itzi_core.data_containers import (
-    HotstartSimulationState,
     SimulationConfig,
     SurfaceFlowParameters,
 )
-from itzi_core.hotstart import HotstartLoader, HotstartWriter
+from itzi_core.hotstart import HotstartLoader, create_hotstart_archive
+from itzi_core.hotstart_models import (
+    HotstartResumeConfig,
+    HotstartSimulationState,
+    SurfaceFlowResumeConfig,
+)
 from itzi_core.itzi_error import HotstartError
 from itzi_core.providers.memory_output import (
     MemoryRasterOutputProvider,
@@ -38,6 +42,20 @@ from itzi_core.providers.memory_output import (
 )
 from itzi_core.rasterdomain import RasterDomain
 from itzi_core.simulation_builder import SimulationBuilder
+
+
+def _resume_config(config: SimulationConfig) -> HotstartResumeConfig:
+    return HotstartResumeConfig(
+        original_start_time=config.start_time,
+        configured_end_time=config.end_time,
+        record_step=config.record_step,
+        input_sources=dict(config.input_map_names),
+        surface_flow=SurfaceFlowResumeConfig(
+            g=config.surface_flow_parameters.g,
+        ),
+        hydrology_step_seconds=config.dtinf,
+        infiltration_model=config.infiltration_model,
+    )
 
 
 class TestRasterDomainLoadState:
@@ -111,6 +129,22 @@ class TestRasterDomainLoadState:
         with pytest.raises(HotstartError, match="Mask content mismatch"):
             populated_raster_domain.load_state(buffer)
 
+    def test_load_state_rejects_mask_dtype_mismatch(
+        self, populated_raster_domain: RasterDomain
+    ) -> None:
+        """load_state should reject masks that do not use the domain dtype."""
+        saved_state = populated_raster_domain.save_state()
+        saved_state.seek(0)
+        npz = np.load(saved_state, allow_pickle=False)
+        arrays = {key: npz[key] for key in npz.files}
+        arrays["mask"] = arrays["mask"].astype(np.uint8)
+        buffer = io.BytesIO()
+        np.savez(buffer, allow_pickle=False, **arrays)
+        buffer.seek(0)
+
+        with pytest.raises(HotstartError, match="Mask dtype mismatch"):
+            populated_raster_domain.load_state(buffer)
+
     def test_load_state_rejects_missing_keys(self, populated_raster_domain: RasterDomain) -> None:
         """load_state should reject state missing required keys."""
         buffer = io.BytesIO()
@@ -125,15 +159,31 @@ class TestRasterDomainLoadState:
         with pytest.raises(HotstartError, match="missing required arrays"):
             populated_raster_domain.load_state(buffer)
 
+    def test_load_state_rejects_unexpected_keys(
+        self, populated_raster_domain: RasterDomain
+    ) -> None:
+        """load_state should reject arrays outside the version 2 state contract."""
+        saved_state = populated_raster_domain.save_state()
+        saved_state.seek(0)
+        npz = np.load(saved_state, allow_pickle=False)
+        arrays = {key: npz[key] for key in npz.files}
+        arrays["unexpected"] = np.zeros((1,), dtype=np.float32)
+        buffer = io.BytesIO()
+        np.savez(buffer, allow_pickle=False, **arrays)
+        buffer.seek(0)
+
+        with pytest.raises(HotstartError, match="unexpected arrays"):
+            populated_raster_domain.load_state(buffer)
+
     def test_load_state_rejects_dtype_mismatch(
         self, populated_raster_domain: RasterDomain
     ) -> None:
-        """load_state should reject state with incompatible dtype."""
+        """load_state should reject dtypes that differ from the domain state."""
         saved_state = populated_raster_domain.save_state()
         saved_state.seek(0)
         npz = np.load(saved_state, allow_pickle=False)
         arrays = {k: npz[k] for k in npz.files}
-        arrays["water_depth"] = arrays["water_depth"].astype(np.complex128)
+        arrays["water_depth"] = arrays["water_depth"].astype(np.uint8)
         buffer = io.BytesIO()
         np.savez(buffer, allow_pickle=False, **arrays)
         buffer.seek(0)
@@ -206,6 +256,16 @@ class TestSimulationBuilderHotstart:
     ) -> io.BytesIO:
         """Create a valid hotstart archive for testing."""
         return self._create_hotstart_bytes(domain_5by5, sim_config)
+
+    def test_created_hotstart_records_simulation_config(
+        self,
+        sim_config: SimulationConfig,
+        valid_hotstart_bytes: io.BytesIO,
+    ) -> None:
+        """create_hotstart() records resume metadata from its simulation config."""
+        hotstart_loader = HotstartLoader.from_bytes(valid_hotstart_bytes)
+
+        assert hotstart_loader.get_resume_config() == _resume_config(sim_config)
 
     def test_with_hotstart_from_bytes(
         self,
@@ -435,6 +495,7 @@ class TestSimulationBuilderHotstart:
             ("dtmax", 0.2, "dtmax"),
             ("slope_threshold", 1e-5, "slope_threshold"),
             ("max_slope", 5.0, "max_slope"),
+            ("hmin", 0.0002, "min_flow_depth"),
         ],
     )
     def test_build_allows_surface_flow_resume_parameter_change(
@@ -476,31 +537,22 @@ class TestSimulationBuilderHotstart:
 
         assert simulation.mass_balance_error_threshold == 0.5
 
-    @pytest.mark.parametrize(
-        ("parameter", "value"),
-        [
-            ("hmin", 0.0002),
-            ("g", 9.9),
-        ],
-    )
-    def test_build_rejects_surface_flow_parameter_mismatch(
+    def test_build_rejects_gravity_mismatch(
         self,
         domain_5by5,
         sim_config: SimulationConfig,
         valid_hotstart_bytes: io.BytesIO,
-        parameter: str,
-        value: float,
     ) -> None:
-        """build() should reject solver-affecting surface-flow parameter changes."""
+        """build() should reject changing gravity across a resume."""
         resumed_config = sim_config.model_copy(
             update={
                 "surface_flow_parameters": sim_config.surface_flow_parameters.model_copy(
-                    update={parameter: value}
+                    update={"g": 9.9}
                 )
             }
         )
 
-        with pytest.raises(HotstartError, match=f"{parameter}|surface"):
+        with pytest.raises(HotstartError, match="g|surface"):
             self._build_with_hotstart(domain_5by5, resumed_config, valid_hotstart_bytes)
 
     def test_build_rejects_drainage_mismatch_hotstart_has_drainage(
@@ -536,9 +588,9 @@ class TestSimulationBuilderHotstart:
             old_domain_volume=100.0,
         )
 
-        hotstart_bytes = HotstartWriter.create(
+        hotstart_bytes = create_hotstart_archive(
             domain_data=domain_5by5.domain_data,
-            simulation_config=config_with_drainage,
+            resume_config=_resume_config(config_with_drainage),
             simulation_state=simulation_state,
             raster_state_bytes=raster_state.getvalue(),
             swmm_hotstart_bytes=b"fake swmm data",
@@ -602,9 +654,9 @@ class TestSimulationBuilderHotstart:
             old_domain_volume=100.0,
         )
 
-        hotstart_bytes = HotstartWriter.create(
+        hotstart_bytes = create_hotstart_archive(
             domain_data=domain_5by5.domain_data,
-            simulation_config=config_no_drainage,
+            resume_config=_resume_config(config_no_drainage),
             simulation_state=simulation_state,
             raster_state_bytes=raster_state.getvalue(),
         )

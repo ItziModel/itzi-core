@@ -13,7 +13,6 @@ GNU Lesser General Public License for more details.
 """
 
 import io
-import warnings
 from typing import Self
 
 import numpy as np
@@ -22,25 +21,6 @@ from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi_core.itzi_error import HotstartError
 
 from .compute import rastermetrics
-
-_LEGACY_NPZ_MEMBER_NAMES = {
-    "rain": "rainfall_rate",
-    "dem": "ground_elevation",
-    "bcval": "boundary_value",
-    "bctype": "boundary_type",
-    "eff_precip": "effective_precipitation",
-    "hfe": "flow_depth_east",
-    "hfs": "flow_depth_south",
-    "qe": "old_discharge_east",
-    "qs": "old_discharge_south",
-    "qe_new": "new_discharge_east",
-    "qs_new": "new_discharge_south",
-    "hmax": "max_water_depth",
-    "v": "flow_speed",
-    "vdir": "flow_velocity_direction",
-    "vmax": "max_flow_speed",
-    "n_drain": "drainage_inflow",
-}
 
 
 class RasterDomain:
@@ -207,77 +187,46 @@ class RasterDomain:
         return npz_file
 
     def load_state(self, npz_data: io.BytesIO) -> Self:
-        """Restore domain arrays from an in-memory npz buffer.
-
-        This method validates the loaded state against the current domain
+        """This method validates the loaded state against the current domain
         configuration before mutating any state.
-
-        Args:
-            npz_data: BytesIO containing an npz archive from save_state().
-
-        Returns:
-            Self for method chaining.
 
         Raises:
             HotstartError: If the state is incompatible with the current domain.
         """
-        # Load the npz archive from the in-memory buffer
         npz_data.seek(0)
         try:
             npz = np.load(npz_data, allow_pickle=False)
         except Exception as e:
             raise HotstartError(f"Failed to load raster state: {e}") from e
 
-        # Get the set of keys from the archive (excluding 'mask')
+        # Every keys must be present. No more, no less.
         archive_keys = set(npz.files) - {"mask"}
-        member_keys = {key: key for key in archive_keys}
-        migrated_members = {
-            legacy: current
-            for legacy, current in _LEGACY_NPZ_MEMBER_NAMES.items()
-            if legacy in archive_keys and current not in archive_keys
-        }
-        for legacy, current in migrated_members.items():
-            member_keys[current] = legacy
-        if migrated_members:
-            migrated_names = ", ".join(
-                f"{legacy!r} to {current!r}"
-                for legacy, current in sorted(migrated_members.items())
-            )
-            warnings.warn(
-                "Raster state uses deprecated NPZ member names; migrated "
-                f"{migrated_names}. Recreate the hotstart to use canonical names.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
         expected_keys = self.k_all
-
-        # Verify required keys are present
-        missing_keys = expected_keys - member_keys.keys()
+        missing_keys = expected_keys - archive_keys
         if missing_keys:
             raise HotstartError(
                 f"Raster state missing required arrays: {', '.join(sorted(missing_keys))}"
             )
-
-        # Check for unexpected keys (warning, not error - for forward compatibility)
         extra_keys = archive_keys - expected_keys
         if extra_keys:
-            # Log or ignore extra keys - they're not harmful
-            pass
+            raise HotstartError(
+                f"Raster state has unexpected arrays: {', '.join(sorted(extra_keys))}"
+            )
 
-        # Verify mask is present
+        # Validate mask
         if "mask" not in npz.files:
             raise HotstartError("Raster state missing 'mask' array")
-
-        # Verify mask shape matches
         stored_mask = npz["mask"]
+        if stored_mask.dtype != self.mask.dtype:
+            raise HotstartError(
+                f"Mask dtype mismatch: archive has {stored_mask.dtype}, "
+                f"domain expects {self.mask.dtype}"
+            )
         if stored_mask.shape != self.mask.shape:
             raise HotstartError(
                 f"Mask shape mismatch: archive has {stored_mask.shape}, "
                 f"domain expects {self.mask.shape}"
             )
-
-        # Verify mask content matches
         if not np.array_equal(stored_mask, self.mask):
             raise HotstartError(
                 "Mask content mismatch: the hotstart domain mask does not match "
@@ -286,54 +235,42 @@ class RasterDomain:
 
         # Padded shape is (rows+2, cols+2) due to 1-cell padding on all sides
         padded_shape = (self.shape[0] + 2, self.shape[1] + 2)
-
         # Verify all array shapes match the padded domain
         for key in expected_keys:
-            stored_arr = npz[member_keys[key]]
+            stored_arr = npz[key]
             if stored_arr.shape != padded_shape:
                 raise HotstartError(
                     f"Array '{key}' shape mismatch: archive has {stored_arr.shape}, "
                     f"domain expects padded shape {padded_shape}"
                 )
 
-        # Verify dtype compatibility (allow safe casting), while accepting valid
-        # floating-point boundary-type arrays from legacy state archives.
-        converted_arrays: dict[str, np.ndarray] = {}
+        # Each stored dtype should match the target domain exactly.
+        validated_arrays: dict[str, np.ndarray] = {}
         for key in expected_keys:
-            stored_arr = npz[member_keys[key]]
+            stored_arr = npz[key]
             target_dtype = self.dtypes[key]
+            if stored_arr.dtype != target_dtype:
+                raise HotstartError(
+                    f"Array '{key}' dtype mismatch: archive has {stored_arr.dtype}, "
+                    f"domain expects {target_dtype}"
+                )
             if key == "boundary_type":
-                if stored_arr.dtype != target_dtype and not np.issubdtype(
-                    stored_arr.dtype, np.floating
-                ):
-                    raise HotstartError(
-                        f"Array '{key}' dtype mismatch: archive has {stored_arr.dtype}, "
-                        f"domain expects {target_dtype} (or a safely castable type)"
-                    )
                 candidate = np.array(stored_arr, copy=True)
                 padded_mask = np.pad(self.mask, 1, mode="edge")
-                masked = padded_mask
-                if np.issubdtype(stored_arr.dtype, np.floating):
-                    masked = np.logical_or(np.isnan(candidate), masked)
-                candidate[masked] = self.fill_values["boundary_type"]
+                candidate[padded_mask] = self.fill_values["boundary_type"]
                 valid = np.isin(candidate, (0, 1, 2, 3, 4))
                 if not np.all(valid):
                     invalid_values = candidate[~valid].reshape(-1)[:5].tolist()
                     raise HotstartError(
                         f"Invalid values for 'boundary_type' in raster state: {invalid_values}"
                     )
-                converted_arrays[key] = candidate.astype(target_dtype)
-            elif not np.can_cast(stored_arr.dtype, target_dtype, casting="safe"):
-                raise HotstartError(
-                    f"Array '{key}' dtype mismatch: archive has {stored_arr.dtype}, "
-                    f"domain expects {target_dtype} (or a safely castable type)"
-                )
+                validated_arrays[key] = candidate
             else:
-                converted_arrays[key] = stored_arr.astype(target_dtype)
+                validated_arrays[key] = stored_arr
 
         # All validations passed - restore the arrays
         for key in expected_keys:
-            arrp = converted_arrays[key]
+            arrp = validated_arrays[key]
             # Store the padded array directly
             self.arrp[key][:] = arrp
             # Extract the interior (unpadded) slice for self.arr using simple_pad
