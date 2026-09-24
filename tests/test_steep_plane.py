@@ -107,8 +107,8 @@ def test_rain_on_steep_plane_uses_capped_downhill_flow(tmp_path):
         (high_cap, tmp_path / "high_cap.csv"),
     ]:
         water_depth = simulation.get_array("water_depth")
-        eastward_flow = simulation.get_array("old_discharge_east")
-        southward_flow = simulation.get_array("old_discharge_south")
+        eastward_flow = simulation.get_array("discharge_east")
+        southward_flow = simulation.get_array("discharge_south")
 
         assert simulation.sim_time == simulation.end_time
         assert np.all(np.isfinite(water_depth))
@@ -120,7 +120,7 @@ def test_rain_on_steep_plane_uses_capped_downhill_flow(tmp_path):
 
     # Both runs solve the same first wet face, so the GMS flux differs only by sqrt(max_slope).
     center = (4, 4)
-    low_flux = low_cap.get_array("old_discharge_east")[center]
-    high_flux = high_cap.get_array("old_discharge_east")[center]
+    low_flux = low_cap.get_array("discharge_east")[center]
+    high_flux = high_cap.get_array("discharge_east")[center]
     assert low_flux > 0
     assert high_flux / low_flux == pytest.approx(np.sqrt(0.8 / 0.2), rel=1e-5)

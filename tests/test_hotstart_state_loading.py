@@ -78,11 +78,11 @@ class TestRasterDomainLoadState:
         raster_domain.update_array("ground_elevation", domain_5by5.arr_dem_flat.copy())
         raster_domain.update_array("friction", domain_5by5.arr_n.copy())
         # Set internal arrays (required for save_state)
-        # Discharges at the eastern and southern cell edges from the previous step.
-        old_discharge_east = np.full(raster_domain.shape, 1.1, dtype=np.float32)
-        old_discharge_south = np.full(raster_domain.shape, 1.2, dtype=np.float32)
-        raster_domain.update_array("old_discharge_east", old_discharge_east)
-        raster_domain.update_array("old_discharge_south", old_discharge_south)
+        # Committed discharges at the eastern and southern cell edges.
+        discharge_east = np.full(raster_domain.shape, 1.1, dtype=np.float32)
+        discharge_south = np.full(raster_domain.shape, 1.2, dtype=np.float32)
+        raster_domain.update_array("discharge_east", discharge_east)
+        raster_domain.update_array("discharge_south", discharge_south)
         return raster_domain
 
     def test_load_state_round_trip(self, populated_raster_domain: RasterDomain) -> None:

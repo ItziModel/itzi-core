@@ -32,8 +32,8 @@ EA8B_FINAL_ARRAY_ATOL: dict[str, float] = {
     # scheduler semantics keep the resumed run within XPSTORM acceptance while a
     # few southern-discharge cells can drift slightly above the historical restart tolerances.
     "water_depth": 7.0e-3,
-    "old_discharge_east": 2.9e-3,
-    "old_discharge_south": 1.6e-3,
+    "discharge_east": 2.9e-3,
+    "discharge_south": 1.6e-3,
 }
 
 
