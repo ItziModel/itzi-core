@@ -27,6 +27,7 @@ from pydantic import (
     NonNegativeFloat,
     NonNegativeInt,
     PositiveFloat,
+    ValidationInfo,
     field_validator,
 )
 
@@ -203,8 +204,16 @@ class SurfaceFlowParameters(BaseModel):
     g: NonNegativeFloat = DefaultValues.G
     dtmax: PositiveFloat = DefaultValues.DTMAX
     slope_threshold: NonNegativeFloat = DefaultValues.SLOPE_THRESHOLD
-    max_slope: NonNegativeFloat = DefaultValues.MAX_SLOPE
+    max_slope: NonNegativeFloat = Field(DefaultValues.MAX_SLOPE, validate_default=True)
     max_error: PositiveFloat = DefaultValues.MAX_ERROR
+
+    @field_validator("max_slope")
+    @classmethod
+    def max_slope_must_cover_slope_threshold(cls, max_slope: float, info: ValidationInfo) -> float:
+        slope_threshold = info.data.get("slope_threshold")
+        if slope_threshold is not None and max_slope < slope_threshold:
+            raise ValueError("max_slope must be greater than or equal to slope_threshold")
+        return max_slope
 
 
 class HotstartRunConfig(BaseModel):

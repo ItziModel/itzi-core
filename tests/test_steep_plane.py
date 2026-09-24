@@ -63,7 +63,7 @@ def _run_steep_plane(max_slope: float, stats_file: Path):
             hmin=0.005,
             cfl=0.5,
             dtmax=0.05,
-            slope_threshold=0.8,
+            slope_threshold=max_slope,
             max_slope=max_slope,
         ),
         dtinf=0.05,
@@ -100,20 +100,24 @@ def _last_rainfall_volume(stats_file: Path) -> float:
 
 
 def _regime_switch_parameters(**overrides) -> SurfaceFlowParameters:
-    params = SurfaceFlowParameters(
-        hmin=0.005,
-        cfl=0.1,
-        dtmax=REGIME_SWITCH_DT,
-        theta=0.7,
-        slope_threshold=0.2,
-        max_slope=0.2,
+    return SurfaceFlowParameters.model_validate(
+        {
+            "hmin": 0.005,
+            "cfl": 0.1,
+            "dtmax": REGIME_SWITCH_DT,
+            "theta": 0.7,
+            "slope_threshold": 0.2,
+            "max_slope": 0.2,
+        }
+        | overrides
     )
-    return params.model_copy(update=overrides)
 
 
 def _build_regime_switch_simulation(
     flow_params: SurfaceFlowParameters,
     hotstart_bytes: bytes | None = None,
+    initial_depth: float = REGIME_SWITCH_DEPTH,
+    initial_slope: float = REGIME_SWITCH_SLOPE,
 ):
     rows = cols = 9
     cell_size = 1.0
@@ -152,12 +156,10 @@ def _build_regime_switch_simulation(
     if hotstart_bytes is None:
         simulation.set_array(
             "ground_elevation",
-            np.tile(-REGIME_SWITCH_SLOPE * np.arange(cols, dtype=np.float32), (rows, 1)),
+            np.tile(-initial_slope * np.arange(cols, dtype=np.float32), (rows, 1)),
         )
         simulation.set_array("friction", np.full((rows, cols), 0.05, dtype=np.float32))
-        simulation.set_array(
-            "water_depth", np.full((rows, cols), REGIME_SWITCH_DEPTH, dtype=np.float32)
-        )
+        simulation.set_array("water_depth", np.full((rows, cols), initial_depth, dtype=np.float32))
         simulation.set_array("boundary_type", np.zeros((rows, cols), dtype=np.uint8))
         simulation.initialize()
 
@@ -174,6 +176,76 @@ def _uses_almeida_at_center_east_face(simulation, flow_params: SurfaceFlowParame
     )
     slope = (wse[row, col] - wse[row, col + 1]) / simulation.surface_flow.dx
     return flow_depth > flow_params.hmin and abs(slope) < flow_params.slope_threshold
+
+
+def _assert_hotstart_regime_switch_matches_continuous(
+    checkpoint_params: SurfaceFlowParameters,
+    resumed_params: SurfaceFlowParameters,
+    initial_depth: float = REGIME_SWITCH_DEPTH,
+    initial_slope: float = REGIME_SWITCH_SLOPE,
+) -> None:
+    continuous = _build_regime_switch_simulation(
+        checkpoint_params,
+        initial_depth=initial_depth,
+        initial_slope=initial_slope,
+    )
+
+    # Establish a non-zero discharge history before serialising the state.
+    for _ in range(2):
+        continuous.update()
+
+    assert continuous.get_array("discharge_east")[4, 4] > 0
+    assert _uses_almeida_at_center_east_face(
+        continuous, checkpoint_params
+    ) != _uses_almeida_at_center_east_face(continuous, resumed_params)
+
+    checkpoint_error = continuous.get_array("error_depth_accum").copy()
+    hotstart_bytes = continuous.create_hotstart().getvalue()
+    control = _build_regime_switch_simulation(checkpoint_params, hotstart_bytes)
+    resumed = _build_regime_switch_simulation(resumed_params, hotstart_bytes)
+
+    # The continuous path is the reference for a configuration change at this state.
+    for attribute, checkpoint_value, resumed_value in [
+        ("min_flow_depth", checkpoint_params.hmin, resumed_params.hmin),
+        ("slope_threshold", checkpoint_params.slope_threshold, resumed_params.slope_threshold),
+        ("max_slope", checkpoint_params.max_slope, resumed_params.max_slope),
+    ]:
+        if checkpoint_value != resumed_value:
+            setattr(continuous.surface_flow, attribute, resumed_value)
+
+    for step in range(1, 11):
+        continuous.update()
+        control.update()
+        resumed.update()
+
+        if step not in {1, 10}:
+            continue
+
+        for array_key in [
+            "water_depth",
+            "flow_depth_east",
+            "flow_depth_south",
+            "discharge_east",
+            "discharge_south",
+            "error_depth_accum",
+        ]:
+            np.testing.assert_allclose(
+                resumed.get_array(array_key),
+                continuous.get_array(array_key),
+                err_msg=f"Hotstart switch mismatch for {array_key} at step {step}",
+            )
+
+        for simulation in [continuous, resumed]:
+            for array_key in ["water_depth", "discharge_east", "discharge_south"]:
+                assert np.all(np.isfinite(simulation.get_array(array_key)))
+
+        np.testing.assert_allclose(continuous.get_array("error_depth_accum"), checkpoint_error)
+        np.testing.assert_allclose(resumed.get_array("error_depth_accum"), checkpoint_error)
+
+        if step == 1:
+            assert not np.allclose(
+                continuous.get_array("discharge_east"), control.get_array("discharge_east")
+            )
 
 
 def test_rain_on_steep_plane_uses_capped_downhill_flow(tmp_path):
@@ -222,55 +294,32 @@ def test_hotstart_regime_switch_matches_continuous_switch(
 ):
     """Switching between Almeida and GMS must not add a hotstart transient."""
     checkpoint_params = _regime_switch_parameters(**{parameter: checkpoint_value})
-    resumed_params = checkpoint_params.model_copy(update={parameter: resumed_value})
-    continuous = _build_regime_switch_simulation(checkpoint_params)
-
-    # Establish a non-zero discharge history before serialising the state.
-    for _ in range(2):
-        continuous.update()
-
-    assert continuous.get_array("discharge_east")[4, 4] > 0
-    assert _uses_almeida_at_center_east_face(
-        continuous, checkpoint_params
-    ) != _uses_almeida_at_center_east_face(continuous, resumed_params)
-
-    checkpoint_error = continuous.get_array("error_depth_accum").copy()
-    hotstart_bytes = continuous.create_hotstart().getvalue()
-    control = _build_regime_switch_simulation(checkpoint_params, hotstart_bytes)
-    resumed = _build_regime_switch_simulation(resumed_params, hotstart_bytes)
-
-    # The continuous path is the reference for a configuration change at this state.
-    setattr(
-        continuous.surface_flow,
-        "min_flow_depth" if parameter == "hmin" else parameter,
-        resumed_value,
+    resumed_params = _regime_switch_parameters(
+        **(checkpoint_params.model_dump() | {parameter: resumed_value})
     )
-    for step in range(1, 11):
-        continuous.update()
-        control.update()
-        resumed.update()
 
-        if step not in {1, 10}:
-            continue
+    _assert_hotstart_regime_switch_matches_continuous(checkpoint_params, resumed_params)
 
-        for array_key in [
-            "water_depth",
-            "flow_depth_east",
-            "flow_depth_south",
-            "discharge_east",
-            "discharge_south",
-            "error_depth_accum",
-        ]:
-            np.testing.assert_allclose(
-                resumed.get_array(array_key),
-                continuous.get_array(array_key),
-                err_msg=f"Hotstart switch mismatch for {array_key} at step {step}",
-            )
 
-        np.testing.assert_allclose(continuous.get_array("error_depth_accum"), checkpoint_error)
-        np.testing.assert_allclose(resumed.get_array("error_depth_accum"), checkpoint_error)
+def test_hotstart_shallow_face_switch_to_almeida_matches_continuous_switch():
+    """A near-dry GMS face may resume with Almeida without a restart transient."""
+    checkpoint_params = _regime_switch_parameters(hmin=0.005)
+    resumed_params = _regime_switch_parameters(hmin=0.0005)
 
-        if step == 1:
-            assert not np.allclose(
-                continuous.get_array("discharge_east"), control.get_array("discharge_east")
-            )
+    _assert_hotstart_regime_switch_matches_continuous(
+        checkpoint_params,
+        resumed_params,
+        initial_depth=0.001,
+    )
+
+
+def test_hotstart_switch_above_prior_gms_slope_cap_matches_continuous_switch():
+    """A capped GMS face may resume with the uncapped Almeida update."""
+    checkpoint_params = _regime_switch_parameters(slope_threshold=0.8, max_slope=0.8)
+    resumed_params = _regime_switch_parameters(slope_threshold=0.95, max_slope=0.95)
+
+    _assert_hotstart_regime_switch_matches_continuous(
+        checkpoint_params,
+        resumed_params,
+        initial_slope=0.9,
+    )
