@@ -149,9 +149,6 @@ class HotstartLoader:
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             raise HotstartError(f"Failed to read hotstart version: {e}") from e
 
-        if type(archive_version) is not int:
-            raise HotstartError("Hotstart version must be an integer")
-
         if archive_version != HOTSTART_VERSION:
             raise HotstartError(
                 f"Unsupported hotstart version {archive_version}; "
