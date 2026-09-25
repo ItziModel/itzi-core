@@ -12,8 +12,6 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
-import csv
-import os
 from collections import namedtuple
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -25,8 +23,8 @@ import pytest
 from itzi_core import DomainData
 from itzi_core.const import TemporalType
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
-from itzi_core.providers.csv_mass_balance_output import CSVMassBalanceOutputProvider
 from itzi_core.providers.memory_output import (
+    MemoryMassBalanceOutputProvider,
     MemoryRasterOutputProvider,
     MemoryVectorOutputProvider,
 )
@@ -35,39 +33,6 @@ from itzi_core.simulation_builder import SimulationBuilder
 ASCIIMetadata = namedtuple(
     "ASCIIMetadata", ["ncols", "nrows", "xllcorner", "yllcorner", "cellsize"]
 )
-
-
-def identify_temporal_string(s):
-    """Returns 'datetime', 'timedelta', or None"""
-    try:
-        pd.to_timedelta(s)
-        return "timedelta"
-    except ValueError:
-        try:
-            # Pandas has a small acceptable range
-            np.datetime64(s)
-            return "datetime"
-        except ValueError:
-            return None
-
-
-def test_identify_temporal_string():
-    # Usage
-    test_strings = [
-        ("2023-12-25 10:30:00", "datetime"),
-        ("0001-01-01T01:30:00", "datetime"),
-        ("0001-01-01 01:30:00", "datetime"),
-        ("1 day 02:30:45", "timedelta"),
-        ("32 days 00:30:45", "timedelta"),
-        ("02:30:45", "timedelta"),
-        ("66:01:34", "timedelta"),
-        ("not a time string", None),
-        ("0001-01-01 31:30:00", None),
-    ]
-    for s, t in test_strings:
-        result = identify_temporal_string(s)
-        print(s, t)
-        assert result == t
 
 
 def read_ascii_grid(filepath):
@@ -108,7 +73,7 @@ def output_map_names(prefix, keys):
 
 
 @pytest.fixture(scope="module")
-def mcdo_norain_sim(test_data_path, test_data_temp_path):
+def mcdo_norain_sim(test_data_path):
     """Run a simulation for MacDonald 1D solution long channel without rain.
     Delestre, O., Lucas, C., Ksinant, P.-A., Darboux, F., Laguerre, C., Vo, T.-N.-T., … Cordier, S. (2013).
     SWASHES: a compilation of shallow water analytic solutions for hydraulic and environmental studies.
@@ -136,8 +101,6 @@ def mcdo_norain_sim(test_data_path, test_data_temp_path):
     # No mask. Whole domain.
     array_mask = np.full(shape=arr_dem.shape, fill_value=False, dtype=np.bool_)
 
-    # Run the simulation in the temp dir
-    os.chdir(test_data_temp_path)
     config = SimulationConfig(
         start_time=datetime(2000, 1, 1),
         end_time=datetime(2000, 1, 1, 0, 20),
@@ -156,14 +119,13 @@ def mcdo_norain_sim(test_data_path, test_data_temp_path):
         surface_flow_parameters=SurfaceFlowParameters(dtmax=2, cfl=0.5),
     )
     raster_output = MemoryRasterOutputProvider()
+    mass_balance_output = MemoryMassBalanceOutputProvider()
     simulation = (
         SimulationBuilder(config, array_mask, np.float32)
         .with_domain_data(domain_data)
         .with_raster_output_provider(raster_output)
         .with_vector_output_provider(MemoryVectorOutputProvider())
-        .with_mass_balance_output_provider(
-            CSVMassBalanceOutputProvider(file_name="stats_mcdo_norain.csv")
-        )
+        .with_mass_balance_output_provider(mass_balance_output)
         .build()
     )
     # Set the input arrays
@@ -176,14 +138,14 @@ def mcdo_norain_sim(test_data_path, test_data_temp_path):
     while simulation.sim_time < simulation.end_time:
         simulation.update()
     simulation.finalize()
-    return simulation, reference
+    return simulation, reference, mass_balance_output.reports
 
 
 class TestMcdo_norain:
     def test_mcdo_norain(self, mcdo_norain_sim):
-        simulation, reference = mcdo_norain_sim
+        simulation, reference, _ = mcdo_norain_sim
         raster_results = simulation.report.raster_provider.output_maps_dict
-        wse_time, wse_array = raster_results["water_surface_elevation"][-1]
+        _, wse_array = raster_results["water_surface_elevation"][-1]
         wse_centerline = pd.DataFrame({"wse_model": wse_array[1, :]})
         df_results = reference.join(wse_centerline)
         df_results["abs_error"] = np.abs(df_results["wse_model"] - df_results["wse"])
@@ -191,7 +153,7 @@ class TestMcdo_norain:
         assert mae < 0.03
 
     def test_flow_is_unidimensional(self, mcdo_norain_sim):
-        simulation, _ = mcdo_norain_sim
+        simulation, _, _ = mcdo_norain_sim
         """In the MacDonald 1D test, flow should be unidimensional in the X dimension"""
         flow_rate_y_arrays = simulation.report.raster_provider.output_maps_dict["flow_rate_y"]
         for _, flow_rate_y_array in flow_rate_y_arrays:
@@ -200,42 +162,35 @@ class TestMcdo_norain:
             assert np.min(flow_rate_y_array) == 0
             assert np.max(flow_rate_y_array) == 0
 
-    def test_stat_file_is_coherent(self, test_data_temp_path):
-        stat_file_path = Path(test_data_temp_path) / Path("stats_mcdo_norain.csv")
-        # Test time format
-        with open(stat_file_path, "r") as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                assert identify_temporal_string(row["simulation_time"]) == "timedelta"
+    def test_mass_balance_is_coherent(self, mcdo_norain_sim):
+        _, _, reports = mcdo_norain_sim
+        assert reports
+        assert all(isinstance(report.simulation_time, timedelta) for report in reports)
 
-        df_stats = pd.read_csv(stat_file_path, sep=",")
-        # Compute the reference error, preventing NaN
-        df_stats["err_ref"] = np.where(
-            df_stats["volume_change"] == 0,
-            0.0,
-            df_stats["created_volume"] / df_stats["volume_change"],
-        )
-        # Check if the created-volume ratio computation is correct
-        assert np.allclose(df_stats["created_volume_ratio"], df_stats["err_ref"], atol=0.0001)
+        volume_change = np.array([report.volume_change for report in reports])
+        created_volume = np.array([report.created_volume for report in reports])
+        created_volume_ratio = np.array([report.created_volume_ratio for report in reports])
+        expected_ratio = np.zeros_like(volume_change)
+        np.divide(created_volume, volume_change, out=expected_ratio, where=volume_change != 0)
+        assert np.allclose(created_volume_ratio, expected_ratio, atol=0.0001)
 
-        # Check if the volume change is coherent with the rest of the volumes
-        df_stats["vol_change_ref"] = (
-            df_stats["boundary_volume"]
-            + df_stats["rainfall_volume"]
-            + df_stats["infiltration_volume"]
-            + df_stats["inflow_volume"]
-            + df_stats["losses_volume"]
-            + df_stats["drainage_network_volume"]
-            + df_stats["created_volume"]
+        volume_change_ref = np.array(
+            [
+                report.boundary_volume
+                + report.rainfall_volume
+                + report.infiltration_volume
+                + report.inflow_volume
+                + report.losses_volume
+                + report.drainage_network_volume
+                + report.created_volume
+                for report in reports
+            ]
         )
-        print(df_stats.to_string())
-        assert np.allclose(
-            df_stats["vol_change_ref"], df_stats["volume_change"], atol=1, rtol=0.01
-        )
+        assert np.allclose(volume_change_ref, volume_change, atol=1, rtol=0.01)
 
 
 @pytest.fixture(scope="module")
-def mcdo_rain_sim(test_data_path, test_data_temp_path):
+def mcdo_rain_sim(test_data_path):
     """Run a simulation for MacDonald 1D solution long channel with rain.
     Delestre, O., Lucas, C., Ksinant, P.-A., Darboux, F., Laguerre, C., Vo, T.-N.-T., … Cordier, S. (2013).
     SWASHES: a compilation of shallow water analytic solutions for hydraulic and environmental studies.
@@ -265,8 +220,6 @@ def mcdo_rain_sim(test_data_path, test_data_temp_path):
     # No mask. Whole domain.
     array_mask = np.full(shape=arr_dem.shape, fill_value=False, dtype=np.bool_)
 
-    # Run the simulation in the temp dir
-    os.chdir(test_data_temp_path)
     config = SimulationConfig(
         start_time=datetime(2020, 2, 1, 0, 1),
         end_time=datetime(2020, 2, 1, 0, 41),
@@ -286,14 +239,13 @@ def mcdo_rain_sim(test_data_path, test_data_temp_path):
         dtinf=1,
     )
     raster_output = MemoryRasterOutputProvider()
+    mass_balance_output = MemoryMassBalanceOutputProvider()
     simulation = (
         SimulationBuilder(config, array_mask, np.float32)
         .with_domain_data(domain_data)
         .with_raster_output_provider(raster_output)
         .with_vector_output_provider(MemoryVectorOutputProvider())
-        .with_mass_balance_output_provider(
-            CSVMassBalanceOutputProvider(file_name="stats_mcdo_rain.csv")
-        )
+        .with_mass_balance_output_provider(mass_balance_output)
         .build()
     )
     # Set the input arrays
@@ -307,11 +259,11 @@ def mcdo_rain_sim(test_data_path, test_data_temp_path):
     while simulation.sim_time < simulation.end_time:
         simulation.update()
     simulation.finalize()
-    return simulation, reference
+    return simulation, reference, mass_balance_output.reports
 
 
-def test_mcdo_rain(mcdo_rain_sim, test_data_temp_path):
-    simulation, reference = mcdo_rain_sim
+def test_mcdo_rain(mcdo_rain_sim):
+    simulation, reference, reports = mcdo_rain_sim
     raster_results = simulation.report.raster_provider.output_maps_dict
     _, wse_array = raster_results["water_surface_elevation"][-1]
     wse_centerline = pd.DataFrame({"wse_model": wse_array[1, :]})
@@ -321,9 +273,5 @@ def test_mcdo_rain(mcdo_rain_sim, test_data_temp_path):
     print(mae)
     assert mae < 0.035
 
-    stat_file_path = Path(test_data_temp_path) / Path("stats_mcdo_rain.csv")
-    # Test time format
-    with open(stat_file_path, "r") as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            assert identify_temporal_string(row["simulation_time"]) == "datetime"
+    assert reports
+    assert all(isinstance(report.simulation_time, datetime) for report in reports)

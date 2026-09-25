@@ -14,18 +14,16 @@ GNU Lesser General Public License for more details.
 
 from __future__ import annotations
 
-import csv
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 import numpy as np
 import pytest
 
-from itzi_core import DomainData
+from itzi_core import DomainData, Simulation
 from itzi_core.const import InfiltrationModelType, TemporalType
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
-from itzi_core.providers.csv_mass_balance_output import CSVMassBalanceOutputProvider
 from itzi_core.providers.memory_output import (
+    MemoryMassBalanceOutputProvider,
     MemoryRasterOutputProvider,
     MemoryVectorOutputProvider,
 )
@@ -38,7 +36,7 @@ REGIME_SWITCH_SLOPE = 0.1
 REGIME_SWITCH_DT = 0.1
 
 
-def _run_steep_plane(max_slope: float, stats_file: Path):
+def _run_steep_plane(max_slope: float) -> tuple[Simulation, MemoryMassBalanceOutputProvider]:
     rows = cols = 9
     cell_size = 1.0
     start_time = datetime(2000, 1, 1, tzinfo=UTC)
@@ -71,12 +69,13 @@ def _run_steep_plane(max_slope: float, stats_file: Path):
     )
     array_mask = np.zeros((rows, cols), dtype=np.bool_)
     raster_output = MemoryRasterOutputProvider()
+    mass_balance_output = MemoryMassBalanceOutputProvider()
     simulation = (
         SimulationBuilder(config, array_mask, np.float32)
         .with_domain_data(domain_data)
         .with_raster_output_provider(raster_output)
         .with_vector_output_provider(MemoryVectorOutputProvider())
-        .with_mass_balance_output_provider(CSVMassBalanceOutputProvider(file_name=str(stats_file)))
+        .with_mass_balance_output_provider(mass_balance_output)
         .build()
     )
 
@@ -91,12 +90,7 @@ def _run_steep_plane(max_slope: float, stats_file: Path):
     while simulation.sim_time < simulation.end_time:
         simulation.update()
     simulation.finalize()
-    return simulation
-
-
-def _last_rainfall_volume(stats_file: Path) -> float:
-    with stats_file.open(newline="") as file:
-        return float(list(csv.DictReader(file))[-1]["rainfall_volume"])
+    return simulation, mass_balance_output
 
 
 def _regime_switch_parameters(**overrides) -> SurfaceFlowParameters:
@@ -248,15 +242,15 @@ def _assert_hotstart_regime_switch_matches_continuous(
             )
 
 
-def test_rain_on_steep_plane_uses_capped_downhill_flow(tmp_path):
+def test_rain_on_steep_plane_uses_capped_downhill_flow():
     """Rainfall activates the high-slope GMS branch without creating invalid state."""
-    low_cap = _run_steep_plane(max_slope=0.2, stats_file=tmp_path / "low_cap.csv")
-    high_cap = _run_steep_plane(max_slope=0.8, stats_file=tmp_path / "high_cap.csv")
+    low_cap, low_cap_mass_balance = _run_steep_plane(max_slope=0.2)
+    high_cap, high_cap_mass_balance = _run_steep_plane(max_slope=0.8)
     expected_rainfall_volume = RAIN_RATE * 9 * 9 * SIMULATION_DURATION.total_seconds()
 
-    for simulation, stats_file in [
-        (low_cap, tmp_path / "low_cap.csv"),
-        (high_cap, tmp_path / "high_cap.csv"),
+    for simulation, mass_balance_output in [
+        (low_cap, low_cap_mass_balance),
+        (high_cap, high_cap_mass_balance),
     ]:
         water_depth = simulation.get_array("water_depth")
         eastward_flow = simulation.get_array("discharge_east")
@@ -268,7 +262,9 @@ def test_rain_on_steep_plane_uses_capped_downhill_flow(tmp_path):
         assert np.all(np.isfinite(southward_flow))
         assert np.min(water_depth) >= 0
         assert np.sum(water_depth) == pytest.approx(expected_rainfall_volume, rel=1e-5)
-        assert _last_rainfall_volume(stats_file) == pytest.approx(expected_rainfall_volume)
+        assert mass_balance_output.reports[-1].rainfall_volume == pytest.approx(
+            expected_rainfall_volume
+        )
 
     # Both runs solve the same first wet face, so the GMS flux differs only by sqrt(max_slope).
     center = (4, 4)

@@ -20,11 +20,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from itzi_core import Simulation
 from itzi_core.const import InfiltrationModelType, TemporalType
-from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
+from itzi_core.data_containers import MassBalanceData, SimulationConfig, SurfaceFlowParameters
+from itzi_core.providers.base import MassBalanceOutputProvider
 from itzi_core.providers.csv_mass_balance_output import CSVMassBalanceOutputProvider
 from itzi_core.providers.memory_input import MemoryRasterInputProvider, TimedRasterSlice
 from itzi_core.providers.memory_output import (
+    MemoryMassBalanceOutputProvider,
     MemoryRasterOutputProvider,
     MemoryVectorOutputProvider,
 )
@@ -61,17 +64,38 @@ def test_calculate_closure_uses_absolute_tolerance_for_negligible_flow():
 
 
 @pytest.fixture(scope="module")
-def sim_5by5_stats(domain_5by5, helpers, tmp_path_factory):
+def sim_5by5_stats(domain_5by5, helpers):
+    mass_balance_output = MemoryMassBalanceOutputProvider()
+    simulation = _run_5by5_stats_simulation(
+        domain_5by5,
+        helpers,
+        mass_balance_output_provider=mass_balance_output,
+    )
+    return simulation, domain_5by5.domain_data, mass_balance_output.reports
+
+
+@pytest.fixture(scope="module")
+def sim_5by5_stats_file(domain_5by5, helpers, tmp_path_factory):
+    stats_file = tmp_path_factory.mktemp("stats_test") / "5by5_stats.csv"
+    _run_5by5_stats_simulation(
+        domain_5by5,
+        helpers,
+        mass_balance_output_provider=CSVMassBalanceOutputProvider(file_name=str(stats_file)),
+    )
+    return stats_file
+
+
+def _run_5by5_stats_simulation(
+    domain_5by5,
+    helpers,
+    *,
+    mass_balance_output_provider: MassBalanceOutputProvider | None = None,
+) -> Simulation:
     """Run a 5x5 simulation for 5s with 1s record step.
 
     Outputs: water_depth, mean_infiltration, mean_rainfall, mean_inflow, mean_losses, created_volume
     Uses CONSTANT infiltration model with rain, infiltration, losses, and inflow.
     """
-    # Create temp directory for stats file
-    temp_dir = tmp_path_factory.mktemp("stats_test")
-    stats_file = temp_dir / "5by5_stats.csv"
-
-    # Build SimulationConfig
     sim_config = SimulationConfig(
         start_time=datetime(2000, 1, 1, 0, 0, 0),
         end_time=datetime(2000, 1, 1, 0, 0, 5),  # 5 seconds
@@ -103,20 +127,17 @@ def sim_5by5_stats(domain_5by5, helpers, tmp_path_factory):
         infiltration_model=InfiltrationModelType.CONSTANT,
     )
 
-    # Create output provider
     raster_output = MemoryRasterOutputProvider()
-
-    # Build simulation
-    simulation = (
+    builder = (
         SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
         .with_domain_data(domain_5by5.domain_data)
         .with_raster_output_provider(raster_output)
         .with_vector_output_provider(MemoryVectorOutputProvider())
-        .with_mass_balance_output_provider(CSVMassBalanceOutputProvider(file_name=str(stats_file)))
-        .build()
     )
+    if mass_balance_output_provider is not None:
+        builder.with_mass_balance_output_provider(mass_balance_output_provider)
+    simulation = builder.build()
 
-    # Set input arrays
     simulation.set_array("ground_elevation", domain_5by5.arr_dem_flat)
     simulation.set_array("friction", domain_5by5.arr_n)
     simulation.set_array("water_depth", domain_5by5.arr_start_h)
@@ -125,29 +146,24 @@ def sim_5by5_stats(domain_5by5, helpers, tmp_path_factory):
     simulation.set_array("losses", domain_5by5.arr_loss)
     simulation.set_array("inflow", domain_5by5.arr_inflow)
 
-    # Run simulation
     simulation.initialize()
     while simulation.sim_time < simulation.end_time:
         simulation.update()
     simulation.finalize()
 
-    return simulation, domain_5by5.domain_data, stats_file
+    return simulation
 
 
 class TestStatsFile:
-    """Test that the statistics CSV file has correct columns and volume values."""
+    """Test statistics CSV artifacts and mass-balance volume values."""
 
-    def test_stats_file_exists(self, sim_5by5_stats):
+    def test_stats_file_exists(self, sim_5by5_stats_file):
         """The stats CSV file should be created."""
-        _, _, stats_file = sim_5by5_stats
-        assert stats_file.exists()
+        assert sim_5by5_stats_file.exists()
 
-    def test_stats_file_columns(self, sim_5by5_stats):
+    def test_stats_file_columns(self, sim_5by5_stats_file):
         """CSV columns should match MassBalanceData fields."""
-        from itzi_core.data_containers import MassBalanceData
-
-        _, _, stats_file = sim_5by5_stats
-        df = pd.read_csv(stats_file)
+        df = pd.read_csv(sim_5by5_stats_file)
 
         expected_cols = list(MassBalanceData.model_fields.keys())
         assert df.columns.to_list() == expected_cols
@@ -156,8 +172,7 @@ class TestStatsFile:
     def test_stats_volume_values(self, sim_5by5_stats):
         """Volume values should match expected rates x area."""
 
-        _, domain_data, stats_file = sim_5by5_stats
-        df = pd.read_csv(stats_file)
+        _, domain_data, reports = sim_5by5_stats
 
         # Domain area: 5x5 cells at 10m resolution = 2500 m²
         area = domain_data.cell_area * domain_data.cells
@@ -174,36 +189,53 @@ class TestStatsFile:
         # Inflow: 0.1 m/s
         expected_inflow_vol = 0.1 * area
 
-        # Ignore first row (initial state, before time-stepping)
-        assert np.all(np.isclose(df["rainfall_volume"][1:], expected_rain_vol, atol=0.001))
-        assert np.isclose(df["infiltration_volume"].iloc[1], expected_inf_vol_first, atol=0.001)
-        assert np.all(np.isclose(df["infiltration_volume"][2:], expected_inf_vol, atol=0.001))
-        assert np.all(np.isclose(df["inflow_volume"][1:], expected_inflow_vol, atol=0.001))
-        assert np.isclose(df["losses_volume"].iloc[1], expected_losses_vol_first, atol=0.001)
-        assert np.all(np.isclose(df["losses_volume"][2:], expected_losses_vol, atol=0.001))
+        # Ignore the initial report, which precedes time-stepping.
+        assert np.all(
+            np.isclose(
+                [report.rainfall_volume for report in reports[1:]], expected_rain_vol, atol=0.001
+            )
+        )
+        assert np.isclose(reports[1].infiltration_volume, expected_inf_vol_first, atol=0.001)
+        assert np.all(
+            np.isclose(
+                [report.infiltration_volume for report in reports[2:]],
+                expected_inf_vol,
+                atol=0.001,
+            )
+        )
+        assert np.all(
+            np.isclose(
+                [report.inflow_volume for report in reports[1:]], expected_inflow_vol, atol=0.001
+            )
+        )
+        assert np.isclose(reports[1].losses_volume, expected_losses_vol_first, atol=0.001)
+        assert np.all(
+            np.isclose(
+                [report.losses_volume for report in reports[2:]], expected_losses_vol, atol=0.001
+            )
+        )
 
     def test_volume_change_coherence(self, sim_5by5_stats):
         """Volume change should be coherent with other volume components."""
 
-        _, _, stats_file = sim_5by5_stats
-        df = pd.read_csv(stats_file)
+        _, _, reports = sim_5by5_stats
+        volume_change_ref = np.array(
+            [
+                report.boundary_volume
+                + report.rainfall_volume
+                + report.infiltration_volume
+                + report.inflow_volume
+                + report.losses_volume
+                + report.drainage_network_volume
+                + report.created_volume
+                for report in reports
+            ]
+        )
+        volume_change = np.array([report.volume_change for report in reports])
+        closure_residual = np.array([report.closure_residual for report in reports])
 
-        # Check if the volume change is coherent with the rest of the volumes
-        df["vol_change_ref"] = (
-            df["boundary_volume"]
-            + df["rainfall_volume"]
-            + df["infiltration_volume"]
-            + df["inflow_volume"]
-            + df["losses_volume"]
-            + df["drainage_network_volume"]
-            + df["created_volume"]
-        )
-        assert np.allclose(df["vol_change_ref"], df["volume_change"], atol=1, rtol=0.01)
-        assert np.allclose(
-            df["closure_residual"],
-            df["volume_change"] - df["vol_change_ref"],
-            equal_nan=True,
-        )
+        assert np.allclose(volume_change_ref, volume_change, atol=1, rtol=0.01)
+        assert np.allclose(closure_residual, volume_change - volume_change_ref, equal_nan=True)
 
 
 def _make_timed_forcing_slices(
@@ -243,16 +275,14 @@ def _make_timed_forcing_slices(
 def _run_timed_stats_simulation(
     domain_5by5,
     helpers,
-    tmp_path,
     *,
     forcing_key: str,
     forcing_values_by_second: dict[int, float],
     infiltration_model: InfiltrationModelType = InfiltrationModelType.NULL,
     initial_water_depth: np.ndarray | None = None,
-) -> pd.DataFrame:
+) -> list[MassBalanceData]:
     start_time = datetime(2000, 1, 1, 0, 0, 0)
     end_time = start_time + timedelta(seconds=20)
-    stats_file = tmp_path / f"timed_stats_{forcing_key}.csv"
     forcing_slices = _make_timed_forcing_slices(
         domain_5by5,
         start_time,
@@ -294,12 +324,13 @@ def _run_timed_stats_simulation(
             "timed_arrays": {forcing_key: forcing_slices},
         }
     )
+    mass_balance_output = MemoryMassBalanceOutputProvider()
     simulation = (
         SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
         .with_input_provider(input_provider)
         .with_raster_output_provider(MemoryRasterOutputProvider())
         .with_vector_output_provider(MemoryVectorOutputProvider())
-        .with_mass_balance_output_provider(CSVMassBalanceOutputProvider(file_name=str(stats_file)))
+        .with_mass_balance_output_provider(mass_balance_output)
         .build()
     )
 
@@ -307,7 +338,7 @@ def _run_timed_stats_simulation(
     while simulation.sim_time < simulation.end_time:
         simulation.update()
     simulation.finalize()
-    return pd.read_csv(stats_file)
+    return mass_balance_output.reports
 
 
 @pytest.mark.parametrize(
@@ -357,7 +388,6 @@ def _run_timed_stats_simulation(
 def test_timed_input_stats_first_report_row_stays_interval_coherent(
     domain_5by5,
     helpers,
-    tmp_path,
     forcing_key: str,
     forcing_values_by_second: dict[int, float],
     volume_column: str,
@@ -365,29 +395,28 @@ def test_timed_input_stats_first_report_row_stays_interval_coherent(
     infiltration_model: InfiltrationModelType,
     initial_water_depth: np.ndarray | None,
 ) -> None:
-    df = _run_timed_stats_simulation(
+    reports = _run_timed_stats_simulation(
         domain_5by5,
         helpers,
-        tmp_path,
         forcing_key=forcing_key,
         forcing_values_by_second=forcing_values_by_second,
         infiltration_model=infiltration_model,
         initial_water_depth=initial_water_depth,
     )
 
-    first_report_row = df.iloc[1]
+    first_report = reports[1]
     volume_change_ref = (
-        first_report_row["boundary_volume"]
-        + first_report_row["rainfall_volume"]
-        + first_report_row["infiltration_volume"]
-        + first_report_row["inflow_volume"]
-        + first_report_row["losses_volume"]
-        + first_report_row["drainage_network_volume"]
-        + first_report_row["created_volume"]
+        first_report.boundary_volume
+        + first_report.rainfall_volume
+        + first_report.infiltration_volume
+        + first_report.inflow_volume
+        + first_report.losses_volume
+        + first_report.drainage_network_volume
+        + first_report.created_volume
     )
 
-    assert np.isclose(first_report_row[volume_column], expected_volume, atol=1e-6, rtol=1e-6)
-    assert np.isclose(first_report_row["volume_change"], volume_change_ref, atol=5e-4, rtol=1e-6)
+    assert np.isclose(getattr(first_report, volume_column), expected_volume, atol=1e-6, rtol=1e-6)
+    assert np.isclose(first_report.volume_change, volume_change_ref, atol=5e-4, rtol=1e-6)
 
 
 class TestStatsMaps:

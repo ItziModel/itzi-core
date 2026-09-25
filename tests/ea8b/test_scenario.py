@@ -18,10 +18,8 @@ GNU Lesser General Public License for more details.
 import hashlib
 import json
 import zipfile
-from pathlib import Path
 
 import numpy as np
-import pandas as pd
 import pytest
 
 from tests.ea8b.helpers import EA8B_REFERENCE_MAX_RSR, EA8B_REFERENCE_MIN_NSE
@@ -35,7 +33,6 @@ def test_ea8b_scenario(
     ea8b_drainage_results,
     ea8b_simulation,
     helpers,
-    ea8b_temp_path,
 ):
     ds_itzi_results = ea8b_drainage_results
     ds_ref = ea8b_reference
@@ -74,28 +71,28 @@ def test_ea8b_scenario(
     assert spatial_shape[0] == expected_rows
     assert spatial_shape[1] == expected_cols
 
-    stat_file_path = Path(ea8b_temp_path) / "ea8b.csv"
-    if stat_file_path.exists():
-        df_stats = pd.read_csv(stat_file_path, sep=",")
-        df_stats["err_ref"] = np.where(
-            df_stats["volume_change"] == 0,
-            0.0,
-            df_stats["created_volume"] / df_stats["volume_change"],
-        )
-        assert np.allclose(df_stats["created_volume_ratio"], df_stats["err_ref"], atol=0.0005)
+    reports = ea8b_simulation["mass_balance_output"].reports
+    assert reports
+    volume_change = np.array([report.volume_change for report in reports])
+    created_volume = np.array([report.created_volume for report in reports])
+    created_volume_ratio = np.array([report.created_volume_ratio for report in reports])
+    expected_ratio = np.zeros_like(volume_change)
+    np.divide(created_volume, volume_change, out=expected_ratio, where=volume_change != 0)
+    assert np.allclose(created_volume_ratio, expected_ratio, atol=0.0005)
 
-        df_stats["vol_change_ref"] = (
-            df_stats["boundary_volume"]
-            + df_stats["rainfall_volume"]
-            + df_stats["infiltration_volume"]
-            + df_stats["inflow_volume"]
-            + df_stats["losses_volume"]
-            + df_stats["drainage_network_volume"]
-            + df_stats["created_volume"]
-        )
-        assert np.allclose(
-            df_stats["vol_change_ref"], df_stats["volume_change"], atol=1, rtol=0.01
-        )
+    volume_change_ref = np.array(
+        [
+            report.boundary_volume
+            + report.rainfall_volume
+            + report.infiltration_volume
+            + report.inflow_volume
+            + report.losses_volume
+            + report.drainage_network_volume
+            + report.created_volume
+            for report in reports
+        ]
+    )
+    assert np.allclose(volume_change_ref, volume_change, atol=1, rtol=0.01)
 
     hotstart_end_path = ea8b_simulation["hotstart_end_path"]
     with (
