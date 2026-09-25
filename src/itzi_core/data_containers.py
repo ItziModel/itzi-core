@@ -31,19 +31,11 @@ from pydantic import (
     field_validator,
 )
 
-from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi_core.array_definitions import INPUT_ARRAY_KEYS, OUTPUT_ARRAY_KEYS
 from itzi_core.const import DefaultValues, InfiltrationModelType, TemporalType
 
 if TYPE_CHECKING:
     from itzi_core.drainage import DrainageNode
-
-
-VALID_INPUT_MAP_KEYS = frozenset(
-    arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.INPUT in arr_def.category
-)
-VALID_OUTPUT_MAP_KEYS = frozenset(
-    arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.OUTPUT in arr_def.category
-)
 
 
 class DrainageNodeCouplingData(BaseModel):
@@ -265,7 +257,7 @@ class SimulationConfig(BaseModel):
         """Normalize inactive entries and validate canonical input keys."""
         if isinstance(value, dict):
             map_names = {key: map_name for key, map_name in value.items() if map_name is not None}
-            invalid_keys = sorted(set(map_names) - VALID_INPUT_MAP_KEYS)
+            invalid_keys = sorted(set(map_names) - INPUT_ARRAY_KEYS)
             if invalid_keys:
                 raise ValueError(
                     f"input_map_names contain invalid input keys: {', '.join(invalid_keys)}"
@@ -279,7 +271,7 @@ class SimulationConfig(BaseModel):
         """Normalize inactive entries and validate canonical output keys."""
         if isinstance(value, dict):
             map_names = {key: map_name for key, map_name in value.items() if map_name is not None}
-            invalid_keys = sorted(set(map_names) - VALID_OUTPUT_MAP_KEYS)
+            invalid_keys = sorted(set(map_names) - OUTPUT_ARRAY_KEYS)
             if invalid_keys:
                 raise ValueError(
                     f"output_map_names contain invalid output keys: {', '.join(invalid_keys)}"

@@ -2,6 +2,12 @@ from itzi_core.array_definitions import (
     ARRAY_DEFINITIONS as ARRAY_DEFINITIONS,
 )
 from itzi_core.array_definitions import (
+    INPUT_ARRAY_KEYS as INPUT_ARRAY_KEYS,
+)
+from itzi_core.array_definitions import (
+    OUTPUT_ARRAY_KEYS as OUTPUT_ARRAY_KEYS,
+)
+from itzi_core.array_definitions import (
     ArrayCategory as ArrayCategory,
 )
 from itzi_core.array_definitions import (
@@ -31,6 +37,8 @@ from itzi_core.surfaceflow import (
 
 __all__ = [
     "ARRAY_DEFINITIONS",
+    "INPUT_ARRAY_KEYS",
+    "OUTPUT_ARRAY_KEYS",
     "ArrayCategory",
     "ArrayDefinition",
     "DomainData",

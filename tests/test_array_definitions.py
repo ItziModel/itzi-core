@@ -17,7 +17,12 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi_core.array_definitions import (
+    ARRAY_DEFINITIONS,
+    INPUT_ARRAY_KEYS,
+    OUTPUT_ARRAY_KEYS,
+    ArrayCategory,
+)
 
 
 def test_array_definitions():
@@ -65,3 +70,16 @@ def test_array_catalog_is_immutable() -> None:
     assert isinstance(definition.category, tuple)
     with pytest.raises(FrozenInstanceError):
         definition.key = "changed"  # ty: ignore[invalid-assignment]
+
+
+def test_array_key_sets_match_categories() -> None:
+    assert INPUT_ARRAY_KEYS == frozenset(
+        definition.key
+        for definition in ARRAY_DEFINITIONS
+        if ArrayCategory.INPUT in definition.category
+    )
+    assert OUTPUT_ARRAY_KEYS == frozenset(
+        definition.key
+        for definition in ARRAY_DEFINITIONS
+        if ArrayCategory.OUTPUT in definition.category
+    )

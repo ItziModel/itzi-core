@@ -597,3 +597,10 @@ ARRAY_DEFINITIONS = tuple(
     + _ACCUM_ARRAY_DEFINITIONS
     + _OUTPUT_ARRAY_DEFINITIONS
 )
+
+INPUT_ARRAY_KEYS = frozenset(
+    arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.INPUT in arr_def.category
+)
+OUTPUT_ARRAY_KEYS = frozenset(
+    arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.OUTPUT in arr_def.category
+)
