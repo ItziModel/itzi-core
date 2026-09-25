@@ -16,33 +16,18 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
+from unittest.mock import Mock
 
 import numpy as np
 
 from itzi_core.const import TemporalType
 from itzi_core.data_containers import MassBalanceData, SimulationConfig, SurfaceFlowParameters
 from itzi_core.providers.base import MassBalanceOutputProvider
+from itzi_core.providers.memory_output import MemoryMassBalanceOutputProvider
 from itzi_core.simulation_builder import SimulationBuilder
 
 if TYPE_CHECKING:
     from itzi_core.simulation import Simulation
-
-
-class RecordingMassBalanceProvider(MassBalanceOutputProvider):
-    def __init__(self) -> None:
-        self.reports: list[MassBalanceData] = []
-        self.finalize_calls = 0
-
-    def log(self, report_data: MassBalanceData) -> None:
-        self.reports.append(report_data)
-
-    def finalize(self) -> None:
-        self.finalize_calls += 1
-
-
-class FalseyRecordingMassBalanceProvider(RecordingMassBalanceProvider):
-    def __bool__(self) -> bool:
-        return False
 
 
 def _build_simulation(
@@ -78,26 +63,17 @@ def _build_simulation(
     return simulation
 
 
-def test_custom_provider_receives_simulation_mass_balance(domain_5by5, helpers) -> None:
-    provider = RecordingMassBalanceProvider()
+def test_memory_provider_receives_simulation_mass_balance(domain_5by5, helpers) -> None:
+    provider = MemoryMassBalanceOutputProvider()
     simulation = _build_simulation(domain_5by5, helpers, provider=provider)
 
     simulation.initialize()
     simulation.update()
 
+    assert isinstance(provider, MassBalanceOutputProvider)
     assert len(provider.reports) == 2
     assert all(isinstance(report, MassBalanceData) for report in provider.reports)
     assert provider.reports[-1].simulation_time == timedelta(seconds=1)
-
-
-def test_falsey_injected_provider_is_used(domain_5by5, helpers) -> None:
-    provider = FalseyRecordingMassBalanceProvider()
-
-    simulation = _build_simulation(domain_5by5, helpers, provider=provider)
-    simulation.initialize()
-
-    assert simulation.report.mass_balance_output_provider is provider
-    assert len(provider.reports) == 1
 
 
 def test_mass_balance_output_is_disabled_without_configuration(domain_5by5, helpers) -> None:
@@ -108,11 +84,13 @@ def test_mass_balance_output_is_disabled_without_configuration(domain_5by5, help
     assert simulation.report.mass_balance_output_provider is None
 
 
-def test_finalize_calls_mass_balance_provider_once(domain_5by5, helpers) -> None:
-    provider = FalseyRecordingMassBalanceProvider()
+def test_finalize_calls_mass_balance_provider_once(domain_5by5, helpers, monkeypatch) -> None:
+    provider = MemoryMassBalanceOutputProvider()
+    finalize = Mock()
+    monkeypatch.setattr(provider, "finalize", finalize)
     simulation = _build_simulation(domain_5by5, helpers, provider=provider)
     simulation.initialize()
 
     simulation.finalize()
 
-    assert provider.finalize_calls == 1
+    assert finalize.call_count == 1

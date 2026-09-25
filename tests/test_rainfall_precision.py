@@ -24,22 +24,14 @@ from itzi_core import DomainData
 from itzi_core.compute import rastermetrics
 from itzi_core.const import InfiltrationModelType, TemporalType
 from itzi_core.data_containers import MassBalanceData, SimulationConfig, SurfaceFlowParameters
-from itzi_core.providers.base import MassBalanceOutputProvider
 from itzi_core.providers.memory_output import (
+    MemoryMassBalanceOutputProvider,
     MemoryRasterOutputProvider,
     MemoryVectorOutputProvider,
 )
 from itzi_core.simulation_builder import SimulationBuilder
 
 RAIN_RATE = 10.0 / (1000 * 3600)
-
-
-class CaptureMassBalanceOutputProvider(MassBalanceOutputProvider):
-    def __init__(self) -> None:
-        self.reports: list[MassBalanceData] = []
-
-    def log(self, report_data: MassBalanceData) -> None:
-        self.reports.append(report_data)
 
 
 def test_float32_rain_rate_representation_error_is_negligible():
@@ -122,7 +114,7 @@ def _run_rain_only_simulation(
         dtinf=timestep,
         infiltration_model=InfiltrationModelType.NULL,
     )
-    mass_balance_output = CaptureMassBalanceOutputProvider()
+    mass_balance_output = MemoryMassBalanceOutputProvider()
     simulation = (
         SimulationBuilder(config, np.zeros(shape, dtype=np.bool_), dtype)
         .with_domain_data(domain_data)
@@ -174,7 +166,7 @@ def _run_combined_removal_simulation(
         dtinf=1000.0,
         infiltration_model=infiltration_model,
     )
-    mass_balance_output = CaptureMassBalanceOutputProvider()
+    mass_balance_output = MemoryMassBalanceOutputProvider()
     raster_output = MemoryRasterOutputProvider()
     dtype = np.float32
     simulation = (
