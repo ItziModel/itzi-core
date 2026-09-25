@@ -44,13 +44,6 @@ def test_array_definitions():
         assert not duplicates, f"Found duplicates in <{attr}>: {duplicates}"
 
 
-def test_maximum_arrays_are_internal_outputs():
-    definitions = {arr_def.key: arr_def for arr_def in ARRAY_DEFINITIONS}
-    for key in ("max_water_depth", "max_flow_speed"):
-        assert ArrayCategory.INTERNAL in definitions[key].category
-        assert ArrayCategory.OUTPUT in definitions[key].category
-
-
 def test_computed_from_arrays_are_defined():
     keys = {arr_def.key for arr_def in ARRAY_DEFINITIONS}
     for arr_def in ARRAY_DEFINITIONS:

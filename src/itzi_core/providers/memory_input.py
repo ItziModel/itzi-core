@@ -21,7 +21,7 @@ from typing import NotRequired, TypedDict
 
 import numpy as np
 
-from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi_core.array_definitions import INPUT_ARRAY_KEYS
 from itzi_core.domain_data import DomainData
 from itzi_core.providers.base import RasterInputProvider
 
@@ -39,11 +39,6 @@ class MemoryRasterInputConfig(TypedDict):
     simulation_end_time: datetime
     static_arrays: NotRequired[Mapping[str, np.ndarray]]
     timed_arrays: NotRequired[Mapping[str, Sequence[TimedRasterSlice]]]
-
-
-VALID_INPUT_KEYS: frozenset[str] = frozenset(
-    arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.INPUT in arr_def.category
-)
 
 
 class MemoryRasterInputProvider(RasterInputProvider):
@@ -78,7 +73,7 @@ class MemoryRasterInputProvider(RasterInputProvider):
         }
 
     def _validate_input_keys(self, arrays: Mapping[str, object], *, config_name: str) -> None:
-        invalid_keys = sorted(set(arrays.keys()) - VALID_INPUT_KEYS)
+        invalid_keys = sorted(set(arrays.keys()) - INPUT_ARRAY_KEYS)
         if invalid_keys:
             raise ValueError(f"invalid array keys in {config_name}: {', '.join(invalid_keys)}")
 
