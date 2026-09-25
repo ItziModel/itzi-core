@@ -27,11 +27,17 @@ except ImportError:
         "'uv add itzi-core[xarray]' or 'pip install itzi-core[xarray]'"
     )
 
+from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi_core.const import TemporalType
 from itzi_core.domain_data import DomainData
 from itzi_core.providers.base import RasterInputProvider
 
 __all__ = ["XarrayDimensions", "XarrayRasterInputConfig", "XarrayRasterInputProvider"]
+
+
+VALID_INPUT_KEYS: frozenset[str] = frozenset(
+    arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.INPUT in arr_def.category
+)
 
 
 class XarrayDimensions(BaseModel):
@@ -59,6 +65,12 @@ class XarrayRasterInputConfig(BaseModel):
     def validate_configuration(self) -> XarrayRasterInputConfig:
         if self.simulation_start_time >= self.simulation_end_time:
             raise ValueError("simulation_start_time must be before simulation_end_time")
+
+        invalid_input_keys = sorted(set(self.input_map_names) - VALID_INPUT_KEYS)
+        if invalid_input_keys:
+            raise ValueError(
+                f"input_map_names contain invalid input keys: {', '.join(invalid_input_keys)}"
+            )
 
         dataset_var_names = {str(var_name) for var_name in self.dataset.data_vars}
         unknown_map_variables = sorted(set(self.input_map_names.values()) - dataset_var_names)

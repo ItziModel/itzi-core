@@ -324,6 +324,10 @@ def test_xarray_input_config_rejects_invalid_values(xarray_input_data: dict, def
         XarrayRasterInputConfig.model_validate(config_data | {"unknown_option": True})
     with pytest.raises(ValidationError):
         XarrayRasterInputConfig.model_validate(config_data | {"input_map_names": {}})
+    with pytest.raises(ValidationError, match="invalid input keys: rainfall"):
+        XarrayRasterInputConfig.model_validate(
+            config_data | {"input_map_names": {"rainfall": "rainfall"}}
+        )
     with pytest.raises(ValidationError):
         XarrayRasterInputConfig.model_validate(
             config_data | {"input_map_names": {"ground_elevation": "missing"}}
