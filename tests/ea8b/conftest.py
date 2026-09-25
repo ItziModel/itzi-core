@@ -33,8 +33,8 @@ pyproj = pytest.importorskip("pyproj")
 # ruff: noqa: E402
 from itzi_core.const import TemporalType
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
-from itzi_core.providers.csv_mass_balance_output import CSVMassBalanceOutputProvider
 from itzi_core.providers.memory_output import (
+    MemoryMassBalanceOutputProvider,
     MemoryRasterOutputProvider,
     MemoryVectorOutputProvider,
 )
@@ -175,13 +175,14 @@ def ea8b_simulation(ea8b_data, test_data_path, ea8b_temp_path):
     )
     raster_output_provider = MemoryRasterOutputProvider()
     vector_output_provider = MemoryVectorOutputProvider()
+    mass_balance_output_provider = MemoryMassBalanceOutputProvider()
 
     simulation = (
         SimulationBuilder(sim_config, arr_mask)
         .with_input_provider(raster_input_provider)
         .with_raster_output_provider(raster_output_provider)
         .with_vector_output_provider(vector_output_provider)
-        .with_mass_balance_output_provider(CSVMassBalanceOutputProvider(file_name="ea8b.csv"))
+        .with_mass_balance_output_provider(mass_balance_output_provider)
         .build()
     )
 
@@ -214,6 +215,7 @@ def ea8b_simulation(ea8b_data, test_data_path, ea8b_temp_path):
     return {
         "raster_output": raster_output_provider,
         "vector_output": vector_output_provider,
+        "mass_balance_output": mass_balance_output_provider,
         "hotstart_split_path": hotstart_split_path,
         "hotstart_end_path": hotstart_end_path,
         "final_state_path": final_state_path,

@@ -13,7 +13,7 @@ GNU Lesser General Public License for more details.
 """
 
 import csv
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -43,11 +43,18 @@ def test_init_with_default_filename(tmp_path, monkeypatch):
     assert provider.file_name.endswith("_stats.csv")
 
 
-def test_log_absolute_time(provider_fixture):
+@pytest.mark.parametrize(
+    "test_time",
+    [
+        datetime(2000, 1, 1, tzinfo=UTC),
+        timedelta(hours=1, minutes=23, seconds=45),
+    ],
+    ids=["absolute", "relative"],
+)
+def test_log_temporal_value(provider_fixture, test_time):
     provider = CSVMassBalanceOutputProvider(
         file_name=provider_fixture["file_name"],
     )
-    test_time = datetime.now(UTC)
     test_data = MassBalanceData(
         simulation_time=test_time,
         average_timestep=12.42345,
