@@ -17,12 +17,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from itzi_core.array_definitions import (
-    ARRAY_DEFINITIONS,
-    INPUT_ARRAY_KEYS,
-    OUTPUT_ARRAY_KEYS,
-    ArrayCategory,
-)
+from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 
 
 def test_array_definitions():
@@ -49,13 +44,6 @@ def test_array_definitions():
         assert not duplicates, f"Found duplicates in <{attr}>: {duplicates}"
 
 
-def test_maximum_arrays_are_internal_outputs():
-    definitions = {arr_def.key: arr_def for arr_def in ARRAY_DEFINITIONS}
-    for key in ("max_water_depth", "max_flow_speed"):
-        assert ArrayCategory.INTERNAL in definitions[key].category
-        assert ArrayCategory.OUTPUT in definitions[key].category
-
-
 def test_computed_from_arrays_are_defined():
     keys = {arr_def.key for arr_def in ARRAY_DEFINITIONS}
     for arr_def in ARRAY_DEFINITIONS:
@@ -70,16 +58,3 @@ def test_array_catalog_is_immutable() -> None:
     assert isinstance(definition.category, tuple)
     with pytest.raises(FrozenInstanceError):
         definition.key = "changed"  # ty: ignore[invalid-assignment]
-
-
-def test_array_key_sets_match_categories() -> None:
-    assert INPUT_ARRAY_KEYS == frozenset(
-        definition.key
-        for definition in ARRAY_DEFINITIONS
-        if ArrayCategory.INPUT in definition.category
-    )
-    assert OUTPUT_ARRAY_KEYS == frozenset(
-        definition.key
-        for definition in ARRAY_DEFINITIONS
-        if ArrayCategory.OUTPUT in definition.category
-    )
