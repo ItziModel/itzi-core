@@ -31,10 +31,19 @@ from pydantic import (
     field_validator,
 )
 
+from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi_core.const import DefaultValues, InfiltrationModelType, TemporalType
 
 if TYPE_CHECKING:
     from itzi_core.drainage import DrainageNode
+
+
+VALID_INPUT_MAP_KEYS = frozenset(
+    arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.INPUT in arr_def.category
+)
+VALID_OUTPUT_MAP_KEYS = frozenset(
+    arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.OUTPUT in arr_def.category
+)
 
 
 class DrainageNodeCouplingData(BaseModel):
@@ -250,12 +259,32 @@ class SimulationConfig(BaseModel):
     free_weir_coeff: NonNegativeFloat = Field(DefaultValues.FREE_WEIR_COEFF, ge=0, le=1)
     submerged_weir_coeff: NonNegativeFloat = Field(DefaultValues.SUBMERGED_WEIR_COEFF, ge=0, le=1)
 
-    @field_validator("input_map_names", "output_map_names", mode="before")
+    @field_validator("input_map_names", mode="before")
     @classmethod
-    def remove_inactive_map_names(cls, value: object) -> object:
-        """Normalize legacy null-valued map entries to omitted inactive entries."""
+    def validate_input_map_names(cls, value: object) -> object:
+        """Normalize inactive entries and validate canonical input keys."""
         if isinstance(value, dict):
-            return {key: map_name for key, map_name in value.items() if map_name is not None}
+            map_names = {key: map_name for key, map_name in value.items() if map_name is not None}
+            invalid_keys = sorted(set(map_names) - VALID_INPUT_MAP_KEYS)
+            if invalid_keys:
+                raise ValueError(
+                    f"input_map_names contain invalid input keys: {', '.join(invalid_keys)}"
+                )
+            return map_names
+        return value
+
+    @field_validator("output_map_names", mode="before")
+    @classmethod
+    def validate_output_map_names(cls, value: object) -> object:
+        """Normalize inactive entries and validate canonical output keys."""
+        if isinstance(value, dict):
+            map_names = {key: map_name for key, map_name in value.items() if map_name is not None}
+            invalid_keys = sorted(set(map_names) - VALID_OUTPUT_MAP_KEYS)
+            if invalid_keys:
+                raise ValueError(
+                    f"output_map_names contain invalid output keys: {', '.join(invalid_keys)}"
+                )
+            return map_names
         return value
 
     def as_str_dict(self) -> dict:
