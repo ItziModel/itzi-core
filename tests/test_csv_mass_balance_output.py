@@ -14,6 +14,7 @@ GNU Lesser General Public License for more details.
 
 import csv
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -24,7 +25,7 @@ from itzi_core.providers.csv_mass_balance_output import CSVMassBalanceOutputProv
 
 @pytest.fixture
 def provider_fixture(tmp_path):
-    return {"file_name": str(tmp_path / "stats.csv")}
+    return {"file_name": tmp_path / "stats.csv"}
 
 
 def test_init_with_custom_filename(provider_fixture):
@@ -35,12 +36,19 @@ def test_init_with_custom_filename(provider_fixture):
     assert provider.file_name == provider_fixture["file_name"]
 
 
+def test_init_with_string_filename(tmp_path):
+    file_name = str(tmp_path / "stats.csv")
+    provider = CSVMassBalanceOutputProvider(file_name=file_name)
+
+    assert provider.file_name == Path(file_name)
+
+
 def test_init_with_default_filename(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     provider = CSVMassBalanceOutputProvider(
         file_name="",
     )
-    assert provider.file_name.endswith("_stats.csv")
+    assert provider.file_name.name.endswith("_stats.csv")
 
 
 @pytest.mark.parametrize(
@@ -74,7 +82,7 @@ def test_log_temporal_value(provider_fixture, test_time):
     )
 
     provider.log(test_data)
-    with open(provider_fixture["file_name"], "r") as f:
+    with provider_fixture["file_name"].open() as f:
         reader = csv.DictReader(f)
         assert reader.fieldnames == list(MassBalanceData.model_fields)
         row = next(reader)
