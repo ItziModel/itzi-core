@@ -15,6 +15,7 @@ GNU Lesser General Public License for more details.
 import csv
 import numbers
 from datetime import datetime
+from pathlib import Path
 
 from itzi_core.data_containers import MassBalanceData
 from itzi_core.providers.base import MassBalanceOutputProvider
@@ -23,30 +24,23 @@ from itzi_core.providers.base import MassBalanceOutputProvider
 class CSVMassBalanceOutputProvider(MassBalanceOutputProvider):
     """Writes pre-calculated mass balance data to a CSV file."""
 
-    def __init__(
-        self,
-        file_name: str,
-    ):
-        """Initialize the provider and create the output file with headers."""
+    def __init__(self, file_name: str | Path):
         self.fields = list(MassBalanceData.model_fields.keys())
         self.file_name = self._set_file_name(file_name)
         self._create_file()
 
-    def _set_file_name(self, file_name: str) -> str:
-        """Generate output file name"""
+    def _set_file_name(self, file_name: str | Path) -> Path:
         if not file_name:
             timestamp = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")  # noqa: DTZ005
-            file_name = f"{timestamp}_stats.csv"
-        return file_name
+            return Path(f"{timestamp}_stats.csv")
+        return Path(file_name)
 
     def _create_file(self) -> None:
-        """Create a csv file and write headers"""
-        with open(self.file_name, "w", newline="") as f:
+        with self.file_name.open("w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=self.fields)
             writer.writeheader()
 
     def log(self, report_data: MassBalanceData) -> None:
-        """Writes a single line of data to the CSV file."""
         line_to_write = {}
 
         for key, value in report_data.model_dump().items():
@@ -57,6 +51,6 @@ class CSVMassBalanceOutputProvider(MassBalanceOutputProvider):
             else:
                 line_to_write[key] = value
 
-        with open(self.file_name, "a", newline="") as f:
+        with self.file_name.open("a", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=self.fields)
             writer.writerow(line_to_write)
