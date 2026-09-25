@@ -18,8 +18,16 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
-from itzi_core.data_containers import DrainageNetworkAttributes, DrainageNetworkTopology
-from itzi_core.providers.base import RasterOutputProvider, VectorOutputProvider
+from itzi_core.data_containers import (
+    DrainageNetworkAttributes,
+    DrainageNetworkTopology,
+    MassBalanceData,
+)
+from itzi_core.providers.base import (
+    MassBalanceOutputProvider,
+    RasterOutputProvider,
+    VectorOutputProvider,
+)
 
 
 class MemoryRasterOutputProvider(RasterOutputProvider):
@@ -36,6 +44,16 @@ class MemoryRasterOutputProvider(RasterOutputProvider):
                 self.output_maps_dict.setdefault(arr_key, []).append(
                     (deepcopy(sim_time), arr.copy())
                 )
+
+
+class MemoryMassBalanceOutputProvider(MassBalanceOutputProvider):
+    """Save mass-balance reports in memory."""
+
+    def __init__(self) -> None:
+        self.reports: list[MassBalanceData] = []
+
+    def log(self, report_data: MassBalanceData) -> None:
+        self.reports.append(report_data)
 
 
 class MemoryVectorOutputProvider(VectorOutputProvider):
