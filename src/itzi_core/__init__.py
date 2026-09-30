@@ -5,6 +5,15 @@ from itzi_core.array_definitions import (
     INPUT_ARRAY_KEYS as INPUT_ARRAY_KEYS,
 )
 from itzi_core.array_definitions import (
+    INPUT_GREEN_AMPT_KEYS as INPUT_GREEN_AMPT_KEYS,
+)
+from itzi_core.array_definitions import (
+    INPUT_HYDROLOGY_KEYS as INPUT_HYDROLOGY_KEYS,
+)
+from itzi_core.array_definitions import (
+    INPUT_STAGE_KEYS as INPUT_STAGE_KEYS,
+)
+from itzi_core.array_definitions import (
     OUTPUT_ARRAY_KEYS as OUTPUT_ARRAY_KEYS,
 )
 from itzi_core.array_definitions import (
@@ -38,6 +47,9 @@ from itzi_core.surfaceflow import (
 __all__ = [
     "ARRAY_DEFINITIONS",
     "INPUT_ARRAY_KEYS",
+    "INPUT_GREEN_AMPT_KEYS",
+    "INPUT_HYDROLOGY_KEYS",
+    "INPUT_STAGE_KEYS",
     "OUTPUT_ARRAY_KEYS",
     "ArrayCategory",
     "ArrayDefinition",

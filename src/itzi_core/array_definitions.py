@@ -24,6 +24,9 @@ class ArrayCategory(Enum):
     """Categories of arrays in the simulation"""
 
     INPUT = "INPUT"  # Read from external sources (maps, time series)
+    INPUT_STAGE = "STAGE_INPUT_KEYS"
+    INPUT_GREEN_AMPT = "INPUT_GREEN_AMPT"
+    INPUT_HYDROLOGY = "INPUT_HYDROLOGY"
     INTERNAL = "INTERNAL"  # Computed during simulation (state variables)
     ACCUMULATION = "ACCUMULATION"  # Time-integrated values for reporting
     OUTPUT = "OUTPUT"  # Derived arrays for output/reporting
@@ -45,7 +48,7 @@ class ArrayDefinition:
     description: str  # Human-readable description
     unit: str  # Physical units of the array
     cf_unit: str  # The unit expected by the CF convention
-    var_loc: Literal["face", "edge"]  # Location of the value.
+    var_loc: Literal["face", "edge"]  # Location of the value in the cell.
     fill_value: float | int = 0.0  # Fill value (replace NaN)
     computes_from: str | None = None  # For accumulation arrays
     dtype: DTypeLike | None = None  # Optional storage dtype override
@@ -82,7 +85,11 @@ _INPUT_ARRAY_DEFINITIONS = [
         key="water_depth",
         csdms_name="land_surface_water__depth",
         cf_name="flood_water_thickness",
-        category=(ArrayCategory.INPUT, ArrayCategory.OUTPUT),
+        category=(
+            ArrayCategory.INPUT,
+            ArrayCategory.OUTPUT,
+            ArrayCategory.INPUT_STAGE,
+        ),
         description="Water depth.",
         unit="m",
         cf_unit="m",
@@ -93,7 +100,11 @@ _INPUT_ARRAY_DEFINITIONS = [
         key="effective_porosity",
         csdms_name="soil_water__effective_porosity",
         cf_name="",
-        category=(ArrayCategory.INPUT,),
+        category=(
+            ArrayCategory.INPUT,
+            ArrayCategory.INPUT_HYDROLOGY,
+            ArrayCategory.INPUT_GREEN_AMPT,
+        ),
         description="Porosity available to contribute to fluid flow.",
         unit="m/m",
         cf_unit="1",
@@ -104,7 +115,11 @@ _INPUT_ARRAY_DEFINITIONS = [
         key="capillary_pressure",
         csdms_name="soil_water__pressure_head",
         cf_name="",
-        category=(ArrayCategory.INPUT,),
+        category=(
+            ArrayCategory.INPUT,
+            ArrayCategory.INPUT_HYDROLOGY,
+            ArrayCategory.INPUT_GREEN_AMPT,
+        ),
         description="Soil capillary pressure. Also called suction head.",
         unit="m",
         cf_unit="m",
@@ -115,7 +130,11 @@ _INPUT_ARRAY_DEFINITIONS = [
         key="hydraulic_conductivity",
         csdms_name="soil_water__hydraulic_conductivity",
         cf_name="soil_hydraulic_conductivity_at_saturation",
-        category=(ArrayCategory.INPUT,),
+        category=(
+            ArrayCategory.INPUT,
+            ArrayCategory.INPUT_HYDROLOGY,
+            ArrayCategory.INPUT_GREEN_AMPT,
+        ),
         description="Soil’s ability to transmit water through its pores during infiltration.",
         unit="m s-1",
         cf_unit="m s-1",
@@ -126,7 +145,11 @@ _INPUT_ARRAY_DEFINITIONS = [
         key="soil_water_content",
         csdms_name="soil_water__volume_fraction",
         cf_name="volume_fraction_of_condensed_water_in_soil",
-        category=(ArrayCategory.INPUT,),
+        category=(
+            ArrayCategory.INPUT,
+            ArrayCategory.INPUT_HYDROLOGY,
+            ArrayCategory.INPUT_GREEN_AMPT,
+        ),
         description="Relative soil water content.",
         unit="m/m",
         cf_unit="1",
@@ -137,7 +160,10 @@ _INPUT_ARRAY_DEFINITIONS = [
         key="infiltration",
         csdms_name="soil_surface_water__infiltration_leq-volume_flux",
         cf_name="",
-        category=(ArrayCategory.INPUT,),
+        category=(
+            ArrayCategory.INPUT,
+            ArrayCategory.INPUT_HYDROLOGY,
+        ),
         description="User-defined infiltration rate.",
         unit="m s-1",
         cf_unit="",
@@ -148,7 +174,10 @@ _INPUT_ARRAY_DEFINITIONS = [
         key="losses",
         csdms_name="land_surface_water__losses_leq-volume_flux",
         cf_name="",
-        category=(ArrayCategory.INPUT,),
+        category=(
+            ArrayCategory.INPUT,
+            ArrayCategory.INPUT_HYDROLOGY,
+        ),
         description="User-defined water losses.",
         unit="m s-1",
         cf_unit="",
@@ -159,7 +188,10 @@ _INPUT_ARRAY_DEFINITIONS = [
         key="rainfall_rate",
         csdms_name="atmosphere_water__precipitation_leq-volume_flux",
         cf_name="rainfall_rate",
-        category=(ArrayCategory.INPUT,),
+        category=(
+            ArrayCategory.INPUT,
+            ArrayCategory.INPUT_HYDROLOGY,
+        ),
         description="User-provided precipitation rate.",
         unit="m s-1",
         cf_unit="",
@@ -475,7 +507,11 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         key="water_surface_elevation",
         csdms_name="land_surface_water_surface__elevation",
         cf_name="water_surface_height_above_reference_datum",
-        category=(ArrayCategory.INPUT, ArrayCategory.OUTPUT),
+        category=(
+            ArrayCategory.INPUT,
+            ArrayCategory.OUTPUT,
+            ArrayCategory.INPUT_STAGE,
+        ),
         description="Water surface elevation. Terrain elevation + water depth",
         unit="m",
         cf_unit="",
@@ -600,6 +636,19 @@ ARRAY_DEFINITIONS = tuple(
 
 INPUT_ARRAY_KEYS = frozenset(
     arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.INPUT in arr_def.category
+)
+INPUT_STAGE_KEYS = frozenset(
+    arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.INPUT_STAGE in arr_def.category
+)
+INPUT_HYDROLOGY_KEYS = frozenset(
+    arr_def.key
+    for arr_def in ARRAY_DEFINITIONS
+    if ArrayCategory.INPUT_HYDROLOGY in arr_def.category
+)
+INPUT_GREEN_AMPT_KEYS = frozenset(
+    arr_def.key
+    for arr_def in ARRAY_DEFINITIONS
+    if ArrayCategory.INPUT_GREEN_AMPT in arr_def.category
 )
 OUTPUT_ARRAY_KEYS = frozenset(
     arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.OUTPUT in arr_def.category
