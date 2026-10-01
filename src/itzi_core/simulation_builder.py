@@ -26,7 +26,12 @@ import pyswmm
 from numpy.typing import ArrayLike, DTypeLike
 
 from itzi_core import infiltration
-from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi_core.array_definitions import (
+    ARRAY_DEFINITIONS,
+    INPUT_HYDROLOGY_KEYS,
+    INPUT_STAGE_KEYS,
+    ArrayCategory,
+)
 from itzi_core.const import InfiltrationModelType
 from itzi_core.data_containers import DrainageNodeCouplingData
 from itzi_core.drainage import CouplingTypes, DrainageLink, DrainageNode, DrainageSimulation
@@ -62,19 +67,6 @@ if TYPE_CHECKING:
 
 class SimulationBuilder:
     """Builder for creating Simulation objects with different provider configurations."""
-
-    _STAGE_INPUT_KEYS = frozenset({"water_depth", "water_surface_elevation"})
-    _HYDROLOGY_INPUT_KEYS = frozenset(
-        {
-            "rainfall_rate",
-            "losses",
-            "infiltration",
-            "effective_porosity",
-            "capillary_pressure",
-            "hydraulic_conductivity",
-            "soil_water_content",
-        }
-    )
 
     def __init__(
         self,
@@ -202,7 +194,7 @@ class SimulationBuilder:
             )
 
         changed_input_keys = self._changed_input_keys(resume_config)
-        changed_stage_keys = changed_input_keys & self._STAGE_INPUT_KEYS
+        changed_stage_keys = changed_input_keys & INPUT_STAGE_KEYS
         if changed_stage_keys:
             raise HotstartError(
                 "Hotstart input map changes are not supported for evolved stage inputs: "
@@ -432,7 +424,7 @@ class SimulationBuilder:
             )
             for array_key, array in updates:
                 simulation.set_array(array_key, array, simulation.sim_time)
-            if changed_input_keys & self._HYDROLOGY_INPUT_KEYS:
+            if changed_input_keys & INPUT_HYDROLOGY_KEYS:
                 simulation.schedule.set_deadline("hydrology", simulation.sim_time)
             if (
                 not changed_input_keys

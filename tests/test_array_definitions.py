@@ -17,7 +17,14 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi_core.array_definitions import (
+    ARRAY_DEFINITIONS,
+    INPUT_ARRAY_KEYS,
+    INPUT_GREEN_AMPT_KEYS,
+    INPUT_HYDROLOGY_KEYS,
+    INPUT_STAGE_KEYS,
+    ArrayCategory,
+)
 
 
 def test_array_definitions():
@@ -50,6 +57,12 @@ def test_computed_from_arrays_are_defined():
         if arr_def.computes_from is not None:
             assert arr_def.computes_from in keys
             assert arr_def.computes_from != arr_def.key
+
+
+def test_input_key_groups_are_consistent():
+    assert INPUT_STAGE_KEYS <= INPUT_ARRAY_KEYS
+    assert INPUT_HYDROLOGY_KEYS <= INPUT_ARRAY_KEYS
+    assert INPUT_GREEN_AMPT_KEYS <= INPUT_HYDROLOGY_KEYS
 
 
 def test_array_catalog_is_immutable() -> None:
