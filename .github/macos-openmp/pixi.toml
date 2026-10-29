@@ -1,0 +1,11 @@
+[workspace]
+name = "itzi-macos-openmp"
+channels = ["conda-forge"]
+platforms = ["osx-arm64"]
+
+[system-requirements]
+macos = "15.0"
+
+[dependencies]
+# This build supports macOS 11.0; another 23.1.4 build requires macOS 15.5.
+llvm-openmp = { version = "==23.1.4", build = "hdb3d66b_0" }
