@@ -173,7 +173,7 @@ class SimulationData:
 
 
 class MassBalanceData(BaseModel):
-    """Contains the fields written to the mass balance file"""
+    """Contains the fields of a mass-balance report."""
 
     model_config = ConfigDict(frozen=True)
 

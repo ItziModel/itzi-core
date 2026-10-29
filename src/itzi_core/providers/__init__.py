@@ -32,12 +32,8 @@ from itzi_core.providers.base import (
 from itzi_core.providers.base import (
     VectorOutputProvider as VectorOutputProvider,
 )
-from itzi_core.providers.csv_mass_balance_output import (
-    CSVMassBalanceOutputProvider as CSVMassBalanceOutputProvider,
-)
 
 __all__ = [
-    "CSVMassBalanceOutputProvider",
     "DomainData",
     "DrainageLinkAttributes",
     "DrainageLinkTopology",
