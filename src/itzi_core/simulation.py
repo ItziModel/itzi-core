@@ -18,7 +18,7 @@ import copy
 import io
 import logging
 from collections.abc import Mapping
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Self
 
 import numpy as np
@@ -107,11 +107,6 @@ class Simulation:
                 for n in self.drainage_nodes_list
                 if n.node_object.is_coupled() and n.row is not None and n.col is not None
             }
-
-        if self.sim_config.hotstart_config:
-            self.hotstart_step: timedelta = self.sim_config.hotstart_config.wallclock_step
-            self.hotstart_filename = self.sim_config.hotstart_config.save_file_name
-            self.last_hotstart: datetime = datetime.now(tz=UTC)
 
         # Grid spacing (for BMI)
         self.spacing = (self.raster_domain.dy, self.raster_domain.dx)
@@ -278,16 +273,6 @@ class Simulation:
         self.time_steps_counters["since_start"] = steps_since_start
         self.time_steps_counters["since_last_report"] = steps_since_report
 
-        # Save hotstart
-        if self.sim_config.hotstart_config:
-            wall_time_now: datetime = datetime.now(UTC)
-            elapsed: timedelta = wall_time_now - self.last_hotstart
-            if elapsed >= self.hotstart_step:
-                hotstart_bytes: io.BytesIO = self.create_hotstart()
-                with open(self.hotstart_filename, "wb") as f:
-                    f.write(hotstart_bytes.getbuffer())
-                self.last_hotstart = wall_time_now
-
         return self
 
     def update_until(self, then: timedelta) -> Self:
@@ -444,7 +429,10 @@ class Simulation:
         np.maximum(maximum, values, out=maximum)
 
     def create_hotstart(self) -> io.BytesIO:
-        """Create a hotstart file with the current state of the simulation.
+        """Create an in-memory hotstart archive of the current simulation state.
+
+        The caller controls when to create the archive and how to persist it.
+        Call after initialization or restoration, between completed updates.
 
         Raises:
             RuntimeError: If called before initialize() has established valid state.

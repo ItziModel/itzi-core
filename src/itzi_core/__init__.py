@@ -29,9 +29,6 @@ from itzi_core.const import (
     TemporalType as TemporalType,
 )
 from itzi_core.data_containers import (
-    HotstartRunConfig as HotstartRunConfig,
-)
-from itzi_core.data_containers import (
     SimulationConfig as SimulationConfig,
 )
 from itzi_core.data_containers import (
@@ -54,7 +51,6 @@ __all__ = [
     "ArrayCategory",
     "ArrayDefinition",
     "DomainData",
-    "HotstartRunConfig",
     "InfiltrationModelType",
     "Simulation",
     "SimulationBuilder",
