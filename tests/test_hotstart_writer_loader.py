@@ -279,6 +279,26 @@ class TestHotstartLoaderFromFileAndBytes:
         assert isinstance(loader, HotstartLoader)
         assert loader._metadata is not None
 
+    def test_loader_reuses_buffer_without_reading_the_whole_archive(
+        self, valid_archive_buffer: io.BytesIO
+    ) -> None:
+        """Open the caller's buffer directly and leave it available for reuse."""
+
+        class ArchiveBuffer(io.BytesIO):
+            def read(self, size: int = -1) -> bytes:
+                if self.tell() == 0 and size == -1:
+                    pytest.fail("The complete archive was copied before opening the ZIP")
+                return super().read(size)
+
+        buffer = ArchiveBuffer(valid_archive_buffer.getvalue())
+        loader = HotstartLoader.from_bytes(buffer)
+        buffer.seek(0, io.SEEK_END)
+        reloaded = HotstartLoader.from_bytes(buffer)
+
+        assert not buffer.closed
+        assert reloaded.get_simulation_state() == loader.get_simulation_state()
+        assert reloaded.raster_state_bytes == loader.raster_state_bytes
+
     def test_loader_from_file(
         self,
         valid_archive_buffer: io.BytesIO,
@@ -320,6 +340,53 @@ class TestHotstartLoaderRejectsInvalidArchive:
 
         with pytest.raises(HotstartError, match="not a valid ZIP file"):
             HotstartLoader.from_bytes(bad_zip)
+
+    @pytest.mark.parametrize("metadata", [b"{", b"\xff", b"[]", b"null", b"{}"])
+    def test_loader_rejects_invalid_metadata(self, metadata: bytes) -> None:
+        """Report malformed JSON, encoding, and version fields as checkpoint errors."""
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, mode="w") as zf:
+            zf.writestr(METADATA_FILENAME, metadata)
+            zf.writestr(RASTER_STATE_FILENAME, b"unused")
+
+        with pytest.raises(HotstartError, match="Failed to read hotstart version"):
+            HotstartLoader.from_bytes(buffer)
+
+    def test_loader_closes_archive_on_validation_failure(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Close the ZIP on failure without closing the caller's buffer."""
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, mode="w") as zf:
+            zf.writestr(METADATA_FILENAME, b'{"hotstart_version": 1}')
+            zf.writestr(RASTER_STATE_FILENAME, b"unused")
+
+        archive = zipfile.ZipFile(buffer, mode="r")
+
+        def open_archive(source: io.BytesIO, mode: str) -> zipfile.ZipFile:
+            return archive
+
+        monkeypatch.setattr(zipfile, "ZipFile", open_archive)
+        with pytest.raises(HotstartError, match="Unsupported hotstart version 1"):
+            HotstartLoader.from_bytes(buffer)
+
+        assert archive.fp is None
+        assert not buffer.closed
+
+    def test_loader_rejects_corrupted_zip_member(self) -> None:
+        """Translate ZIP integrity errors raised while reading a checkpoint member."""
+        metadata = b'{"hotstart_version": 2}'
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, mode="w") as zf:
+            zf.writestr(METADATA_FILENAME, metadata)
+            zf.writestr(RASTER_STATE_FILENAME, b"unused")
+
+        corrupted = bytearray(buffer.getvalue())
+        corrupted[corrupted.index(metadata)] ^= 1
+        with pytest.raises(HotstartError, match="corrupted ZIP data") as error:
+            HotstartLoader.from_bytes(bytes(corrupted))
+
+        assert isinstance(error.value.__cause__, zipfile.BadZipFile)
 
     def test_loader_rejects_missing_metadata(self) -> None:
         """Reject archive missing metadata.json."""
@@ -540,3 +607,10 @@ class TestHotstartLoaderFileNotFound:
 
         with pytest.raises(HotstartError, match="Hotstart file not found"):
             HotstartLoader.from_file(nonexistent_file)
+
+    def test_loader_reports_file_access_errors(self, tmp_path: Path) -> None:
+        """Report failures to open the checkpoint through the same error interface."""
+        with pytest.raises(HotstartError, match="Failed to read hotstart archive") as error:
+            HotstartLoader.from_file(tmp_path)
+
+        assert isinstance(error.value.__cause__, OSError)

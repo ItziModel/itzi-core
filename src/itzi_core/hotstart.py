@@ -18,10 +18,13 @@ import hashlib
 import io
 import json
 import zipfile
+import zlib
 from datetime import UTC, datetime
 from importlib.metadata import version
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from pydantic import ValidationError
 
 from itzi_core.hotstart_models import (
     HotstartMetadataV2,
@@ -91,14 +94,14 @@ def create_hotstart_archive(
 
 
 class HotstartLoader:
-    """Load and validate hotstart archives."""
+    """Load trusted checkpoints for a user's simulation pause/resume workflow."""
 
     def __init__(
         self,
         metadata: HotstartMetadataV2,
         raster_state_bytes: bytes,
         swmm_hotstart_bytes: bytes | None,
-    ):
+    ) -> None:
         """
         Initialize a validated hotstart loader.
         """
@@ -112,14 +115,7 @@ class HotstartLoader:
         Raises:
             HotstartError: If the archive is invalid or corrupted
         """
-        path = Path(path)
-        if not path.exists():
-            raise HotstartError(f"Hotstart file not found: {path}")
-
-        with open(path, "rb") as f:
-            data = f.read()
-
-        return cls.from_bytes(data)
+        return cls._from_source(Path(path))
 
     @classmethod
     def from_bytes(cls, data: io.BytesIO | bytes) -> HotstartLoader:
@@ -128,25 +124,38 @@ class HotstartLoader:
             HotstartError: If the archive is invalid or corrupted
         """
         if isinstance(data, io.BytesIO):
-            data.seek(0)
-            archive_bytes = data.read()
-        else:
-            archive_bytes = data
+            return cls._from_source(data)
 
+        with io.BytesIO(data) as zip_buffer:
+            return cls._from_source(zip_buffer)
+
+    @classmethod
+    def _from_source(cls, source: Path | io.BytesIO) -> HotstartLoader:
+        """Open an archive without copying its source into another buffer."""
         try:
-            zip_buffer = io.BytesIO(archive_bytes)
-            zip_file = zipfile.ZipFile(zip_buffer, mode="r")
+            with zipfile.ZipFile(source, mode="r") as zip_file:
+                return cls._load_archive(zip_file)
+        except HotstartError:
+            raise
+        except FileNotFoundError as e:
+            raise HotstartError(f"Hotstart file not found: {source}") from e
         except zipfile.BadZipFile as e:
-            raise HotstartError("Invalid hotstart archive: not a valid ZIP file") from e
+            raise HotstartError(
+                f"Invalid hotstart archive: not a valid ZIP file or corrupted ZIP data: {e}"
+            ) from e
+        except (OSError, EOFError, ValueError, RuntimeError, zlib.error) as e:
+            raise HotstartError(f"Failed to read hotstart archive: {e}") from e
 
+    @classmethod
+    def _load_archive(cls, zip_file: zipfile.ZipFile) -> HotstartLoader:
         cls._validate_archive_structure(zip_file)
 
         # Reject unsupported versions before validating metadata.
         try:
             metadata_bytes = zip_file.read(METADATA_FILENAME)
-            metadata_data = json.loads(metadata_bytes)
+            metadata_data = json.loads(metadata_bytes.decode("utf-8"))
             archive_version = metadata_data["hotstart_version"]
-        except (json.JSONDecodeError, KeyError, TypeError) as e:
+        except (ValueError, KeyError, TypeError, RecursionError) as e:
             raise HotstartError(f"Failed to read hotstart version: {e}") from e
 
         if archive_version != HOTSTART_VERSION:
@@ -157,19 +166,13 @@ class HotstartLoader:
 
         try:
             metadata = HotstartMetadataV2.model_validate(metadata_data)
-        except Exception as e:
+        except ValidationError as e:
             raise HotstartError(f"Failed to validate metadata: {e}") from e
 
-        try:
-            raster_state_bytes = zip_file.read(RASTER_STATE_FILENAME)
-        except KeyError as e:
-            raise HotstartError("Missing raster state in archive") from e
-
+        raster_state_bytes = zip_file.read(RASTER_STATE_FILENAME)
         swmm_hotstart_bytes = None
         if SWMM_HOTSTART_FILENAME in zip_file.namelist():
             swmm_hotstart_bytes = zip_file.read(SWMM_HOTSTART_FILENAME)
-
-        zip_file.close()
 
         cls._validate_hashes(metadata.simulation_state, raster_state_bytes, swmm_hotstart_bytes)
 
