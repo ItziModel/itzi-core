@@ -14,8 +14,6 @@ The xarray provider is available through the optional `xarray` dependency group.
 
 ## Installation
 
-Itzi Core requires Python 3.12 or above.
-
 Install the base package with `pip`:
 
 ```bash
@@ -40,10 +38,10 @@ With uv:
 uv add "itzi-core[xarray]"
 ```
 
-For development from a source checkout, use [uv](https://docs.astral.sh/uv/):
+For development from source:
 
 ```bash
-uv sync
+uv sync --all-extras
 uv pip install -e .
 ```
 
@@ -70,7 +68,7 @@ uv run pytest tests/test_xarray_input.py
 Format the project:
 
 ```bash
-uvx ruff format .
+uv run ruff format .
 ```
 
 The numerical kernels include Cython extensions.
@@ -79,6 +77,17 @@ Rebuild the editable installation after changing a `.pyx` file:
 ```bash
 uv pip install -e .
 ```
+
+## Release procedure
+
+1. Update `project.version` in `pyproject.toml` to the next stable version and
+   merge it into `main`.
+2. Create and push the matching annotated tag from the canonical repository:
+
+   ```bash
+   git tag -a vX.Y.Z -m "Release vX.Y.Z"
+   git push upstream vX.Y.Z
+   ```
 
 ## License
 
