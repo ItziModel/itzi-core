@@ -1,0 +1,23 @@
+version: 6
+environments:
+  default:
+    channels:
+    - url: https://conda.anaconda.org/conda-forge/
+    options:
+      pypi-prerelease-mode: if-necessary-or-explicit
+    packages:
+      osx-arm64:
+      - conda: https://conda.anaconda.org/conda-forge/osx-arm64/llvm-openmp-23.1.4-hdb3d66b_0.conda
+packages:
+- conda: https://conda.anaconda.org/conda-forge/osx-arm64/llvm-openmp-23.1.4-hdb3d66b_0.conda
+  sha256: cc6d67df56d4ea967e17d938d3108cdf7d971531350df9e7fc5e18cb89066a70
+  md5: 9a6ec2a53da5d75951b88c51018c27fa
+  depends:
+  - __osx >=11.0
+  constrains:
+  - intel-openmp <0.0a0
+  - openmp 23.1.4|23.1.4.*
+  license: Apache-2.0 WITH LLVM-exception
+  license_family: APACHE
+  size: 287495
+  timestamp: 1792567065537

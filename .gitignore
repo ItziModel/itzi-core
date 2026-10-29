@@ -14,5 +14,6 @@ build/
 dist/
 *.egg-info/
 wheelhouse/
+.pixi/
 docs/_build/
 tests/test_data_temp/

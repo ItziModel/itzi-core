@@ -14,10 +14,12 @@ GNU Lesser General Public License for more details.
 
 import os
 import platform
-from setuptools import setup
-from setuptools.extension import Extension
-from setuptools.command.build_ext import build_ext
+from pathlib import Path
+
 from Cython.Build import cythonize
+from setuptools import setup
+from setuptools.command.build_ext import build_ext
+from setuptools.extension import Extension
 
 BUILD_JOBS = 5
 
@@ -67,10 +69,24 @@ class BuildConfig:
         if self.openmp_override is not None:
             return self.openmp_override
 
-        if self.is_wheel_build and self.platform == "macos" and self.architecture == "arm64":
-            return False
+        return not (
+            self.is_wheel_build and self.platform == "macos" and self.architecture == "arm64"
+        )
 
-        return True
+    def get_macos_openmp_paths(self) -> tuple[list[str], list[str]]:
+        """Select OpenMP paths, honoring an explicit runtime installation."""
+        prefix = os.getenv("ITZI_OPENMP_PREFIX")
+        if prefix is not None:
+            root = Path(prefix).expanduser().resolve()
+            for required in (root / "include" / "omp.h", root / "lib" / "libomp.dylib"):
+                if not required.is_file():
+                    raise FileNotFoundError(f"ITZI_OPENMP_PREFIX is missing {required}")
+            return [str(root / "include")], [str(root / "lib")]
+
+        return (
+            [path for path in macos_includes if os.path.isdir(path)],
+            [path for path in macos_libs if os.path.isdir(path)],
+        )
 
     def detect_platform(self):
         """Detect current platform (Linux, Windows, macOS)"""
@@ -244,7 +260,7 @@ class build_ext_compiler_check(build_ext):
         if self.parallel is None:
             self.parallel = BUILD_JOBS
 
-    def build_extensions(self):
+    def build_extensions(self) -> None:
         build_config = BuildConfig()
         compiler = self.compiler.compiler_type
         print(f"Compiler detected: {compiler}")
@@ -253,6 +269,11 @@ class build_ext_compiler_check(build_ext):
         print(f"Architecture: {build_config.architecture}")
         print(f"OpenMP enabled: {build_config.use_openmp}")
         print(f"Parallel build jobs: {self.parallel}")
+
+        # Validate an explicit runtime before the legacy fallback can catch errors.
+        include_dirs, library_dirs = [], []
+        if compiler == "unix" and build_config.platform == "macos" and build_config.use_openmp:
+            include_dirs, library_dirs = build_config.get_macos_openmp_paths()
 
         # Get optimization flags from BuildConfig
         try:
@@ -266,22 +287,7 @@ class build_ext_compiler_check(build_ext):
                 ext.extra_compile_args = compile_args
                 ext.extra_link_args = link_args
 
-                # Add macOS-specific include and library paths if needed
-                if (
-                    compiler == "unix"
-                    and platform.system() == "Darwin"
-                    and build_config.use_openmp
-                ):
-                    for path in macos_includes:
-                        if os.path.exists(path):
-                            ext.include_dirs.append(path)
-                            print(f"{path} added to include_dirs")
-                    for path in macos_libs:
-                        if os.path.exists(path):
-                            ext.library_dirs.append(path)
-                            print(f"{path} added to library_dirs")
-
-        except Exception as e:
+        except (AttributeError, TypeError, ValueError) as e:
             print(
                 f"Warning: Failed to get optimized flags ({e}), falling back to legacy configuration"
             )
@@ -310,12 +316,6 @@ class build_ext_compiler_check(build_ext):
                         if build_config.use_openmp:
                             ext.extra_compile_args = build_config.base_compile_args_macos.copy()
                             ext.extra_link_args = ["-lomp"]
-                            for path in macos_includes:
-                                if os.path.exists(path):
-                                    ext.include_dirs.append(path)
-                            for path in macos_libs:
-                                if os.path.exists(path):
-                                    ext.library_dirs.append(path)
                         else:
                             ext.extra_compile_args = build_config.base_compile_args_plain.copy()
                             ext.extra_link_args = []
@@ -326,6 +326,13 @@ class build_ext_compiler_check(build_ext):
                         else:
                             ext.extra_compile_args = build_config.base_compile_args_plain.copy()
                             ext.extra_link_args = []
+
+        for ext in self.extensions:
+            ext.include_dirs.extend(include_dirs)
+            ext.library_dirs.extend(library_dirs)
+            if library_dirs and os.getenv("ITZI_OPENMP_PREFIX") is not None:
+                # The conda runtime uses @rpath/libomp.dylib; delocate needs to resolve it.
+                ext.extra_link_args = [*ext.extra_link_args, f"-Wl,-rpath,{library_dirs[0]}"]
 
         build_ext.build_extensions(self)
 
