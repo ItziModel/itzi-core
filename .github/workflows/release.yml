@@ -24,7 +24,7 @@ jobs:
           echo "Releases may only run from ItziModel/itzi-core." >&2
           exit 1
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Verify the tag and package version
         run: python scripts/release_checks.py verify-version "$GITHUB_REF_NAME"
@@ -44,9 +44,9 @@ jobs:
     needs: [test, build]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         with:
           pattern: cibw-*
           merge-multiple: true
@@ -78,7 +78,7 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         with:
           pattern: cibw-*
           merge-multiple: true
@@ -95,7 +95,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         with:
           pattern: cibw-*
           merge-multiple: true

@@ -22,7 +22,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y ca-certificates clang build-essential libomp-dev nodejs
 
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       with:
         lfs: true
 
@@ -36,7 +36,7 @@ jobs:
         $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --junitxml=junit/test-core-results.xml --cov-report=xml --cov-report=html tests/*
 
     - name: Upload coverage
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: coverage-report-${{ matrix.python-version }}
         path: |
