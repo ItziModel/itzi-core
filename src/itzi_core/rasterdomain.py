@@ -13,9 +13,12 @@ GNU Lesser General Public License for more details.
 """
 
 import io
+import zipfile
+import zlib
 from typing import Self
 
 import numpy as np
+from numpy.lib.npyio import NpzFile
 
 from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi_core.itzi_error import HotstartError
@@ -193,12 +196,33 @@ class RasterDomain:
         Raises:
             HotstartError: If the state is incompatible with the current domain.
         """
-        npz_data.seek(0)
         try:
-            npz = np.load(npz_data, allow_pickle=False)
-        except Exception as e:
+            npz_data.seek(0)
+            with np.load(npz_data, allow_pickle=False) as npz:
+                validated_arrays = self._validate_state(npz)
+        except HotstartError:
+            raise
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            EOFError,
+            OverflowError,
+            zipfile.BadZipFile,
+            RuntimeError,
+            zlib.error,
+        ) as e:
             raise HotstartError(f"Failed to load raster state: {e}") from e
 
+        # All validations passed - restore the arrays.
+        for key, arrp in validated_arrays.items():
+            self.arrp[key][:] = arrp
+            self.arr[key][:] = arrp[self.simple_pad]
+
+        return self
+
+    def _validate_state(self, npz: NpzFile) -> dict[str, np.ndarray]:
+        """Load each array once and validate the complete state before restoration."""
         # Every keys must be present. No more, no less.
         archive_keys = set(npz.files) - {"mask"}
         expected_keys = self.k_all
@@ -217,6 +241,8 @@ class RasterDomain:
         if "mask" not in npz.files:
             raise HotstartError("Raster state missing 'mask' array")
         stored_mask = npz["mask"]
+        if not isinstance(stored_mask, np.ndarray):
+            raise HotstartError("Raster state 'mask' is not a NumPy array")
         if stored_mask.dtype != self.mask.dtype:
             raise HotstartError(
                 f"Mask dtype mismatch: archive has {stored_mask.dtype}, "
@@ -235,19 +261,17 @@ class RasterDomain:
 
         # Padded shape is (rows+2, cols+2) due to 1-cell padding on all sides
         padded_shape = (self.shape[0] + 2, self.shape[1] + 2)
-        # Verify all array shapes match the padded domain
+        validated_arrays: dict[str, np.ndarray] = {}
         for key in expected_keys:
             stored_arr = npz[key]
+            if not isinstance(stored_arr, np.ndarray):
+                raise HotstartError(f"Raster state '{key}' is not a NumPy array")
             if stored_arr.shape != padded_shape:
                 raise HotstartError(
                     f"Array '{key}' shape mismatch: archive has {stored_arr.shape}, "
                     f"domain expects padded shape {padded_shape}"
                 )
 
-        # Each stored dtype should match the target domain exactly.
-        validated_arrays: dict[str, np.ndarray] = {}
-        for key in expected_keys:
-            stored_arr = npz[key]
             target_dtype = self.dtypes[key]
             if stored_arr.dtype != target_dtype:
                 raise HotstartError(
@@ -255,25 +279,14 @@ class RasterDomain:
                     f"domain expects {target_dtype}"
                 )
             if key == "boundary_type":
-                candidate = np.array(stored_arr, copy=True)
                 padded_mask = np.pad(self.mask, 1, mode="edge")
-                candidate[padded_mask] = self.fill_values["boundary_type"]
-                valid = np.isin(candidate, (0, 1, 2, 3, 4))
+                stored_arr[padded_mask] = self.fill_values["boundary_type"]
+                valid = np.isin(stored_arr, (0, 1, 2, 3, 4))
                 if not np.all(valid):
-                    invalid_values = candidate[~valid].reshape(-1)[:5].tolist()
+                    invalid_values = stored_arr[~valid].reshape(-1)[:5].tolist()
                     raise HotstartError(
                         f"Invalid values for 'boundary_type' in raster state: {invalid_values}"
                     )
-                validated_arrays[key] = candidate
-            else:
-                validated_arrays[key] = stored_arr
+            validated_arrays[key] = stored_arr
 
-        # All validations passed - restore the arrays
-        for key in expected_keys:
-            arrp = validated_arrays[key]
-            # Store the padded array directly
-            self.arrp[key][:] = arrp
-            # Extract the interior (unpadded) slice for self.arr using simple_pad
-            self.arr[key][:] = arrp[self.simple_pad]
-
-        return self
+        return validated_arrays

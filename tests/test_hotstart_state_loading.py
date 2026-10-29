@@ -17,11 +17,14 @@ GNU Lesser General Public License for more details.
 from __future__ import annotations
 
 import io
+import zipfile
+from collections import Counter
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
 import pytest
+from numpy.lib.npyio import NpzFile
 
 from itzi_core import DomainData
 from itzi_core.const import InfiltrationModelType, TemporalType
@@ -100,6 +103,83 @@ class TestRasterDomainLoadState:
             original = populated_raster_domain.get_array(key)
             restored = new_domain.get_array(key)
             np.testing.assert_allclose(restored, original, err_msg=f"Mismatch in {key}")
+
+    def test_load_state_reads_each_array_once(
+        self, populated_raster_domain: RasterDomain, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Avoid repeated decompression and allocation during state validation."""
+        saved_state = populated_raster_domain.save_state()
+        read_counts: Counter[str] = Counter()
+        opened_archives: list[NpzFile] = []
+        original_getitem = NpzFile.__getitem__
+
+        def read_array(archive: NpzFile, key: str) -> np.ndarray:
+            read_counts[key] += 1
+            opened_archives.append(archive)
+            return original_getitem(archive, key)
+
+        monkeypatch.setattr(NpzFile, "__getitem__", read_array)
+        populated_raster_domain.load_state(saved_state)
+
+        assert read_counts == dict.fromkeys(populated_raster_domain.k_all | {"mask"}, 1)
+        assert all(archive.zip is None for archive in opened_archives)
+        assert not saved_state.closed
+
+    @pytest.mark.parametrize(
+        "damaged_member",
+        [
+            (key, damage)
+            for key in ("mask", "water_depth", "boundary_type")
+            for damage in ("truncated", "not_npy")
+        ],
+    )
+    def test_load_state_rejects_damaged_arrays_without_mutation(
+        self,
+        populated_raster_domain: RasterDomain,
+        monkeypatch: pytest.MonkeyPatch,
+        damaged_member: tuple[str, str],
+    ) -> None:
+        """Handle lazy array-loading errors, close the NPZ, and preserve domain state."""
+        key, damage = damaged_member
+        buffer = io.BytesIO()
+        with (
+            zipfile.ZipFile(populated_raster_domain.save_state(), mode="r") as original,
+            zipfile.ZipFile(buffer, mode="w") as modified,
+        ):
+            for name in original.namelist():
+                contents = original.read(name)
+                if name == f"{key}.npy":
+                    contents = contents[:-1] if damage == "truncated" else b"damaged array"
+                modified.writestr(name, contents)
+
+        domain = RasterDomain(
+            dtype=np.float32,
+            arr_mask=populated_raster_domain.mask.copy(),
+            cell_shape=(populated_raster_domain.dx, populated_raster_domain.dy),
+        )
+        original_arrays = {key: arr.copy() for key, arr in domain.arrp.items()}
+        original_mask = domain.mask.copy()
+        opened_archives: list[NpzFile] = []
+        original_load = np.load
+
+        def open_npz(data: io.BytesIO, allow_pickle: bool) -> NpzFile:
+            archive = original_load(data, allow_pickle=allow_pickle)
+            opened_archives.append(archive)
+            return archive
+
+        monkeypatch.setattr(np, "load", open_npz)
+        expected_error = (
+            "Failed to load raster state" if damage == "truncated" else "is not a NumPy array"
+        )
+        with pytest.raises(HotstartError, match=expected_error):
+            domain.load_state(buffer)
+
+        assert len(opened_archives) == 1
+        assert opened_archives[0].zip is None
+        assert not buffer.closed
+        np.testing.assert_array_equal(domain.mask, original_mask)
+        for key, original in original_arrays.items():
+            np.testing.assert_array_equal(domain.arrp[key], original, err_msg=key)
 
     def test_load_state_rejects_shape_mismatch(
         self, populated_raster_domain: RasterDomain
