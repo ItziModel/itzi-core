@@ -39,7 +39,7 @@ xarray = [
 
 [dependency-groups]
 dev = [
-    "pyproj>=3.7.2",
+    "pyproj>=3.8.0",
     "pytest>=9.1",
     "pytest-cov==6.*",
     "pandas>=3.0.3",
