@@ -217,13 +217,6 @@ class SurfaceFlowParameters(BaseModel):
         return max_slope
 
 
-class HotstartRunConfig(BaseModel):
-    """Configuration to restart a simulation from a hotstart file."""
-
-    wallclock_step: timedelta
-    save_file_name: str | Path
-
-
 class SimulationConfig(BaseModel):
     """Configuration data for a simulation run."""
 
@@ -234,8 +227,6 @@ class SimulationConfig(BaseModel):
     end_time: datetime
     record_step: timedelta
     temporal_type: TemporalType
-    # Hotstart config
-    hotstart_config: HotstartRunConfig | None = None
     # Input and output raster maps
     input_map_names: dict[str, str]
     output_map_names: dict[str, str]

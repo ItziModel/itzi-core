@@ -2,6 +2,7 @@
 
 ## Common commands
 - Run a single test: `uv run pytest tests/my_test.py`
+- Run the whole suite: `uv run pytest tests/`
 - Enforce code formatting: `uvx ruff format .`
 - After editing a *.pyx file, recompile with `uv pip install -e .`; if not the old binary will continue to be used.
 
