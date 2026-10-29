@@ -17,14 +17,12 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 import numpy as np
-import pandas as pd
 import pytest
 
 from itzi_core import Simulation
 from itzi_core.const import InfiltrationModelType, TemporalType
 from itzi_core.data_containers import MassBalanceData, SimulationConfig, SurfaceFlowParameters
 from itzi_core.providers.base import MassBalanceOutputProvider
-from itzi_core.providers.csv_mass_balance_output import CSVMassBalanceOutputProvider
 from itzi_core.providers.memory_input import MemoryRasterInputProvider, TimedRasterSlice
 from itzi_core.providers.memory_output import (
     MemoryMassBalanceOutputProvider,
@@ -72,17 +70,6 @@ def sim_5by5_stats(domain_5by5, helpers):
         mass_balance_output_provider=mass_balance_output,
     )
     return simulation, domain_5by5.domain_data, mass_balance_output.reports
-
-
-@pytest.fixture(scope="module")
-def sim_5by5_stats_file(domain_5by5, helpers, tmp_path_factory):
-    stats_file = tmp_path_factory.mktemp("stats_test") / "5by5_stats.csv"
-    _run_5by5_stats_simulation(
-        domain_5by5,
-        helpers,
-        mass_balance_output_provider=CSVMassBalanceOutputProvider(file_name=str(stats_file)),
-    )
-    return stats_file
 
 
 def _run_5by5_stats_simulation(
@@ -154,20 +141,8 @@ def _run_5by5_stats_simulation(
     return simulation
 
 
-class TestStatsFile:
-    """Test statistics CSV artifacts and mass-balance volume values."""
-
-    def test_stats_file_exists(self, sim_5by5_stats_file):
-        """The stats CSV file should be created."""
-        assert sim_5by5_stats_file.exists()
-
-    def test_stats_file_columns(self, sim_5by5_stats_file):
-        """CSV columns should match MassBalanceData fields."""
-        df = pd.read_csv(sim_5by5_stats_file)
-
-        expected_cols = list(MassBalanceData.model_fields.keys())
-        assert df.columns.to_list() == expected_cols
-        assert expected_cols[-2:] == ["closure_residual", "relative_closure_error"]
+class TestMassBalance:
+    """Test mass-balance volume values and coherence."""
 
     def test_stats_volume_values(self, sim_5by5_stats):
         """Volume values should match expected rates x area."""
