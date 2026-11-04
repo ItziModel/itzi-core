@@ -2,9 +2,8 @@
 Integration tests for hotstart functionality with the EA test case 8b.
 
 The shared expensive simulation (EA8b with drainage, running from t=0 to t=3h20m)
-is built once by the ``ea8b_simulation`` fixture in conftest.py.  Both test functions
-below depend on it, so the simulation artifacts (hotstart at split point, final
-raster state, hotstart at end) are guaranteed to exist before either test runs.
+is built once by the ``ea8b_simulation`` fixture in conftest.py. It captures structured
+checkpoints at the split point and at the end for comparison with a resumed run.
 
 Copyright (C) 2026 Laurent G. Courty
 
@@ -21,11 +20,7 @@ GNU Lesser General Public License for more details.
 
 from __future__ import annotations
 
-import hashlib
-import io
-import json
 import os
-import zipfile
 from datetime import timedelta
 
 import numpy as np
@@ -33,7 +28,6 @@ import pytest
 
 from itzi_core.const import TemporalType
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
-from itzi_core.hotstart import HotstartLoader
 from tests.ea8b.helpers import (
     EA8B_FINAL_ARRAY_ATOL,
     assert_matches_reference,
@@ -67,8 +61,8 @@ def test_ea8b_hotstart_roundtrip(
     ponding-related state, but both uninterrupted and resumed runs stay within the
     accepted XPSTORM reference thresholds.
     """
-    hotstart_split_path = ea8b_simulation["hotstart_split_path"]
-    final_state_path = ea8b_simulation["final_state_path"]
+    hotstart_split = ea8b_simulation["hotstart_split"]
+    hotstart_end = ea8b_simulation["hotstart_end"]
     split_time = ea8b_simulation["split_time"]
     sim_start_time = ea8b_simulation["sim_start_time"]
     sim_end_time = sim_start_time + timedelta(hours=3, minutes=20)
@@ -89,21 +83,13 @@ def test_ea8b_hotstart_roundtrip(
 
     os.chdir(ea8b_temp_path)
 
-    hotstart_loader = HotstartLoader.from_file(hotstart_split_path)
-
-    with open(hotstart_split_path, "rb") as f:
-        hotstart_bytes = f.read()
-
-    simulation, vector_output = build_resumed_simulation(sim_config, ea8b_data, hotstart_bytes)
+    simulation, vector_output = build_resumed_simulation(sim_config, ea8b_data, hotstart_split)
 
     assert simulation.sim_time == split_time
 
-    raster_state_bytes = hotstart_loader.raster_state_bytes
-    raster_state_buffer = np.load(io.BytesIO(raster_state_bytes), allow_pickle=False)
-
     for key in simulation.raster_domain.k_all:
         arr_restored = simulation.raster_domain.get_padded(key)
-        arr_saved = raster_state_buffer[key]
+        arr_saved = hotstart_split.raster_state.padded_arrays[key]
         np.testing.assert_allclose(
             arr_restored,
             arr_saved,
@@ -119,11 +105,9 @@ def test_ea8b_hotstart_roundtrip(
 
     assert_matches_reference(resumed_metrics, label="Resumed hotstart run")
 
-    final_state = np.load(final_state_path, allow_pickle=False)
-
     for key in ["water_depth", "discharge_east", "discharge_south"]:
         arr_resumed = simulation.raster_domain.get_array(key)
-        arr_uninterrupted = final_state[f"raster_{key}"]
+        arr_uninterrupted = hotstart_end.raster_state.padded_arrays[key][1:-1, 1:-1]
         np.testing.assert_allclose(
             arr_resumed,
             arr_uninterrupted,
@@ -131,45 +115,3 @@ def test_ea8b_hotstart_roundtrip(
             atol=EA8B_FINAL_ARRAY_ATOL[key],
             err_msg=f"Final {key} mismatch between uninterrupted and resumed simulations",
         )
-
-
-@pytest.mark.slow
-def test_ea8b_hotstart_archive_validity(ea8b_simulation):
-    """Verify the hotstart archive at the split point is structurally valid.
-
-    Checks:
-    - Archive is a well-formed ZIP with required members (metadata.json,
-      raster_state.npz, swmm_hotstart.hsf)
-    - Hotstart version is correct
-    - Simulation state and domain data are present
-    - Hashes in metadata match the actual file contents
-    """
-    hotstart_split_path = ea8b_simulation["hotstart_split_path"]
-
-    with zipfile.ZipFile(hotstart_split_path, "r") as zip_ref:
-        members = zip_ref.namelist()
-
-        assert "metadata.json" in members, "Missing metadata.json"
-        assert "raster_state.npz" in members, "Missing raster_state.npz"
-        assert "swmm_hotstart.hsf" in members, "Missing swmm_hotstart.hsf"
-
-        with zip_ref.open("metadata.json") as metadata_file:
-            metadata_dict = json.load(metadata_file)
-
-        assert metadata_dict["hotstart_version"] == 2
-
-        assert "simulation_state" in metadata_dict
-        sim_state = metadata_dict["simulation_state"]
-
-        ref_raster_hash = sim_state["raster_domain_hash"]
-        hash_raster = hashlib.blake2b(zip_ref.read("raster_state.npz")).hexdigest()
-        assert hash_raster == ref_raster_hash
-
-        ref_swmm_hash = sim_state["swmm_hotstart_hash"]
-        hash_swmm = hashlib.blake2b(zip_ref.read("swmm_hotstart.hsf")).hexdigest()
-        assert hash_swmm == ref_swmm_hash
-
-        assert "domain_data" in metadata_dict
-        domain_data = metadata_dict["domain_data"]
-        assert domain_data["rows"] == 200
-        assert domain_data["cols"] == 482

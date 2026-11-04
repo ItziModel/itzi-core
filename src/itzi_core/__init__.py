@@ -35,6 +35,24 @@ from itzi_core.data_containers import (
     SurfaceFlowParameters as SurfaceFlowParameters,
 )
 from itzi_core.domain_data import DomainData as DomainData
+from itzi_core.hotstart_models import (
+    HotstartData as HotstartData,
+)
+from itzi_core.hotstart_models import (
+    HotstartMetadata as HotstartMetadata,
+)
+from itzi_core.hotstart_models import (
+    HotstartResumeConfig as HotstartResumeConfig,
+)
+from itzi_core.hotstart_models import (
+    HotstartSimulationState as HotstartSimulationState,
+)
+from itzi_core.hotstart_models import (
+    RasterHotstartState as RasterHotstartState,
+)
+from itzi_core.hotstart_models import (
+    SurfaceFlowResumeConfig as SurfaceFlowResumeConfig,
+)
 from itzi_core.simulation import Simulation as Simulation
 from itzi_core.simulation_builder import SimulationBuilder as SimulationBuilder
 from itzi_core.surfaceflow import (
@@ -51,11 +69,17 @@ __all__ = [
     "ArrayCategory",
     "ArrayDefinition",
     "DomainData",
+    "HotstartData",
+    "HotstartMetadata",
+    "HotstartResumeConfig",
+    "HotstartSimulationState",
     "InfiltrationModelType",
+    "RasterHotstartState",
     "Simulation",
     "SimulationBuilder",
     "SimulationConfig",
     "SurfaceFlowParameters",
+    "SurfaceFlowResumeConfig",
     "TemporalType",
     "estimate_surface_flow_timestep",
 ]

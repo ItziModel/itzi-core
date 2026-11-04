@@ -27,6 +27,7 @@ import pytest
 
 from itzi_core.const import InfiltrationModelType, TemporalType
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
+from itzi_core.hotstart_models import HotstartData
 from itzi_core.providers.memory_output import (
     MemoryRasterOutputProvider,
     MemoryVectorOutputProvider,
@@ -84,16 +85,10 @@ def create_sim_config(
 def build_simulation(
     sim_config: SimulationConfig,
     domain_5by5,
-    hotstart_bytes: bytes | None = None,
+    hotstart: HotstartData | None = None,
     raster_output_provider=None,
 ) -> Simulation:
-    """Build a simulation with optional hotstart.
-
-    Args:
-        sim_config: Simulation configuration
-        domain_5by5: Domain fixture
-        hotstart_bytes: Optional hotstart archive bytes
-    """
+    """Build a simulation with an optional structured checkpoint."""
     raster_output = raster_output_provider or MemoryRasterOutputProvider()
 
     builder = (
@@ -103,14 +98,14 @@ def build_simulation(
         .with_vector_output_provider(MemoryVectorOutputProvider())
     )
 
-    if hotstart_bytes is not None:
-        builder.with_hotstart(hotstart_bytes)
+    if hotstart is not None:
+        builder.with_hotstart(hotstart)
 
     simulation = builder.build()
 
     # Only set input arrays if NOT restoring from hotstart
     # Hotstart restores raster state, so we don't want to overwrite it
-    if hotstart_bytes is None:
+    if hotstart is None:
         # Set input arrays
         simulation.set_array("ground_elevation", domain_5by5.arr_dem_flat)
         simulation.set_array("friction", domain_5by5.arr_n)
@@ -161,7 +156,7 @@ def run_with_hotstart_checkpoints(
             name, _ = pending_checkpoints.pop(0)
             captured[name] = {
                 "snapshot": capture_simulation_snapshot(simulation),
-                "hotstart_bytes": simulation.create_hotstart().getvalue(),
+                "hotstart": simulation.capture_hotstart(),
             }
     simulation.finalize()
     return captured
@@ -293,7 +288,7 @@ def test_roundtrip_state_restoration_and_match(
 
     checkpoint = baseline_hotstart_run["checkpoints"][f"split_{split_seconds}"]
     saved_snapshot = checkpoint["snapshot"]
-    hotstart_bytes = checkpoint["hotstart_bytes"]
+    hotstart = checkpoint["hotstart"]
 
     # Step 2: Create simulation B with hotstart and verify state restoration
     sim_b_config = create_sim_config(
@@ -301,7 +296,7 @@ def test_roundtrip_state_restoration_and_match(
         end_time=end_time,
         helpers=helpers,
     )
-    sim_b = build_simulation(sim_b_config, domain_5by5, hotstart_bytes=hotstart_bytes)
+    sim_b = build_simulation(sim_b_config, domain_5by5, hotstart=hotstart)
 
     # Verify raster state was restored
     for key, arr_saved in saved_snapshot["raster_state"].items():
@@ -380,13 +375,13 @@ def test_resume_allows_output_provider_change(
     uninterrupted_simulation: Simulation,
 ) -> None:
     sim_config = baseline_hotstart_run["sim_config"]
-    hotstart_bytes = baseline_hotstart_run["checkpoints"]["split_30"]["hotstart_bytes"]
+    hotstart = baseline_hotstart_run["checkpoints"]["split_30"]["hotstart"]
 
     resumed_output = MemoryRasterOutputProvider()
     sim_b = build_simulation(
         sim_config,
         domain_5by5,
-        hotstart_bytes=hotstart_bytes,
+        hotstart=hotstart,
         raster_output_provider=resumed_output,
     )
 
@@ -405,7 +400,7 @@ def test_resume_allows_output_map_name_change(
     uninterrupted_simulation: Simulation,
 ) -> None:
     sim_a_config = baseline_hotstart_run["sim_config"]
-    hotstart_bytes = baseline_hotstart_run["checkpoints"]["split_30"]["hotstart_bytes"]
+    hotstart = baseline_hotstart_run["checkpoints"]["split_30"]["hotstart"]
 
     resumed_output_map_names = helpers.make_output_map_names(
         "out_resume",
@@ -416,7 +411,7 @@ def test_resume_allows_output_map_name_change(
     sim_b = build_simulation(
         sim_b_config,
         domain_5by5,
-        hotstart_bytes=hotstart_bytes,
+        hotstart=hotstart,
         raster_output_provider=resumed_output,
     )
 
@@ -441,9 +436,9 @@ def test_resume_allows_end_time_extension(
 ) -> None:
     extended_end_time = base_time + timedelta(seconds=90)
 
-    hotstart_bytes = baseline_hotstart_run["checkpoints"]["split_30"]["hotstart_bytes"]
+    hotstart = baseline_hotstart_run["checkpoints"]["split_30"]["hotstart"]
     sim_b_config = extended_reference_simulation["sim_config"]
-    sim_b = build_simulation(sim_b_config, domain_5by5, hotstart_bytes=hotstart_bytes)
+    sim_b = build_simulation(sim_b_config, domain_5by5, hotstart=hotstart)
 
     run_simulation_to_end(sim_b, skip_initialize=True)
 
@@ -459,7 +454,7 @@ def test_resume_applies_new_record_step_cadence(
     end_time = base_time + timedelta(seconds=70)
     original_config = record_step_hotstart_run["sim_config"]
     checkpoint = record_step_hotstart_run["checkpoints"]["split_34_2"]
-    hotstart_bytes = checkpoint["hotstart_bytes"]
+    hotstart = checkpoint["hotstart"]
 
     resumed_record_step = timedelta(seconds=10)
     resumed_config = original_config.model_copy(update={"record_step": resumed_record_step})
@@ -467,7 +462,7 @@ def test_resume_applies_new_record_step_cadence(
     sim_b = build_simulation(
         resumed_config,
         domain_5by5,
-        hotstart_bytes=hotstart_bytes,
+        hotstart=hotstart,
         raster_output_provider=resumed_output,
     )
 
@@ -500,12 +495,12 @@ def test_resume_applies_new_dtinf_to_hydrology_schedule(
     base_time,
     baseline_hotstart_run,
 ) -> None:
-    hotstart_bytes = baseline_hotstart_run["checkpoints"]["split_30"]["hotstart_bytes"]
+    hotstart = baseline_hotstart_run["checkpoints"]["split_30"]["hotstart"]
     original_config = baseline_hotstart_run["sim_config"]
     resumed_dtinf = 5.0
     resumed_config = original_config.model_copy(update={"dtinf": resumed_dtinf})
 
-    sim_b = build_simulation(resumed_config, domain_5by5, hotstart_bytes=hotstart_bytes)
+    sim_b = build_simulation(resumed_config, domain_5by5, hotstart=hotstart)
 
     assert sim_b.hydrology_model.dt == timedelta(seconds=resumed_dtinf)
     assert sim_b.next_ts["hydrology"] == sim_b.sim_time + timedelta(seconds=resumed_dtinf)

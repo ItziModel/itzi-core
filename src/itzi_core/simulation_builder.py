@@ -14,16 +14,15 @@ GNU Lesser General Public License for more details.
 
 from __future__ import annotations
 
-import io
 import tempfile
 from collections.abc import Iterable
 from datetime import timedelta
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
 import numpy as np
 import pyswmm
 from numpy.typing import ArrayLike, DTypeLike
+from pydantic import ValidationError
 
 from itzi_core import infiltration
 from itzi_core.array_definitions import (
@@ -35,8 +34,8 @@ from itzi_core.array_definitions import (
 from itzi_core.const import InfiltrationModelType
 from itzi_core.data_containers import DrainageNodeCouplingData
 from itzi_core.drainage import CouplingTypes, DrainageLink, DrainageNode, DrainageSimulation
-from itzi_core.hotstart import HotstartLoader
 from itzi_core.hotstart_models import (
+    HotstartData,
     HotstartResumeConfig,
     HotstartSimulationState,
     SurfaceFlowResumeConfig,
@@ -86,24 +85,13 @@ class SimulationBuilder:
         self._mass_balance_output_provider: MassBalanceOutputProvider | None = None
 
         # Hotstart data (set via with_hotstart)
-        self.hotstart_loader: HotstartLoader | None = None
+        self.hotstart_data: HotstartData | None = None
 
-    def with_hotstart(
-        self, hotstart_path_or_bytes: Path | str | io.BytesIO | bytes
-    ) -> SimulationBuilder:
-        """Load and store validated hotstart data for state restoration during build.
-
-        This method loads and validates the hotstart archive but does not perform
-        congruence checks against providers. Congruence validation happens during
-        build() when all providers are available.
-
-        Raises:
-            HotstartError: If the hotstart archive is invalid or corrupted.
-        """
-        if isinstance(hotstart_path_or_bytes, (Path, str)):
-            self.hotstart_loader = HotstartLoader.from_file(hotstart_path_or_bytes)
-        else:
-            self.hotstart_loader = HotstartLoader.from_bytes(hotstart_path_or_bytes)
+    def with_hotstart(self, hotstart: HotstartData) -> Self:
+        """Attach a caller-supplied checkpoint for validation and restoration during build."""
+        if not isinstance(hotstart, HotstartData):
+            raise TypeError("with_hotstart() requires HotstartData")
+        self.hotstart_data = hotstart
         return self
 
     def with_input_provider(self, provider: RasterInputProvider) -> Self:
@@ -135,7 +123,7 @@ class SimulationBuilder:
         self._mass_balance_output_provider = provider
         return self
 
-    def _validate_hotstart_congruence(self, hotstart_loader: HotstartLoader) -> None:
+    def _validate_hotstart_congruence(self, hotstart: HotstartData) -> None:
         """This method performs congruence checks between the hotstart metadata
         and the current builder configuration. It must be called after all
         providers are attached but before any state mutation.
@@ -144,13 +132,13 @@ class SimulationBuilder:
             HotstartError: If any congruence check fails.
         """
 
-        hotstart_domain = hotstart_loader.get_domain_data()
-        resume_config = hotstart_loader.get_resume_config()
-        hotstart_state = hotstart_loader.get_simulation_state()
+        hotstart_domain = hotstart.metadata.domain_data
+        resume_config = hotstart.metadata.resume_config
+        hotstart_state = hotstart.metadata.simulation_state
 
         self._validate_domain_congruence(hotstart_domain)
         self._validate_mask_congruence(hotstart_domain)
-        self._validate_drainage_congruence(hotstart_loader)
+        self._validate_drainage_congruence(hotstart)
         self._validate_resume_config_congruence(resume_config, hotstart_state)
 
     def _validate_resume_config_congruence(
@@ -277,7 +265,7 @@ class SimulationBuilder:
         """Validate that the builder mask is compatible with hotstart mask.
 
         The mask shape must match. The actual mask values will be validated
-        during raster state restoration in RasterDomain.load_state().
+        during raster state validation in RasterDomain.validate_state().
         """
         expected_shape = hotstart_domain.shape
         builder_shape = self.arr_mask.shape
@@ -290,10 +278,10 @@ class SimulationBuilder:
 
     def _validate_drainage_congruence(
         self,
-        hotstart_loader: HotstartLoader,
+        hotstart: HotstartData,
     ) -> None:
         """Validate drainage expectations match between hotstart and current config."""
-        hotstart_has_drainage = hotstart_loader.has_swmm_hotstart()
+        hotstart_has_drainage = hotstart.swmm_hotstart_bytes is not None
         builder_has_drainage = self.sim_config.swmm_inp is not None
 
         if hotstart_has_drainage and not builder_has_drainage:
@@ -306,13 +294,36 @@ class SimulationBuilder:
                 "Hotstart has no drainage state but current configuration includes a drainage model"
             )
 
+        has_elapsed_time = hotstart.metadata.simulation_state.swmm_elapsed_time is not None
+        if hotstart_has_drainage != has_elapsed_time:
+            raise HotstartError(
+                "Hotstart SWMM payload and elapsed time must both be present or absent"
+            )
+
+    def _validate_runtime_state(self, state: HotstartSimulationState) -> None:
+        """Check runtime mappings before restoring arrays or creating drainage resources."""
+        if set(state.time_steps_counters) != {"since_start", "since_last_report"}:
+            raise HotstartError("Hotstart time-step counters do not match the required counters")
+        timed_accumulations = {
+            definition.key
+            for definition in ARRAY_DEFINITIONS
+            if definition.computes_from is not None
+            and ArrayCategory.ACCUMULATION in definition.category
+        }
+        if set(state.accum_update_time) != timed_accumulations:
+            raise HotstartError(
+                "Hotstart accumulation timestamps do not match the required arrays"
+            )
+        if any(when > state.sim_time for when in state.accum_update_time.values()):
+            raise HotstartError("Hotstart accumulation timestamp exceeds simulation time")
+
     def build(self) -> Simulation:
         """Build a simulation and explicitly load or prime provider-backed inputs."""
         domain_data = self._domain_data
         raster_output_provider = self._raster_output_provider
         vector_output_provider = self._vector_output_provider
         input_provider = self._raster_input_provider
-        hotstart_loader = self.hotstart_loader
+        hotstart = self.hotstart_data
 
         if domain_data is None:
             raise ValueError("Domain data must be set via input provider or directly")
@@ -321,14 +332,31 @@ class SimulationBuilder:
         if self.sim_config.drainage_output is not None and vector_output_provider is None:
             raise ValueError("A vector output provider is required for configured drainage output")
 
-        if hotstart_loader is not None:
-            self._validate_hotstart_congruence(hotstart_loader)
+        if hotstart is not None:
+            try:
+                hotstart = HotstartData.model_validate(hotstart)
+            except ValidationError as e:
+                raise HotstartError(f"Invalid hotstart data: {e}") from e
+            self._validate_hotstart_congruence(hotstart)
+            self.hotstart_data = hotstart
 
         timed_arrays = None
         if input_provider is not None:
             timed_arrays = self._create_timed_arrays(input_provider, domain_data)
 
         raster_domain = self._create_raster_domain(domain_data.cell_shape)
+
+        schedule = SimulationSchedule(
+            self.sim_config.start_time,
+            self.sim_config.end_time,
+            self.sim_config.record_step,
+            has_drainage=self.sim_config.swmm_inp is not None,
+        )
+        if hotstart is not None:
+            raster_domain.validate_state(hotstart.raster_state)
+            state = hotstart.metadata.simulation_state
+            self._validate_runtime_state(state)
+            schedule.restore(state.sim_time, timedelta(seconds=state.dt), state.next_ts)
 
         infiltration_model = self._create_infiltration_model(raster_domain)
         hydrology_model = Hydrology(raster_domain, self.sim_config.dtinf, infiltration_model)
@@ -339,12 +367,6 @@ class SimulationBuilder:
         # Create drainage with optional SWMM hotstart injection
         nodes_list, drainage_sim = self._create_drainage_simulation(domain_data)
 
-        schedule = SimulationSchedule(
-            self.sim_config.start_time,
-            self.sim_config.end_time,
-            self.sim_config.record_step,
-            has_drainage=drainage_sim is not None,
-        )
         timed_input_manager = None
         if timed_arrays is not None:
             timed_input_manager = TimedInputManager(
@@ -377,9 +399,9 @@ class SimulationBuilder:
             report=report,
         )
 
-        if hotstart_loader is not None:
+        if hotstart is not None:
             self._restore_hotstart(
-                hotstart_loader,
+                hotstart,
                 simulation,
                 timed_input_manager,
             )
@@ -393,17 +415,16 @@ class SimulationBuilder:
 
     def _restore_hotstart(
         self,
-        hotstart_loader: HotstartLoader,
+        hotstart: HotstartData,
         simulation: Simulation,
         timed_input_manager: TimedInputManager | None,
     ) -> None:
-        """Restore archived state and reconcile it with the resume configuration."""
-        raster_state_buffer = hotstart_loader.get_raster_state_buffer()
-        simulation.raster_domain.load_state(raster_state_buffer)
+        """Restore checkpoint state and reconcile it with the resume configuration."""
+        simulation.raster_domain.restore_state(hotstart.raster_state)
 
-        simulation_state = hotstart_loader.get_simulation_state()
+        simulation_state = hotstart.metadata.simulation_state
         simulation.restore_state(simulation_state)
-        archived_resume_config = hotstart_loader.get_resume_config()
+        archived_resume_config = hotstart.metadata.resume_config
         changed_input_keys = self._changed_input_keys(archived_resume_config)
         restored_input_deadline = simulation.schedule.deadline("input")
         restored_end_deadline = simulation.schedule.deadline("end")
@@ -458,7 +479,7 @@ class SimulationBuilder:
             timed_arrays[arr_key] = TimedArray(arr_key, input_provider, zeros_array_func)
         return timed_arrays
 
-    def _create_raster_domain(self, cell_shape) -> RasterDomain:
+    def _create_raster_domain(self, cell_shape: tuple[float, float]) -> RasterDomain:
         """Create a raster domain."""
         try:
             raster_domain = RasterDomain(
@@ -516,8 +537,8 @@ class SimulationBuilder:
 
         # Compute hotstart_start_datetime if resuming from a hotstart
         hotstart_start_datetime = None
-        if self.hotstart_loader is not None:
-            sim_state = self.hotstart_loader.get_simulation_state()
+        if self.hotstart_data is not None:
+            sim_state = self.hotstart_data.metadata.simulation_state
             swmm_elapsed = sim_state.swmm_elapsed_time
             if swmm_elapsed is not None and swmm_elapsed > 0:
                 original_start = swmm_inp.get_start_datetime()
@@ -543,10 +564,8 @@ class SimulationBuilder:
         node_objects_only = tuple(i.node_object for i in nodes_list)
 
         # Handle SWMM hotstart injection if present
-        if self.hotstart_loader is not None and self.hotstart_loader.has_swmm_hotstart():
-            swmm_bytes = self.hotstart_loader.get_swmm_hotstart_bytes()
-            if swmm_bytes is None:
-                raise HotstartError("SWMM hotstart data is missing from the archive")
+        swmm_bytes = self.hotstart_data.swmm_hotstart_bytes if self.hotstart_data else None
+        if swmm_bytes is not None:
             # Create a temporary file for SWMM to read.
             # delete_on_close=False keeps the file after closing so SWMM can open it.
             with tempfile.NamedTemporaryFile(suffix=".hsf", delete_on_close=False) as tmp:

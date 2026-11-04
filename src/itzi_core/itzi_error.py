@@ -26,4 +26,4 @@ class MassBalanceError(RuntimeError):
 
 
 class HotstartError(RuntimeError):
-    """Raised when hotstart file operations fail."""
+    """Raised when checkpoint validation or restoration fails."""

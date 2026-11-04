@@ -190,35 +190,21 @@ def ea8b_simulation(ea8b_data, test_data_path, ea8b_temp_path):
     while simulation.sim_time < split_time:
         simulation.update()
 
-    hotstart_split = simulation.create_hotstart()
-    hotstart_split_path = ea8b_temp_path / "ea8b_hotstart_split.zip"
-    with open(hotstart_split_path, "wb") as f:
-        f.write(hotstart_split.getvalue())
+    hotstart_split = simulation.capture_hotstart()
 
     while simulation.sim_time < simulation.end_time:
         simulation.update()
 
-    hotstart_end = simulation.create_hotstart()
-    hotstart_end_path = ea8b_temp_path / "ea8b_hotstart.zip"
-    with open(hotstart_end_path, "wb") as f:
-        f.write(hotstart_end.getvalue())
+    hotstart_end = simulation.capture_hotstart()
 
     simulation.finalize()
-
-    final_state_path = ea8b_temp_path / "ea8b_final_state.npz"
-    final_state = {}
-    for key in simulation.raster_domain.k_all:
-        final_state[f"raster_{key}"] = simulation.raster_domain.get_array(key)
-    # Keys are generated with a raster_ prefix, so none can alias NumPy's allow_pickle keyword.
-    np.savez(final_state_path, **final_state)  # ty: ignore[invalid-argument-type]
 
     return {
         "raster_output": raster_output_provider,
         "vector_output": vector_output_provider,
         "mass_balance_output": mass_balance_output_provider,
-        "hotstart_split_path": hotstart_split_path,
-        "hotstart_end_path": hotstart_end_path,
-        "final_state_path": final_state_path,
+        "hotstart_split": hotstart_split,
+        "hotstart_end": hotstart_end,
         "split_time": split_time,
         "sim_start_time": sim_start_time,
         "data": ea8b_data,
