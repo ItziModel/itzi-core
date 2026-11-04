@@ -19,7 +19,7 @@ from datetime import UTC, datetime, timedelta
 import numpy as np
 import pytest
 
-from itzi_core import DomainData, Simulation
+from itzi_core import DomainData, HotstartData, Simulation
 from itzi_core.const import InfiltrationModelType, TemporalType
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
 from itzi_core.providers.memory_output import (
@@ -109,10 +109,10 @@ def _regime_switch_parameters(**overrides) -> SurfaceFlowParameters:
 
 def _build_regime_switch_simulation(
     flow_params: SurfaceFlowParameters,
-    hotstart_bytes: bytes | None = None,
+    hotstart: HotstartData | None = None,
     initial_depth: float = REGIME_SWITCH_DEPTH,
     initial_slope: float = REGIME_SWITCH_SLOPE,
-):
+) -> Simulation:
     rows = cols = 9
     cell_size = 1.0
     start_time = datetime(2000, 1, 1, tzinfo=UTC)
@@ -143,11 +143,11 @@ def _build_regime_switch_simulation(
         .with_raster_output_provider(raster_output)
         .with_vector_output_provider(MemoryVectorOutputProvider())
     )
-    if hotstart_bytes is not None:
-        builder.with_hotstart(hotstart_bytes)
+    if hotstart is not None:
+        builder.with_hotstart(hotstart)
 
     simulation = builder.build()
-    if hotstart_bytes is None:
+    if hotstart is None:
         simulation.set_array(
             "ground_elevation",
             np.tile(-initial_slope * np.arange(cols, dtype=np.float32), (rows, 1)),
@@ -184,7 +184,7 @@ def _assert_hotstart_regime_switch_matches_continuous(
         initial_slope=initial_slope,
     )
 
-    # Establish a non-zero discharge history before serialising the state.
+    # Establish a non-zero discharge history before capturing the state.
     for _ in range(2):
         continuous.update()
 
@@ -194,9 +194,9 @@ def _assert_hotstart_regime_switch_matches_continuous(
     ) != _uses_almeida_at_center_east_face(continuous, resumed_params)
 
     checkpoint_error = continuous.get_array("error_depth_accum").copy()
-    hotstart_bytes = continuous.create_hotstart().getvalue()
-    control = _build_regime_switch_simulation(checkpoint_params, hotstart_bytes)
-    resumed = _build_regime_switch_simulation(resumed_params, hotstart_bytes)
+    hotstart = continuous.capture_hotstart()
+    control = _build_regime_switch_simulation(checkpoint_params, hotstart)
+    resumed = _build_regime_switch_simulation(resumed_params, hotstart)
 
     # The continuous path is the reference for a configuration change at this state.
     for attribute, checkpoint_value, resumed_value in [

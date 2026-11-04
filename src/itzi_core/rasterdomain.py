@@ -12,15 +12,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
-import io
-import zipfile
-import zlib
 from typing import Self
 
 import numpy as np
-from numpy.lib.npyio import NpzFile
 
 from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi_core.hotstart_models import RasterHotstartState
 from itzi_core.itzi_error import HotstartError
 
 from .compute import rastermetrics
@@ -179,40 +176,20 @@ class RasterDomain:
             self.arr[k][:] = 0.0
         return self
 
-    def save_state(self) -> io.BytesIO:
-        """Pack all the padded arrays of the domain in a npz file."""
-        npz_file = io.BytesIO()
-        arrays: dict[str, np.ndarray] = {"mask": self.mask}
-        # Save padded arrays to preserve solver-computed boundary values
-        arrays.update(self.arrp)
-        np.savez(npz_file, allow_pickle=False, **arrays)
-        npz_file.seek(0)
-        return npz_file
+    def export_state(self) -> RasterHotstartState:
+        """Copy the mask and padded arrays into a detached checkpoint."""
+        return RasterHotstartState(
+            mask=self.mask.copy(),
+            padded_arrays={key: array.copy() for key, array in self.arrp.items()},
+        )
 
-    def load_state(self, npz_data: io.BytesIO) -> Self:
-        """This method validates the loaded state against the current domain
-        configuration before mutating any state.
+    def restore_state(self, state: RasterHotstartState) -> Self:
+        """Validate the complete checkpoint before mutating domain arrays.
 
         Raises:
             HotstartError: If the state is incompatible with the current domain.
         """
-        try:
-            npz_data.seek(0)
-            with np.load(npz_data, allow_pickle=False) as npz:
-                validated_arrays = self._validate_state(npz)
-        except HotstartError:
-            raise
-        except (
-            OSError,
-            ValueError,
-            TypeError,
-            EOFError,
-            OverflowError,
-            zipfile.BadZipFile,
-            RuntimeError,
-            zlib.error,
-        ) as e:
-            raise HotstartError(f"Failed to load raster state: {e}") from e
+        validated_arrays = self.validate_state(state)
 
         # All validations passed - restore the arrays.
         for key, arrp in validated_arrays.items():
@@ -221,36 +198,34 @@ class RasterDomain:
 
         return self
 
-    def _validate_state(self, npz: NpzFile) -> dict[str, np.ndarray]:
-        """Load each array once and validate the complete state before restoration."""
+    def validate_state(self, state: RasterHotstartState) -> dict[str, np.ndarray]:
+        """Validate a checkpoint without modifying it or the live domain."""
         # Every keys must be present. No more, no less.
-        archive_keys = set(npz.files) - {"mask"}
+        state_keys = set(state.padded_arrays)
         expected_keys = self.k_all
-        missing_keys = expected_keys - archive_keys
+        missing_keys = expected_keys - state_keys
         if missing_keys:
             raise HotstartError(
                 f"Raster state missing required arrays: {', '.join(sorted(missing_keys))}"
             )
-        extra_keys = archive_keys - expected_keys
+        extra_keys = state_keys - expected_keys
         if extra_keys:
             raise HotstartError(
                 f"Raster state has unexpected arrays: {', '.join(sorted(extra_keys))}"
             )
 
         # Validate mask
-        if "mask" not in npz.files:
-            raise HotstartError("Raster state missing 'mask' array")
-        stored_mask = npz["mask"]
+        stored_mask = state.mask
         if not isinstance(stored_mask, np.ndarray):
             raise HotstartError("Raster state 'mask' is not a NumPy array")
         if stored_mask.dtype != self.mask.dtype:
             raise HotstartError(
-                f"Mask dtype mismatch: archive has {stored_mask.dtype}, "
+                f"Mask dtype mismatch: checkpoint has {stored_mask.dtype}, "
                 f"domain expects {self.mask.dtype}"
             )
         if stored_mask.shape != self.mask.shape:
             raise HotstartError(
-                f"Mask shape mismatch: archive has {stored_mask.shape}, "
+                f"Mask shape mismatch: checkpoint has {stored_mask.shape}, "
                 f"domain expects {self.mask.shape}"
             )
         if not np.array_equal(stored_mask, self.mask):
@@ -263,22 +238,23 @@ class RasterDomain:
         padded_shape = (self.shape[0] + 2, self.shape[1] + 2)
         validated_arrays: dict[str, np.ndarray] = {}
         for key in expected_keys:
-            stored_arr = npz[key]
+            stored_arr = state.padded_arrays[key]
             if not isinstance(stored_arr, np.ndarray):
                 raise HotstartError(f"Raster state '{key}' is not a NumPy array")
             if stored_arr.shape != padded_shape:
                 raise HotstartError(
-                    f"Array '{key}' shape mismatch: archive has {stored_arr.shape}, "
+                    f"Array '{key}' shape mismatch: checkpoint has {stored_arr.shape}, "
                     f"domain expects padded shape {padded_shape}"
                 )
 
             target_dtype = self.dtypes[key]
             if stored_arr.dtype != target_dtype:
                 raise HotstartError(
-                    f"Array '{key}' dtype mismatch: archive has {stored_arr.dtype}, "
+                    f"Array '{key}' dtype mismatch: checkpoint has {stored_arr.dtype}, "
                     f"domain expects {target_dtype}"
                 )
             if key == "boundary_type":
+                stored_arr = stored_arr.copy()
                 padded_mask = np.pad(self.mask, 1, mode="edge")
                 stored_arr[padded_mask] = self.fill_values["boundary_type"]
                 valid = np.isin(stored_arr, (0, 1, 2, 3, 4))

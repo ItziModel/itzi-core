@@ -15,10 +15,10 @@ GNU Lesser General Public License for more details.
 from __future__ import annotations
 
 import copy
-import io
 import logging
 from collections.abc import Mapping
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
+from importlib.metadata import version
 from typing import TYPE_CHECKING, Self
 
 import numpy as np
@@ -31,8 +31,9 @@ from itzi_core.data_containers import (
     SimulationConfig,
     SimulationData,
 )
-from itzi_core.hotstart import create_hotstart_archive
 from itzi_core.hotstart_models import (
+    HotstartData,
+    HotstartMetadata,
     HotstartResumeConfig,
     HotstartSimulationState,
     SurfaceFlowResumeConfig,
@@ -428,10 +429,10 @@ class Simulation:
         maximum = self.raster_domain.get_array(maximum_key)
         np.maximum(maximum, values, out=maximum)
 
-    def create_hotstart(self) -> io.BytesIO:
-        """Create an in-memory hotstart archive of the current simulation state.
+    def capture_hotstart(self) -> HotstartData:
+        """Capture a detached checkpoint of the current simulation state.
 
-        The caller controls when to create the archive and how to persist it.
+        The caller controls when to capture the checkpoint and how to persist it.
         Call after initialization or restoration, between completed updates.
 
         Raises:
@@ -439,26 +440,22 @@ class Simulation:
         """
         if not self._initialized:
             raise RuntimeError(
-                "Cannot create hotstart: simulation has not been initialized. "
-                "Call initialize() before creating a hotstart."
+                "Cannot capture hotstart: simulation has not been initialized. "
+                "Call initialize() before capturing a hotstart."
             )
 
         # Get SWMM hotstart bytes if drainage is enabled
         swmm_hotstart_bytes: bytes | None = None
         if self.drainage_model:
-            swmm_hotstart: io.BytesIO = self.drainage_model.get_hotstart()
-            swmm_hotstart_bytes = swmm_hotstart.getvalue()
-
-        # Get raster domain state bytes
-        raster_state: io.BytesIO = self.raster_domain.save_state()
-        raster_state_bytes = raster_state.getvalue()
+            with self.drainage_model.get_hotstart() as swmm_hotstart:
+                swmm_hotstart_bytes = swmm_hotstart.getvalue()
 
         swmm_elapsed_time = self.drainage_model.elapsed_time if self.drainage_model else None
         simulation_state = HotstartSimulationState(
             sim_time=self.sim_time,
             dt=self.dt.total_seconds(),
             next_ts=self.schedule.snapshot_deadlines(),
-            time_steps_counters=self.time_steps_counters,
+            time_steps_counters=dict(self.time_steps_counters),
             accum_update_time=dict(self.accum_update_time),
             old_domain_volume=self.old_domain_volume,
             swmm_elapsed_time=swmm_elapsed_time,
@@ -475,11 +472,15 @@ class Simulation:
             infiltration_model=self.sim_config.infiltration_model,
         )
 
-        return create_hotstart_archive(
-            domain_data=self.domain_data,
-            resume_config=resume_config,
-            simulation_state=simulation_state,
-            raster_state_bytes=raster_state_bytes,
+        return HotstartData(
+            metadata=HotstartMetadata(
+                creation_date=datetime.now(UTC),
+                itzi_version=version("itzi-core"),
+                domain_data=self.domain_data.model_copy(deep=True),
+                resume_config=resume_config,
+                simulation_state=simulation_state,
+            ),
+            raster_state=self.raster_domain.export_state(),
             swmm_hotstart_bytes=swmm_hotstart_bytes,
         )
 
@@ -499,7 +500,7 @@ class Simulation:
            runs with zero lateral inflow at each coupled junction.
 
         Both problems are fixed by reading the saved drainage_inflow raster (restored from
-        the hotstart zip) and using those values to initialise coupling_flow and to
+        the checkpoint) and using those values to initialise coupling_flow and to
         pre-inject the inflows into SWMM before the first drainage step.
         """
         if not self.drainage_model or not self.drainage_nodes_list:
@@ -524,7 +525,7 @@ class Simulation:
         has been loaded. It must be called after the simulation object exists
         and after raster domain state has been restored.
 
-        This method does NOT restore raster state; use RasterDomain.load_state() for that purpose.
+        This method does NOT restore raster state; use RasterDomain.restore_state() for that purpose.
         """
         self.schedule.restore(
             simulation_state.sim_time,

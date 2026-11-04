@@ -15,10 +15,6 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 """
 
-import hashlib
-import json
-import zipfile
-
 import numpy as np
 import pytest
 
@@ -93,16 +89,3 @@ def test_ea8b_scenario(
         ]
     )
     assert np.allclose(volume_change_ref, volume_change, atol=1, rtol=0.01)
-
-    hotstart_end_path = ea8b_simulation["hotstart_end_path"]
-    with (
-        zipfile.ZipFile(hotstart_end_path, "r") as zip_ref,
-        zip_ref.open("metadata.json") as metadata_file,
-    ):
-        metadata_dict = json.load(metadata_file)
-        ref_raster_hash = metadata_dict["simulation_state"]["raster_domain_hash"]
-        hash_raster = hashlib.blake2b(zip_ref.read("raster_state.npz")).hexdigest()
-        assert hash_raster == ref_raster_hash
-        ref_swmm_hash = metadata_dict["simulation_state"]["swmm_hotstart_hash"]
-        hash_swmm = hashlib.blake2b(zip_ref.read("swmm_hotstart.hsf")).hexdigest()
-        assert hash_swmm == ref_swmm_hash

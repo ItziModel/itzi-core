@@ -24,6 +24,7 @@ import pytest
 
 from itzi_core.const import InfiltrationModelType, TemporalType
 from itzi_core.data_containers import SimulationConfig, SurfaceFlowParameters
+from itzi_core.hotstart_models import HotstartData
 from itzi_core.itzi_error import HotstartError, NullError
 from itzi_core.providers.base import RasterInputProvider
 from itzi_core.providers.memory_input import MemoryRasterInputProvider, TimedRasterSlice
@@ -88,7 +89,7 @@ class MapAwareRasterInputProvider(RasterInputProvider):
         return None, self.start_time, self.end_time
 
 
-def _run_to_end(simulation: "Simulation", *, skip_initialize: bool = False) -> None:
+def _run_to_end(simulation: Simulation, *, skip_initialize: bool = False) -> None:
     if not skip_initialize:
         simulation.initialize()
     while simulation.sim_time < simulation.end_time:
@@ -96,7 +97,7 @@ def _run_to_end(simulation: "Simulation", *, skip_initialize: bool = False) -> N
     simulation.finalize()
 
 
-def _assert_final_state_matches(resumed: "Simulation", reference: "Simulation") -> None:
+def _assert_final_state_matches(resumed: Simulation, reference: Simulation) -> None:
     for key in ["water_depth", "discharge_east", "discharge_south"]:
         np.testing.assert_allclose(
             resumed.raster_domain.get_array(key),
@@ -222,8 +223,8 @@ def _build_provider_simulation(
     *,
     static_arrays: dict[str, np.ndarray],
     timed_arrays: dict[str, list[TimedRasterSlice]] | None = None,
-    hotstart_bytes: bytes | None = None,
-) -> "Simulation":
+    hotstart: HotstartData | None = None,
+) -> Simulation:
     input_provider = MemoryRasterInputProvider(
         {
             "domain_data": domain_5by5.domain_data,
@@ -240,8 +241,8 @@ def _build_provider_simulation(
         .with_raster_output_provider(MemoryRasterOutputProvider())
         .with_vector_output_provider(MemoryVectorOutputProvider())
     )
-    if hotstart_bytes is not None:
-        builder.with_hotstart(hotstart_bytes)
+    if hotstart is not None:
+        builder.with_hotstart(hotstart)
     return builder.build()
 
 
@@ -270,8 +271,8 @@ def _build_map_aware_provider_simulation(
     domain_5by5,
     *,
     source_slices: Mapping[str, Sequence[TimedRasterSlice]],
-    hotstart_bytes: bytes | None = None,
-) -> tuple["Simulation", MapAwareRasterInputProvider]:
+    hotstart: HotstartData | None = None,
+) -> tuple[Simulation, MapAwareRasterInputProvider]:
     provider = MapAwareRasterInputProvider(
         domain_5by5.domain_data,
         sim_config.input_map_names,
@@ -285,8 +286,8 @@ def _build_map_aware_provider_simulation(
         .with_raster_output_provider(MemoryRasterOutputProvider())
         .with_vector_output_provider(MemoryVectorOutputProvider())
     )
-    if hotstart_bytes is not None:
-        builder.with_hotstart(hotstart_bytes)
+    if hotstart is not None:
+        builder.with_hotstart(hotstart)
     return builder.build(), provider
 
 
@@ -297,7 +298,7 @@ def _run_reference_with_hotstart_checkpoint(
     static_arrays: dict[str, np.ndarray],
     timed_arrays: dict[str, list[TimedRasterSlice]],
     split_target_time: datetime,
-) -> tuple[HotstartCheckpoint, bytes, "Simulation"]:
+) -> tuple[HotstartCheckpoint, HotstartData, Simulation]:
     simulation = _build_provider_simulation(
         sim_config,
         domain_5by5,
@@ -314,13 +315,13 @@ def _run_reference_with_hotstart_checkpoint(
         "rain": simulation.raster_domain.get_array("rainfall_rate").copy(),
         "water_depth": simulation.raster_domain.get_array("water_depth").copy(),
     }
-    hotstart_bytes = simulation.create_hotstart().getvalue()
+    hotstart = simulation.capture_hotstart()
 
     while simulation.sim_time < simulation.end_time:
         simulation.update()
     simulation.finalize()
 
-    return checkpoint, hotstart_bytes, simulation
+    return checkpoint, hotstart, simulation
 
 
 def _assert_resume_with_timed_memory_inputs(
@@ -341,7 +342,7 @@ def _assert_resume_with_timed_memory_inputs(
         end_time,
         temporal_type=temporal_type,
     )
-    checkpoint, hotstart_bytes, reference = _run_reference_with_hotstart_checkpoint(
+    checkpoint, hotstart, reference = _run_reference_with_hotstart_checkpoint(
         sim_config,
         domain_5by5,
         static_arrays=static_arrays,
@@ -359,7 +360,7 @@ def _assert_resume_with_timed_memory_inputs(
         domain_5by5,
         static_arrays=static_arrays,
         timed_arrays={"rainfall_rate": timed_rain_slices},
-        hotstart_bytes=hotstart_bytes,
+        hotstart=hotstart,
     )
 
     assert resumed.sim_time == saved_sim_time
@@ -441,7 +442,7 @@ def test_resume_applies_changed_input_sources_at_checkpoint(domain_5by5) -> None
     assert archived.sim_time == checkpoint_target
     assert archived.next_ts["input"] == archived_rain_boundary
     archived_ground_elevation = archived.raster_domain.get_array("ground_elevation").copy()
-    hotstart_bytes = archived.create_hotstart().getvalue()
+    hotstart = archived.capture_hotstart()
 
     resumed_names = {
         **archived_names,
@@ -470,7 +471,7 @@ def test_resume_applies_changed_input_sources_at_checkpoint(domain_5by5) -> None
         resumed_config,
         domain_5by5,
         source_slices=resumed_sources,
-        hotstart_bytes=hotstart_bytes,
+        hotstart=hotstart,
     )
 
     assert ("friction", "friction_resumed", checkpoint_target) in provider.requests
@@ -503,7 +504,7 @@ def test_resume_rejects_changed_stage_input_map_names(domain_5by5, key: str, val
         end_time,
         temporal_type=TemporalType.RELATIVE,
     )
-    _, hotstart_bytes, _ = _run_reference_with_hotstart_checkpoint(
+    _, hotstart, _ = _run_reference_with_hotstart_checkpoint(
         sim_config,
         domain_5by5,
         static_arrays=_make_static_arrays(domain_5by5),
@@ -519,7 +520,7 @@ def test_resume_rejects_changed_stage_input_map_names(domain_5by5, key: str, val
             changed_config,
             domain_5by5,
             static_arrays=_make_static_arrays(domain_5by5),
-            hotstart_bytes=hotstart_bytes,
+            hotstart=hotstart,
         )
 
 
@@ -531,7 +532,7 @@ def test_resume_rejects_changed_input_map_without_provider(domain_5by5) -> None:
         end_time,
         temporal_type=TemporalType.RELATIVE,
     )
-    _, hotstart_bytes, _ = _run_reference_with_hotstart_checkpoint(
+    _, hotstart, _ = _run_reference_with_hotstart_checkpoint(
         sim_config,
         domain_5by5,
         static_arrays=_make_static_arrays(domain_5by5),
@@ -546,7 +547,7 @@ def test_resume_rejects_changed_input_map_without_provider(domain_5by5) -> None:
         .with_domain_data(domain_5by5.domain_data)
         .with_raster_output_provider(MemoryRasterOutputProvider())
         .with_vector_output_provider(MemoryVectorOutputProvider())
-        .with_hotstart(hotstart_bytes)
+        .with_hotstart(hotstart)
     )
 
     with pytest.raises(HotstartError, match="changed input map names require an input provider"):
@@ -564,7 +565,7 @@ def test_resume_rejects_conflicting_timed_input_boundary(domain_5by5) -> None:
         end_time,
         temporal_type=TemporalType.RELATIVE,
     )
-    _, hotstart_bytes, _ = _run_reference_with_hotstart_checkpoint(
+    _, hotstart, _ = _run_reference_with_hotstart_checkpoint(
         sim_config,
         domain_5by5,
         static_arrays=_make_static_arrays(domain_5by5),
@@ -591,7 +592,7 @@ def test_resume_rejects_conflicting_timed_input_boundary(domain_5by5) -> None:
             domain_5by5,
             static_arrays=_make_static_arrays(domain_5by5),
             timed_arrays={"rainfall_rate": changed_slices},
-            hotstart_bytes=hotstart_bytes,
+            hotstart=hotstart,
         )
 
 
@@ -606,7 +607,7 @@ def test_resume_rejects_pending_timed_input_without_provider(domain_5by5) -> Non
         end_time,
         temporal_type=TemporalType.RELATIVE,
     )
-    _, hotstart_bytes, _ = _run_reference_with_hotstart_checkpoint(
+    _, hotstart, _ = _run_reference_with_hotstart_checkpoint(
         sim_config,
         domain_5by5,
         static_arrays=_make_static_arrays(domain_5by5),
@@ -618,7 +619,7 @@ def test_resume_rejects_pending_timed_input_without_provider(domain_5by5) -> Non
         .with_domain_data(domain_5by5.domain_data)
         .with_raster_output_provider(MemoryRasterOutputProvider())
         .with_vector_output_provider(MemoryVectorOutputProvider())
-        .with_hotstart(hotstart_bytes)
+        .with_hotstart(hotstart)
     )
 
     with pytest.raises(HotstartError, match="pending timed-input deadline"):
@@ -673,7 +674,7 @@ def test_hotstart_priming_preserves_evolved_water_depth(
             )
         ],
     }
-    checkpoint, hotstart_bytes, reference = _run_reference_with_hotstart_checkpoint(
+    checkpoint, hotstart, reference = _run_reference_with_hotstart_checkpoint(
         sim_config,
         domain_5by5,
         static_arrays=static_arrays,
@@ -697,7 +698,7 @@ def test_hotstart_priming_preserves_evolved_water_depth(
         domain_5by5,
         static_arrays=static_arrays,
         timed_arrays=timed_arrays,
-        hotstart_bytes=hotstart_bytes,
+        hotstart=hotstart,
     )
 
     np.testing.assert_array_equal(resumed.raster_domain.get_array("water_depth"), archived_depth)

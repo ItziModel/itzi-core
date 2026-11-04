@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
+from itzi_core import HotstartData, Simulation
 from itzi_core.data_containers import DrainageNetworkAttributes, SimulationConfig
 from itzi_core.providers.memory_output import (
     MemoryRasterOutputProvider,
@@ -84,8 +85,8 @@ def assert_matches_reference(metrics: dict[str, float | bool], label: str) -> No
 def build_resumed_simulation(
     sim_config: SimulationConfig,
     ea8b_data: dict,
-    hotstart_bytes: bytes,
-):
+    hotstart: HotstartData,
+) -> tuple[Simulation, MemoryVectorOutputProvider]:
     arr_mask = np.zeros((ea8b_data["rows"], ea8b_data["cols"]), dtype=bool)
 
     raster_input_provider = XarrayRasterInputProvider(
@@ -104,7 +105,7 @@ def build_resumed_simulation(
         .with_input_provider(raster_input_provider)
         .with_raster_output_provider(raster_output_provider)
         .with_vector_output_provider(vector_output_provider)
-        .with_hotstart(hotstart_bytes)
+        .with_hotstart(hotstart)
         .build()
     )
 
