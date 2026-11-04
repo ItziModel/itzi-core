@@ -37,17 +37,25 @@ type CFCellMethod = Literal["time: maximum", "time: sum", "time: mean"]
 
 @dataclass(frozen=True)
 class ArrayDefinition:
-    """Complete definition of a simulation array"""
+    """Complete definition of a simulation array.
+
+    CF names were reviewed against standard-name table v95 and CF 1.13.
+    An empty ``cf_name`` means no exact standard name applies; exporters should
+    omit ``standard_name`` and use ``description`` as ``long_name`` instead.
+    ``cf_unit`` describes the array values in CF-compatible units, which need
+    not be the standard name's canonical units. An empty value means no direct
+    UDUNITS-compatible representation is available.
+    """
 
     key: str  # identifier
     # https://csdms.colorado.edu/wiki/CSN_Searchable_List
     csdms_name: str  # For BMI
     # https://cfconventions.org/Data/cf-standard-names/current/build/cf-standard-name-table.html
-    cf_name: str  # For CF compliant NetCDF
+    cf_name: str  # CF standard name, or empty when no exact match exists
     category: tuple[ArrayCategory, ...]  # Array category
-    description: str  # Human-readable description
+    description: str  # Human-readable description, usable as CF long_name
     unit: str  # Physical units of the array
-    cf_unit: str  # The unit expected by the CF convention
+    cf_unit: str  # CF-compatible units of the array values
     var_loc: Literal["face", "edge"]  # Location of the value in the cell.
     fill_value: float | int = 0.0  # Fill value (replace NaN)
     computes_from: str | None = None  # For accumulation arrays
@@ -62,6 +70,7 @@ _INPUT_ARRAY_DEFINITIONS = [
     ArrayDefinition(
         key="ground_elevation",
         csdms_name="land_surface__elevation",
+        # This standard name requires a geoid-referenced DEM.
         cf_name="ground_level_altitude",
         category=(ArrayCategory.INPUT,),
         description="Digital Elevation Model.",
@@ -77,6 +86,7 @@ _INPUT_ARRAY_DEFINITIONS = [
         category=(ArrayCategory.INPUT,),
         description="Manning's n value.",
         unit="s m(-1/3)",
+        # UDUNITS cannot represent the fractional dimensional exponent of n.
         cf_unit="",
         var_loc="face",
         fill_value=1.0,
@@ -105,7 +115,7 @@ _INPUT_ARRAY_DEFINITIONS = [
             ArrayCategory.INPUT_HYDROLOGY,
             ArrayCategory.INPUT_GREEN_AMPT,
         ),
-        description="Porosity available to contribute to fluid flow.",
+        description="Fraction of total soil volume occupied by flow-accessible pores.",
         unit="m/m",
         cf_unit="1",
         var_loc="face",
@@ -120,7 +130,7 @@ _INPUT_ARRAY_DEFINITIONS = [
             ArrayCategory.INPUT_HYDROLOGY,
             ArrayCategory.INPUT_GREEN_AMPT,
         ),
-        description="Soil capillary pressure. Also called suction head.",
+        description="Soil capillary suction head at the Green-Ampt wetting front.",
         unit="m",
         cf_unit="m",
         var_loc="face",
@@ -135,7 +145,7 @@ _INPUT_ARRAY_DEFINITIONS = [
             ArrayCategory.INPUT_HYDROLOGY,
             ArrayCategory.INPUT_GREEN_AMPT,
         ),
-        description="Soil’s ability to transmit water through its pores during infiltration.",
+        description="Saturated soil hydraulic conductivity used during infiltration.",
         unit="m s-1",
         cf_unit="m s-1",
         var_loc="face",
@@ -150,7 +160,7 @@ _INPUT_ARRAY_DEFINITIONS = [
             ArrayCategory.INPUT_HYDROLOGY,
             ArrayCategory.INPUT_GREEN_AMPT,
         ),
-        description="Relative soil water content.",
+        description="Volumetric soil water content: water volume divided by total soil volume.",
         unit="m/m",
         cf_unit="1",
         var_loc="face",
@@ -166,7 +176,7 @@ _INPUT_ARRAY_DEFINITIONS = [
         ),
         description="User-defined infiltration rate.",
         unit="m s-1",
-        cf_unit="",
+        cf_unit="m s-1",
         var_loc="face",
         fill_value=0.0,
     ),
@@ -178,9 +188,9 @@ _INPUT_ARRAY_DEFINITIONS = [
             ArrayCategory.INPUT,
             ArrayCategory.INPUT_HYDROLOGY,
         ),
-        description="User-defined water losses.",
+        description="User-defined water-loss rate per unit cell area.",
         unit="m s-1",
-        cf_unit="",
+        cf_unit="m s-1",
         var_loc="face",
         fill_value=0.0,
     ),
@@ -192,9 +202,9 @@ _INPUT_ARRAY_DEFINITIONS = [
             ArrayCategory.INPUT,
             ArrayCategory.INPUT_HYDROLOGY,
         ),
-        description="User-provided precipitation rate.",
+        description="User-provided rainfall rate.",
         unit="m s-1",
-        cf_unit="",
+        cf_unit="m s-1",
         var_loc="face",
         fill_value=0.0,
     ),
@@ -203,20 +213,20 @@ _INPUT_ARRAY_DEFINITIONS = [
         csdms_name="land_surface_water__inflow_leq-volume_flux",
         cf_name="",
         category=(ArrayCategory.INPUT,),
-        description="User-defined inflow volume flux.",
+        description="User-defined inflow rate per unit cell area.",
         unit="m s-1",
-        cf_unit="",
+        cf_unit="m s-1",
         var_loc="face",
         fill_value=0.0,
     ),
     ArrayDefinition(
         key="boundary_value",
         csdms_name="land_surface_water__boundary_value",
-        cf_name="",
+        cf_name="flood_water_thickness",
         category=(ArrayCategory.INPUT,),
-        description="Boundary condition value.",
-        unit="1",
-        cf_unit="",
+        description="Prescribed water depth for fixed-depth boundary conditions (type 4).",
+        unit="m",
+        cf_unit="m",
         var_loc="face",
         fill_value=0.0,
     ),
@@ -227,7 +237,7 @@ _INPUT_ARRAY_DEFINITIONS = [
         category=(ArrayCategory.INPUT,),
         description="Boundary condition type.",
         unit="1",
-        cf_unit="",
+        cf_unit="1",
         var_loc="face",
         fill_value=0,
         dtype=np.uint8,
@@ -244,7 +254,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         category=(ArrayCategory.INTERNAL,),
         description="Applied infiltration rate after the combined water-removal cap.",
         unit="m s-1",
-        cf_unit="",
+        cf_unit="m s-1",
         var_loc="face",
     ),
     ArrayDefinition(
@@ -254,7 +264,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         category=(ArrayCategory.INTERNAL,),
         description="Cumulative applied infiltration used by the Green-Ampt model.",
         unit="m",
-        cf_unit="",
+        cf_unit="m",
         var_loc="face",
         fill_value=1e-4,
     ),
@@ -266,7 +276,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         description="Effective precipitation after adding/removing "
         "rainfall, infiltration, evapotranspiration, etc.",
         unit="m s-1",
-        cf_unit="",
+        cf_unit="m s-1",
         var_loc="face",
     ),
     ArrayDefinition(
@@ -276,7 +286,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         category=(ArrayCategory.INTERNAL,),
         description="Water depth at eastern cell edge.",
         unit="m",
-        cf_unit="",
+        cf_unit="m",
         var_loc="edge",
     ),
     ArrayDefinition(
@@ -286,7 +296,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         category=(ArrayCategory.INTERNAL,),
         description="Water depth at southern cell edge.",
         unit="m",
-        cf_unit="",
+        cf_unit="m",
         var_loc="edge",
     ),
     ArrayDefinition(
@@ -296,7 +306,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         category=(ArrayCategory.INTERNAL,),
         description="Committed water unit-width discharge at eastern cell edge.",
         unit="m2 s-1",
-        cf_unit="",
+        cf_unit="m2 s-1",
         var_loc="edge",
     ),
     ArrayDefinition(
@@ -306,7 +316,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         category=(ArrayCategory.INTERNAL,),
         description="Committed water unit-width discharge at southern cell edge.",
         unit="m2 s-1",
-        cf_unit="",
+        cf_unit="m2 s-1",
         var_loc="edge",
     ),
     ArrayDefinition(
@@ -316,7 +326,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         category=(ArrayCategory.INTERNAL,),
         description="Solver workspace for water unit-width discharge at eastern cell edge.",
         unit="m2 s-1",
-        cf_unit="",
+        cf_unit="m2 s-1",
         var_loc="edge",
     ),
     ArrayDefinition(
@@ -326,7 +336,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         category=(ArrayCategory.INTERNAL,),
         description="Solver workspace for water unit-width discharge at southern cell edge.",
         unit="m2 s-1",
-        cf_unit="",
+        cf_unit="m2 s-1",
         var_loc="edge",
     ),
     ArrayDefinition(
@@ -336,7 +346,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         category=(ArrayCategory.INTERNAL, ArrayCategory.OUTPUT),
         description="Maximum water depth reached since the beginning of the simulation.",
         unit="m",
-        cf_unit="",
+        cf_unit="m",
         var_loc="face",
         cf_cell_methods="time: maximum",
     ),
@@ -347,7 +357,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         category=(ArrayCategory.INTERNAL, ArrayCategory.OUTPUT),
         description="Overland flow speed (velocity’s magnitude).",
         unit="m s-1",
-        cf_unit="",
+        cf_unit="m s-1",
         var_loc="face",
     ),
     ArrayDefinition(
@@ -357,7 +367,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         category=(ArrayCategory.INTERNAL, ArrayCategory.OUTPUT),
         description="Velocity’s direction. Counter-clockwise from East.",
         unit="degree",
-        cf_unit="",
+        cf_unit="degree",
         var_loc="face",
     ),
     ArrayDefinition(
@@ -367,7 +377,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         category=(ArrayCategory.INTERNAL, ArrayCategory.OUTPUT),
         description="Maximum water speed reached since the beginning of the simulation.",
         unit="m s-1",
-        cf_unit="",
+        cf_unit="m s-1",
         var_loc="face",
         cf_cell_methods="time: maximum",
     ),
@@ -376,9 +386,9 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         csdms_name="land_surface_water_flow__froude_number",
         cf_name="",
         category=(ArrayCategory.INTERNAL, ArrayCategory.OUTPUT),
-        description="Froude number: ratio of flow inertia to gravity",
+        description="Flood-water Froude number: speed divided by sqrt(gravity times water depth).",
         unit="1",
-        cf_unit="",
+        cf_unit="1",
         var_loc="face",
     ),
     ArrayDefinition(
@@ -388,7 +398,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         category=(ArrayCategory.INTERNAL,),
         description="Inflow from the drainage network. Negative when water is leaving the raster domain",
         unit="m s-1",
-        cf_unit="",
+        cf_unit="m s-1",
         var_loc="face",
     ),
     ArrayDefinition(
@@ -398,7 +408,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         category=(ArrayCategory.INTERNAL,),
         description="Applied user-loss rate after the combined water-removal cap.",
         unit="m s-1",
-        cf_unit="",
+        cf_unit="m s-1",
         var_loc="face",
     ),
     ArrayDefinition(
@@ -408,7 +418,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         category=(ArrayCategory.INTERNAL,),
         description="Sum of inflow, drainage_inflow, and effective_precipitation",
         unit="m s-1",
-        cf_unit="",
+        cf_unit="m s-1",
         var_loc="face",
     ),
 ]
@@ -423,7 +433,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         description="Total amount of water entering the domain due to boundary conditions. "
         "Negative if water is leaving the domain",
         unit="m",
-        cf_unit="",
+        cf_unit="m",
         var_loc="face",
         cf_cell_methods="time: sum",
     ),
@@ -434,7 +444,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         category=(ArrayCategory.ACCUMULATION,),
         description="Reporting-interval depth removed by applied infiltration.",
         unit="m",
-        cf_unit="",
+        cf_unit="m",
         var_loc="face",
         computes_from="computed_infiltration",
         cf_cell_methods="time: sum",
@@ -446,7 +456,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         category=(ArrayCategory.ACCUMULATION,),
         description="Total amount of water entering the domain due to rainfall.",
         unit="m",
-        cf_unit="",
+        cf_unit="m",
         var_loc="face",
         computes_from="rainfall_rate",
         cf_cell_methods="time: sum",
@@ -458,7 +468,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         category=(ArrayCategory.ACCUMULATION,),
         description="Total amount of water entering the domain due to user-defined inflow.",
         unit="m",
-        cf_unit="",
+        cf_unit="m",
         var_loc="face",
         computes_from="inflow",
         cf_cell_methods="time: sum",
@@ -470,7 +480,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         category=(ArrayCategory.ACCUMULATION,),
         description="Reporting-interval depth removed by applied user losses.",
         unit="m",
-        cf_unit="",
+        cf_unit="m",
         var_loc="face",
         computes_from="capped_losses",
         cf_cell_methods="time: sum",
@@ -481,9 +491,9 @@ _ACCUM_ARRAY_DEFINITIONS = [
         cf_name="",
         category=(ArrayCategory.ACCUMULATION,),
         description="Total amount of water entering the domain due to drainage network overflow. "
-        "Negative if the water leaves teh domain due to inflow into the drainage network.",
+        "Negative if the water leaves the domain due to inflow into the drainage network.",
         unit="m",
-        cf_unit="",
+        cf_unit="m",
         var_loc="face",
         computes_from="drainage_inflow",
         cf_cell_methods="time: sum",
@@ -495,7 +505,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         category=(ArrayCategory.ACCUMULATION,),
         description="Total amount of water created due to numerical instabilities.",
         unit="m",
-        cf_unit="",
+        cf_unit="m",
         var_loc="face",
         cf_cell_methods="time: sum",
     ),
@@ -506,15 +516,17 @@ _OUTPUT_ARRAY_DEFINITIONS = [
     ArrayDefinition(
         key="water_surface_elevation",
         csdms_name="land_surface_water_surface__elevation",
+        # CF recommends a water_surface_reference_datum_altitude variable.
         cf_name="water_surface_height_above_reference_datum",
         category=(
             ArrayCategory.INPUT,
             ArrayCategory.OUTPUT,
             ArrayCategory.INPUT_STAGE,
         ),
-        description="Water surface elevation. Terrain elevation + water depth",
+        description="Water surface elevation above the terrain's reference datum: "
+        "terrain elevation plus water depth.",
         unit="m",
-        cf_unit="",
+        cf_unit="m",
         var_loc="face",
     ),
     ArrayDefinition(
@@ -522,9 +534,9 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         csdms_name="land_surface_water__x_component_of_runoff_volume_flow_rate",
         cf_name="",
         category=(ArrayCategory.OUTPUT,),
-        description="Surface water volumetric flow at the eastern edge of the cell.",
+        description="Surface water volumetric flow at the eastern cell edge, positive eastward.",
         unit="m3 s-1",
-        cf_unit="",
+        cf_unit="m3 s-1",
         var_loc="edge",
     ),
     ArrayDefinition(
@@ -532,9 +544,9 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         csdms_name="land_surface_water__y_component_of_runoff_volume_flow_rate",
         cf_name="",
         category=(ArrayCategory.OUTPUT,),
-        description="Surface water volumetric flow at the southern edge of the cell.",
+        description="Surface water volumetric flow at the southern cell edge, positive southward.",
         unit="m3 s-1",
-        cf_unit="",
+        cf_unit="m3 s-1",
         var_loc="edge",
     ),
     ArrayDefinition(
@@ -542,9 +554,9 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         csdms_name="land_surface_water__time_integral_of_created_volume",
         cf_name="",
         category=(ArrayCategory.OUTPUT,),
-        description="Cumulative volume of water created due to numerical instabilities.",
+        description="Volume of water created due to numerical instabilities since the last record.",
         unit="m3",
-        cf_unit="",
+        cf_unit="m3",
         var_loc="face",
         cf_cell_methods="time: sum",
     ),
@@ -553,10 +565,10 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         csdms_name="land_surface_water__time_mean_of_boundary_volume_flux",
         cf_name="",
         category=(ArrayCategory.OUTPUT,),
-        description="Mean of volumetric flow passing through the domain boundaries since the last record. "
+        description="Mean boundary inflow rate per unit cell area since the last record. "
         "Negative if water is leaving the domain.",
         unit="m s-1",
-        cf_unit="",
+        cf_unit="m s-1",
         var_loc="face",
         computes_from="boundaries_accum",
         cf_cell_methods="time: mean",
@@ -566,10 +578,9 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         csdms_name="land_surface_water__time_mean_of_inflow_volume_flux",
         cf_name="",
         category=(ArrayCategory.OUTPUT,),
-        description="Mean of volumetric flow entering the domain due to "
-        "user-defined inflow volume flux since the last record.",
+        description="Mean user-defined inflow rate per unit cell area since the last record.",
         unit="m s-1",
-        cf_unit="",
+        cf_unit="m s-1",
         var_loc="face",
         computes_from="inflow_accum",
         cf_cell_methods="time: mean",
@@ -579,10 +590,9 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         csdms_name="land_surface_water__time_mean_of_losses_volume_flux",
         cf_name="",
         category=(ArrayCategory.OUTPUT,),
-        description="Mean of volumetric flow leaving the domain due to "
-        "user-defined losses since the last record.",
-        unit="m s-1",
-        cf_unit="",
+        description="Mean applied user-loss rate per unit cell area since the last record.",
+        unit="mm h-1",
+        cf_unit="mm h-1",
         var_loc="face",
         computes_from="losses_accum",
         cf_cell_methods="time: mean",
@@ -592,11 +602,10 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         csdms_name="land_surface_water__time_mean_of_drainage_network_inflow_volume_flux",
         cf_name="",
         category=(ArrayCategory.OUTPUT,),
-        description="Mean of volumetric flow entering the surface domain due to "
-        "network drainage overflow since the last record. "
+        description="Mean drainage-network inflow rate per unit cell area since the last record. "
         "Negative when the water leaves the surface domain due to inflow into the drainage network.",
         unit="m s-1",
-        cf_unit="",
+        cf_unit="m s-1",
         var_loc="face",
         computes_from="drainage_network_accum",
         cf_cell_methods="time: mean",
@@ -606,9 +615,9 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         csdms_name="soil_surface_water__time_mean_of_infiltration_volume_flux",
         cf_name="",
         category=(ArrayCategory.OUTPUT,),
-        description="Mean of infiltration rate.",
-        unit="m s-1",
-        cf_unit="",
+        description="Mean applied infiltration rate since the last record.",
+        unit="mm h-1",
+        cf_unit="mm h-1",
         var_loc="face",
         computes_from="infiltration_accum",
         cf_cell_methods="time: mean",
@@ -618,9 +627,9 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         csdms_name="atmosphere_water__time_mean_of_precipitation_leq-volume_flux",
         cf_name="rainfall_rate",
         category=(ArrayCategory.OUTPUT,),
-        description="Mean of rainfall rate",
-        unit="m s-1",
-        cf_unit="",
+        description="Mean rainfall rate since the last record.",
+        unit="mm h-1",
+        cf_unit="mm h-1",
         var_loc="face",
         computes_from="rainfall_accum",
         cf_cell_methods="time: mean",
