@@ -20,6 +20,7 @@ class HotstartSimulationState(BaseModel):
     )
 
     sim_time: datetime
+    last_report_time: datetime
     dt: NonNegativeFloat  # seconds
     next_ts: dict[str, datetime]
     time_steps_counters: dict[str, NonNegativeInt]
@@ -58,7 +59,7 @@ class HotstartMetadata(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid", revalidate_instances="always")
 
-    state_version: Literal[1] = 1
+    state_version: Literal[2] = 2
     creation_date: datetime
     itzi_version: str
     domain_data: DomainData

@@ -301,7 +301,11 @@ class SimulationBuilder:
             )
 
     def _validate_runtime_state(self, state: HotstartSimulationState) -> None:
-        """Check runtime mappings before restoring arrays or creating drainage resources."""
+        """Check runtime state before restoring arrays or creating drainage resources."""
+        if not self.sim_config.start_time <= state.last_report_time <= state.sim_time:
+            raise HotstartError(
+                "Hotstart last report time must be between simulation start and checkpoint time"
+            )
         if set(state.time_steps_counters) != {"since_start", "since_last_report"}:
             raise HotstartError("Hotstart time-step counters do not match the required counters")
         timed_accumulations = {
