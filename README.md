@@ -57,6 +57,10 @@ A run combines the numerical core with providers that implement the following in
 
 Custom providers can implement these interfaces to integrate another data catalog, file format, service, or object store.
 
+## Hotstarts
+
+Use `Simulation.capture_hotstart()` to capture a checkpoint and `SimulationBuilder.with_hotstart()` to resume it.
+
 ## Development
 
 Run an individual test:

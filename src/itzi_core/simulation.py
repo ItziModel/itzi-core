@@ -453,6 +453,7 @@ class Simulation:
         swmm_elapsed_time = self.drainage_model.elapsed_time if self.drainage_model else None
         simulation_state = HotstartSimulationState(
             sim_time=self.sim_time,
+            last_report_time=self.report.last_step,
             dt=self.dt.total_seconds(),
             next_ts=self.schedule.snapshot_deadlines(),
             time_steps_counters=dict(self.time_steps_counters),
@@ -538,6 +539,7 @@ class Simulation:
 
         # Restore accumulation update timestamps
         self.accum_update_time = dict(simulation_state.accum_update_time)
+        self.report.last_step = simulation_state.last_report_time
         self._initialized = True
 
         # Restore old domain volume for continuity tracking
@@ -560,9 +562,7 @@ class Simulation:
             if not self.drainage_model:
                 self.schedule.set_deadline("drainage", self.end_time)
 
-        # Accumulators begin at the last archived report boundary, independently
-        # of the cadence selected for the resumed run.
-        self.report.last_step = self.schedule.deadline("record") - resume_config.record_step
+        # Preserve the restored accumulation interval start when changing cadence.
         if self.report.dt != resume_config.record_step:
             self.schedule.set_deadline(
                 "record", min(self.end_time, self.sim_time + self.report.dt)

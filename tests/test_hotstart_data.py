@@ -111,7 +111,8 @@ def test_caller_can_reconstruct_checkpoint_from_metadata_and_arrays(
     resumed = resume_builder(domain_5by5, sim_config, loaded).build()
 
     assert resumed.sim_time == hotstart.metadata.simulation_state.sim_time
-    assert loaded.metadata.state_version == 1
+    assert loaded.metadata.state_version == 2
+    assert resumed.report.last_step == loaded.metadata.simulation_state.last_report_time
     assert loaded.metadata.resume_config.input_sources == sim_config.input_map_names
     for key, array in loaded.raster_state.padded_arrays.items():
         np.testing.assert_array_equal(resumed.raster_domain.get_padded(key), array)
@@ -367,7 +368,19 @@ def test_builder_rejects_inconsistent_swmm_elapsed_time(
         resume_builder(domain_5by5, config, hotstart).build()
 
 
-@pytest.mark.parametrize("damage", ["version", "schedule", "counters", "accumulations", "dt"])
+@pytest.mark.parametrize(
+    "damage",
+    [
+        "version",
+        "old_version",
+        "schedule",
+        "counters",
+        "accumulations",
+        "dt",
+        "report_before_start",
+        "report_after_checkpoint",
+    ],
+)
 def test_builder_revalidates_modified_checkpoints_before_restoration(
     domain_5by5: Domain5by5Data,
     simulation: Simulation,
@@ -379,12 +392,22 @@ def test_builder_revalidates_modified_checkpoints_before_restoration(
     state = metadata.simulation_state
     if damage == "version":
         metadata = metadata.model_copy(update={"state_version": 999})
+    elif damage == "old_version":
+        metadata = metadata.model_copy(update={"state_version": 1})
     elif damage == "schedule":
         state = state.model_copy(update={"next_ts": {}})
     elif damage == "counters":
         state = state.model_copy(update={"time_steps_counters": {}})
     elif damage == "accumulations":
         state = state.model_copy(update={"accum_update_time": {}})
+    elif damage == "report_before_start":
+        state = state.model_copy(
+            update={"last_report_time": simulation.start_time - timedelta(seconds=1)}
+        )
+    elif damage == "report_after_checkpoint":
+        state = state.model_copy(
+            update={"last_report_time": state.sim_time + timedelta(seconds=1)}
+        )
     else:
         state = state.model_copy(update={"dt": float("nan")})
     metadata = metadata.model_copy(update={"simulation_state": state})
